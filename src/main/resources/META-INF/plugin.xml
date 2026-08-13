@@ -25,6 +25,7 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <notificationGroup id="Staleguard" displayType="BALLOON"/>
+        <postStartupActivity implementation="com.tampwell.staleguard.onboarding.FirstRunActivity"/>
         <toolWindow id="Staleguard"
                     anchor="right"
                     icon="AllIcons.Toolwindows.ToolWindowHierarchy"
