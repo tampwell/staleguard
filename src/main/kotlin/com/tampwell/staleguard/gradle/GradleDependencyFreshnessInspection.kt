@@ -77,17 +77,32 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
                         releaseAge,
                         abandoned = releaseAge != null && releaseAge > abandonmentThresholdMs,
                     )
-                    problems += manager.createProblemDescriptor(
-                        declared.anchor,
+                    val message = if (releaseAge != null) {
                         StaleguardBundle.message(
                             "inspection.outdated.message",
                             StaleguardBundle.message("severity.${severity.name.lowercase()}"),
                             current.value,
                             suggested.value,
                             StaleguardBundle.message(recommendation.bundleKey),
-                        ),
+                            com.tampwell.staleguard.util.RelativeTime.ago(releaseAge),
+                        )
+                    } else {
+                        StaleguardBundle.message(
+                            "inspection.outdated.message.noage",
+                            StaleguardBundle.message("severity.${severity.name.lowercase()}"),
+                            current.value,
+                            suggested.value,
+                            StaleguardBundle.message(recommendation.bundleKey),
+                        )
+                    }
+                    problems += manager.createProblemDescriptor(
+                        declared.anchor,
+                        message,
                         isOnTheFly,
-                        arrayOf(GradleBumpVersionQuickFix(suggested.value, declared.fixMode)),
+                        arrayOf(
+                            GradleBumpVersionQuickFix(suggested.value, declared.fixMode),
+                            com.tampwell.staleguard.inspection.IgnoreDependencyQuickFix(declared.group, declared.name),
+                        ),
                         DependencyFreshnessInspection.highlightTypeFor(severity),
                     )
                 }
@@ -97,12 +112,18 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
             if (settings.state.abandonmentEnabled &&
                 newestReleaseAt != null && now - newestReleaseAt > abandonmentThresholdMs
             ) {
-                val years = TimeUnit.MILLISECONDS.toDays(now - newestReleaseAt) / 365
                 problems += manager.createProblemDescriptor(
                     declared.anchor,
-                    StaleguardBundle.message("inspection.abandoned.message", coordinates.toString(), years),
+                    StaleguardBundle.message(
+                        "inspection.abandoned.message",
+                        coordinates.toString(),
+                        com.tampwell.staleguard.util.RelativeTime.monthYear(newestReleaseAt),
+                        com.tampwell.staleguard.util.RelativeTime.ago(now - newestReleaseAt),
+                    ),
                     isOnTheFly,
-                    emptyArray(),
+                    arrayOf<com.intellij.codeInspection.LocalQuickFix>(
+                        com.tampwell.staleguard.inspection.IgnoreDependencyQuickFix(declared.group, declared.name),
+                    ),
                     ProblemHighlightType.WEAK_WARNING,
                 )
             }

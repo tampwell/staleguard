@@ -7,19 +7,16 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.tampwell.staleguard.StaleguardBundle
 import com.tampwell.staleguard.plan.UpgradePlanner
 import com.tampwell.staleguard.settings.StaleguardSettings
+import com.tampwell.staleguard.version.UpgradeSeverity
 import java.util.concurrent.TimeUnit
 import org.jetbrains.idea.maven.project.MavenProjectsManager
 
 /**
- * Tools → "Staleguard: Update Dependencies…" — plans every available upgrade
- * from the warm cache, previews them in [BatchUpdateDialog], and applies the
- * selection in one undoable write command.
- *
- * Reads ONLY the warm cache (same invariant as the inspection): dependencies
- * that haven't been resolved yet simply don't appear; opening the pom files
- * or the Staleguard tool window first warms things up.
+ * The safest workflow, one click: apply every PATCH upgrade across all Maven
+ * modules with no dialog. Patch bumps are the "just do it" tier; anything
+ * riskier goes through the batch dialog's preview.
  */
-class BatchUpdateAction : AnAction() {
+class ApplyAllPatchAction : AnAction() {
 
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
@@ -41,17 +38,13 @@ class BatchUpdateAction : AnAction() {
             nowMillis = System.currentTimeMillis(),
         )
 
-        if (plan.candidates.isEmpty()) {
-            UpgradeApplier.notify(project, StaleguardBundle.message("batch.nothing"), NotificationType.INFORMATION)
+        val patches = plan.candidates.filter { it.severity == UpgradeSeverity.PATCH }
+        if (patches.isEmpty()) {
+            UpgradeApplier.notify(project, StaleguardBundle.message("patchall.nothing"), NotificationType.INFORMATION)
             return
         }
 
-        val dialog = BatchUpdateDialog(project, plan)
-        if (!dialog.showAndGet()) return
-        val selected = dialog.selectedCandidates()
-        if (selected.isEmpty()) return
-
-        val applied = UpgradeApplier.applyCandidates(project, selected)
-        UpgradeApplier.notify(project, StaleguardBundle.message("batch.applied", applied), NotificationType.INFORMATION)
+        val applied = UpgradeApplier.applyCandidates(project, patches)
+        UpgradeApplier.notify(project, StaleguardBundle.message("patchall.applied", applied), NotificationType.INFORMATION)
     }
 }

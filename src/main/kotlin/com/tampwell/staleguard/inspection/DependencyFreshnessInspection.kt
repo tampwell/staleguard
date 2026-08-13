@@ -50,6 +50,7 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
         val problems = mutableListOf<ProblemDescriptor>()
         val now = System.currentTimeMillis()
         var misses = 0
+        var hits = 0
 
         for ((dom, declared) in PomDependencyCollector.collectWithDom(model)) {
             val groupId = declared.groupId ?: continue
@@ -79,9 +80,10 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                     val anchor = dom.version.xmlTag ?: dom.xmlTag
                     if (anchor != null) {
                         val target = FixTarget.of(declared.rawVersion)
+                        val ignoreFix = IgnoreDependencyQuickFix(groupId, artifactId)
                         val fixes = when (target) {
-                            FixTarget.None -> emptyArray()
-                            else -> arrayOf(BumpVersionQuickFix(suggested.value, target))
+                            FixTarget.None -> arrayOf<com.intellij.codeInspection.LocalQuickFix>(ignoreFix)
+                            else -> arrayOf(BumpVersionQuickFix(suggested.value, target), ignoreFix)
                         }
                         val releaseAge = data.newestReleaseAtMillis?.let { now - it }
                         val recommendation = Recommendation.of(
@@ -89,18 +91,26 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                             releaseAge,
                             abandoned = releaseAge != null && releaseAge > abandonmentThresholdMs,
                         )
-                        problems += manager.createProblemDescriptor(
-                            anchor,
+                        val message = if (releaseAge != null) {
                             StaleguardBundle.message(
                                 "inspection.outdated.message",
                                 StaleguardBundle.message("severity.${severity.name.lowercase()}"),
                                 current.value,
                                 suggested.value,
                                 StaleguardBundle.message(recommendation.bundleKey),
-                            ),
-                            isOnTheFly,
-                            fixes,
-                            highlightTypeFor(severity),
+                                com.tampwell.staleguard.util.RelativeTime.ago(releaseAge),
+                            )
+                        } else {
+                            StaleguardBundle.message(
+                                "inspection.outdated.message.noage",
+                                StaleguardBundle.message("severity.${severity.name.lowercase()}"),
+                                current.value,
+                                suggested.value,
+                                StaleguardBundle.message(recommendation.bundleKey),
+                            )
+                        }
+                        problems += manager.createProblemDescriptor(
+                            anchor, message, isOnTheFly, fixes, highlightTypeFor(severity),
                         )
                     }
                 }
@@ -113,19 +123,29 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
             ) {
                 val anchor = dom.artifactId.xmlTag ?: dom.xmlTag
                 if (anchor != null) {
-                    val years = TimeUnit.MILLISECONDS.toDays(now - newestReleaseAt) / 365
                     problems += manager.createProblemDescriptor(
                         anchor,
-                        StaleguardBundle.message("inspection.abandoned.message", coordinates.toString(), years),
+                        StaleguardBundle.message(
+                            "inspection.abandoned.message",
+                            coordinates.toString(),
+                            com.tampwell.staleguard.util.RelativeTime.monthYear(newestReleaseAt),
+                            com.tampwell.staleguard.util.RelativeTime.ago(now - newestReleaseAt),
+                        ),
                         isOnTheFly,
-                        emptyArray(),
+                        arrayOf<com.intellij.codeInspection.LocalQuickFix>(
+                            IgnoreDependencyQuickFix(groupId, artifactId),
+                        ),
                         ProblemHighlightType.WEAK_WARNING,
                     )
                 }
             }
+            hits++
         }
 
-        log.info("Staleguard: checked ${virtualFile.name}: ${problems.size} problem(s), $misses cache miss(es)")
+        log.info(
+            "Staleguard: checked ${virtualFile.name}: ${problems.size} problem(s), " +
+                "$hits cache hit(s), $misses miss(es)",
+        )
         return problems.toTypedArray()
     }
 

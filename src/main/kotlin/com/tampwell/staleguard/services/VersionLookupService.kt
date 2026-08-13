@@ -39,6 +39,10 @@ class VersionLookupService(scope: CoroutineScope) {
      */
     fun peek(coordinates: Coordinates): PeekResult? = engine.peek(coordinates)
 
+    fun cacheStats(): Pair<Int, Long> = engine.cacheStats()
+
+    fun clearCache() = engine.clearCache()
+
     companion object {
         fun getInstance(): VersionLookupService = service()
 

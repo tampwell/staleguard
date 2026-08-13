@@ -65,6 +65,28 @@ class DiskVersionCache(private val directory: Path) {
         return null
     }
 
+    /** (entry count, bytes on disk) — for the settings page display. */
+    fun stats(): Pair<Int, Long> = try {
+        if (!Files.exists(directory)) 0 to 0L
+        else Files.list(directory).use { stream ->
+            val files = stream.filter { it.toString().endsWith(".json") }.toList()
+            files.size to files.sumOf { runCatching { Files.size(it) }.getOrDefault(0L) }
+        }
+    } catch (_: Exception) {
+        0 to 0L
+    }
+
+    fun clear() {
+        try {
+            if (!Files.exists(directory)) return
+            Files.list(directory).use { stream ->
+                stream.filter { it.toString().endsWith(".json") }.forEach { runCatching { Files.deleteIfExists(it) } }
+            }
+        } catch (_: Exception) {
+            // disposable cache: best effort
+        }
+    }
+
     /** Filesystem-safe, collision-free file name for the coordinates. */
     private fun fileFor(coordinates: Coordinates): Path {
         val safe = "${coordinates.groupId}_${coordinates.artifactId}"

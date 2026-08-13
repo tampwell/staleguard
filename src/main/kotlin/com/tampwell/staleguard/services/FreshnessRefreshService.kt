@@ -51,6 +51,9 @@ class FreshnessRefreshService(private val project: Project, private val scope: C
                         else -> "${after.value.versions.size} versions, latest=${after.value.latest?.value}"
                     },
             )
+            if (after?.failed == true) {
+                notifyOfflineOnce()
+            }
             // Only repaint when the answer changed — a warm-cache confirmation
             // (or a still-failing lookup) must not churn the editor.
             if (after?.value != before?.value) {
@@ -64,6 +67,21 @@ class FreshnessRefreshService(private val project: Project, private val scope: C
 
     /** True while any lookup requested through this service is still in flight. */
     fun hasPendingLookups(): Boolean = pending.isNotEmpty()
+
+    private val offlineNotified = AtomicBoolean(false)
+
+    /** Offline must be visible, but exactly once per project session — never nag. */
+    private fun notifyOfflineOnce() {
+        if (!offlineNotified.compareAndSet(false, true) || project.isDisposed) return
+        com.intellij.notification.NotificationGroupManager.getInstance()
+            .getNotificationGroup("Staleguard")
+            .createNotification(
+                com.tampwell.staleguard.StaleguardBundle.message("notification.title"),
+                com.tampwell.staleguard.StaleguardBundle.message("offline.notice"),
+                com.intellij.notification.NotificationType.WARNING,
+            )
+            .notify(project)
+    }
 
     /**
      * One restart per burst: many dependencies resolving together repaint

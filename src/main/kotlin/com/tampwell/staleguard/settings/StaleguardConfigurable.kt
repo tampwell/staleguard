@@ -50,5 +50,16 @@ class StaleguardConfigurable : BoundConfigurable(StaleguardBundle.message("setti
                     )
             }
         }
+        group(StaleguardBundle.message("settings.cache.title")) {
+            row {
+                val lookup = com.tampwell.staleguard.services.VersionLookupService.getInstance()
+                val (count, bytes) = lookup.cacheStats()
+                val statsLabel = label(StaleguardBundle.message("settings.cache.stats", count, bytes / 1024))
+                button(StaleguardBundle.message("settings.cache.clear")) {
+                    lookup.clearCache()
+                    statsLabel.component.text = StaleguardBundle.message("settings.cache.cleared")
+                }
+            }
+        }
     }
 }

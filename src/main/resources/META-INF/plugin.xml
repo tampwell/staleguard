@@ -47,5 +47,11 @@
                 description="Preview and apply available dependency upgrades across all Maven modules">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
         </action>
+        <action id="com.tampwell.staleguard.ApplyAllPatch"
+                class="com.tampwell.staleguard.actions.ApplyAllPatchAction"
+                text="Staleguard: Apply All Patch Updates"
+                description="Apply every available patch-level dependency upgrade without a dialog">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
     </actions>
 </idea-plugin>

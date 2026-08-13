@@ -74,6 +74,15 @@ class VersionLookupEngine(
      */
     fun peek(coordinates: Coordinates): PeekResult? = memory[coordinates]
 
+    /** (entries, bytes) of the disk cache — settings page display. */
+    fun cacheStats(): Pair<Int, Long> = cache.stats()
+
+    /** Troubleshooting reset: wipes memory + disk; next lookups refetch. */
+    fun clearCache() {
+        memory.clear()
+        cache.clear()
+    }
+
     /**
      * Latest known versions for [coordinates], or null when the artifact is
      * unknown to the repository (404) or has never been fetchable.
