@@ -9,11 +9,20 @@
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
+    <depends>org.jetbrains.idea.maven</depends>
 
-    <resource-bundle>messages.MyBundle</resource-bundle>
+    <resource-bundle>messages.StaleguardBundle</resource-bundle>
 
     <extensions defaultExtensionNs="com.intellij">
-        <toolWindow factoryClass="com.tampwell.staleguard.toolWindow.MyToolWindowFactory" id="MyToolWindow"/>
-        <postStartupActivity implementation="com.tampwell.staleguard.startup.MyProjectActivity" />
+        <notificationGroup id="Staleguard" displayType="BALLOON"/>
     </extensions>
+
+    <actions>
+        <action id="com.tampwell.staleguard.ListDeclaredDependencies"
+                class="com.tampwell.staleguard.actions.ListDeclaredDependenciesAction"
+                text="Staleguard: List Declared Dependencies"
+                description="Log every dependency declared in the project's Maven pom files">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
+    </actions>
 </idea-plugin>
