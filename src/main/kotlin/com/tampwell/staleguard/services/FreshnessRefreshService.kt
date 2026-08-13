@@ -52,7 +52,10 @@ class FreshnessRefreshService(private val project: Project, private val scope: C
                     },
             )
             if (after?.failed == true) {
+                failedCoordinates.add(coordinates)
                 notifyOfflineOnce()
+            } else if (after?.value != null) {
+                failedCoordinates.remove(coordinates)
             }
             // Only repaint when the answer changed — a warm-cache confirmation
             // (or a still-failing lookup) must not churn the editor.
@@ -69,18 +72,31 @@ class FreshnessRefreshService(private val project: Project, private val scope: C
     fun hasPendingLookups(): Boolean = pending.isNotEmpty()
 
     private val offlineNotified = AtomicBoolean(false)
+    private val failedCoordinates = ConcurrentHashMap.newKeySet<Coordinates>()
 
-    /** Offline must be visible, but exactly once per project session — never nag. */
+    /**
+     * Offline must be visible, but exactly once per project session — never
+     * nag. "Retry Now" bypasses the 5-minute failure throttle for everything
+     * that failed, for users who just fixed their proxy/VPN.
+     */
     private fun notifyOfflineOnce() {
         if (!offlineNotified.compareAndSet(false, true) || project.isDisposed) return
-        com.intellij.notification.NotificationGroupManager.getInstance()
+        val notification = com.intellij.notification.NotificationGroupManager.getInstance()
             .getNotificationGroup("Staleguard")
             .createNotification(
                 com.tampwell.staleguard.StaleguardBundle.message("notification.title"),
                 com.tampwell.staleguard.StaleguardBundle.message("offline.notice"),
                 com.intellij.notification.NotificationType.WARNING,
             )
-            .notify(project)
+        notification.addAction(
+            com.intellij.notification.NotificationAction.createSimpleExpiring(
+                com.tampwell.staleguard.StaleguardBundle.message("offline.retry"),
+            ) {
+                offlineNotified.set(false) // re-notify if the retry also fails
+                failedCoordinates.toList().forEach { requestLookup(it, force = true) }
+            },
+        )
+        notification.notify(project)
     }
 
     /**

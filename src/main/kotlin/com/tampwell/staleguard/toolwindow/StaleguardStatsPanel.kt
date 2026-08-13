@@ -151,11 +151,17 @@ class StaleguardStatsPanel(private val project: Project) :
         val stats = StatsCalculator.compute(inputs, plan, thresholdMs, now)
         val summary = StatsCalculator.summary(stats)
 
+        // Positive empty state: an empty-looking tree reads as "broken".
+        val allFresh = summary.totalUpdates == 0 && summary.unresolved == 0 && summary.abandoned == 0
         val root = DefaultMutableTreeNode(
-            StaleguardBundle.message(
-                "toolwindow.summary",
-                summary.totalDependencies, summary.totalUpdates, summary.abandoned,
-            ),
+            if (allFresh) {
+                StaleguardBundle.message("toolwindow.allfresh", summary.totalDependencies)
+            } else {
+                StaleguardBundle.message(
+                    "toolwindow.summary",
+                    summary.totalDependencies, summary.totalUpdates, summary.abandoned,
+                )
+            },
         )
 
         val unresolvedCoordinates = mutableSetOf<Coordinates>()
