@@ -30,14 +30,14 @@ class FreshnessRefreshService(private val project: Project, private val scope: C
     private val pending = ConcurrentHashMap.newKeySet<Coordinates>()
     private val restartScheduled = AtomicBoolean(false)
 
-    fun requestLookup(coordinates: Coordinates) {
+    fun requestLookup(coordinates: Coordinates, force: Boolean = false) {
         if (!pending.add(coordinates)) return // already being resolved
 
         scope.launch {
             val lookupService = VersionLookupService.getInstance()
             val before = lookupService.peek(coordinates)
             try {
-                lookupService.lookup(coordinates)
+                lookupService.lookup(coordinates, force)
             } finally {
                 pending.remove(coordinates)
             }
@@ -55,9 +55,15 @@ class FreshnessRefreshService(private val project: Project, private val scope: C
             // (or a still-failing lookup) must not churn the editor.
             if (after?.value != before?.value) {
                 scheduleRestart()
+                if (!project.isDisposed) {
+                    project.messageBus.syncPublisher(FreshnessListener.TOPIC).freshnessChanged()
+                }
             }
         }
     }
+
+    /** True while any lookup requested through this service is still in flight. */
+    fun hasPendingLookups(): Boolean = pending.isNotEmpty()
 
     /**
      * One restart per burst: many dependencies resolving together repaint

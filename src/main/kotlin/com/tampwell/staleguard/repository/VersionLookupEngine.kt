@@ -77,11 +77,14 @@ class VersionLookupEngine(
     /**
      * Latest known versions for [coordinates], or null when the artifact is
      * unknown to the repository (404) or has never been fetchable.
+     *
+     * [force] bypasses the TTL (a conditional request still happens, so an
+     * unchanged artifact costs only a 304) — used by explicit "Refresh".
      */
-    suspend fun lookup(coordinates: Coordinates): ArtifactVersions? {
+    suspend fun lookup(coordinates: Coordinates, force: Boolean = false): ArtifactVersions? {
         val flight = inFlightLock.withLock {
             inFlight.getOrPut(coordinates) {
-                scope.async { doLookup(coordinates) }
+                scope.async { doLookup(coordinates, force) }
             }
         }
         try {
@@ -91,16 +94,18 @@ class VersionLookupEngine(
         }
     }
 
-    private suspend fun doLookup(coordinates: Coordinates): ArtifactVersions? {
+    private suspend fun doLookup(coordinates: Coordinates, force: Boolean = false): ArtifactVersions? {
         // Memory fast path: repeat lookups within the TTL cost one map read.
-        memory[coordinates]?.let { snapshot ->
-            if (clock() - snapshot.fetchedAtMillis < ttlMillis) return snapshot.value
+        if (!force) {
+            memory[coordinates]?.let { snapshot ->
+                if (clock() - snapshot.fetchedAtMillis < ttlMillis) return snapshot.value
+            }
         }
 
         val cached = withContext(ioDispatcher) { cache.read(coordinates) }
         val now = clock()
 
-        if (cached != null && now - cached.fetchedAtMillis < ttlMillis) {
+        if (!force && cached != null && now - cached.fetchedAtMillis < ttlMillis) {
             return cached.toResult(coordinates, stale = false)
                 .also { memory[coordinates] = PeekResult(it, now) }
         }

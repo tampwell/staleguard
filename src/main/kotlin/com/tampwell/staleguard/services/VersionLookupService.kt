@@ -29,7 +29,8 @@ class VersionLookupService(scope: CoroutineScope) {
         ioDispatcher = Dispatchers.IO,
     )
 
-    suspend fun lookup(coordinates: Coordinates): ArtifactVersions? = engine.lookup(coordinates)
+    suspend fun lookup(coordinates: Coordinates, force: Boolean = false): ArtifactVersions? =
+        engine.lookup(coordinates, force)
 
     /**
      * Synchronous, I/O-free warm-cache read — the ONLY lookup API that
