@@ -64,7 +64,13 @@ class VersionLookupEngine(
     private val clock: () -> Long = System::currentTimeMillis,
     private val ttlMillis: Long = DEFAULT_TTL_MILLIS,
     private val repositoryBaseUrl: String = MavenRepositoryUrls.MAVEN_CENTRAL,
+    private val failureRetryMillis: Long = FAILURE_RETRY_MILLIS,
+    private val maxFailureRetryMillis: Long = MAX_FAILURE_RETRY_MILLIS,
 ) {
+
+    /** When true, never touch the network: serve disk/memory or nothing. */
+    @Volatile
+    var offlineMode: Boolean = false
 
     private val inFlight = mutableMapOf<Coordinates, Deferred<ArtifactVersions?>>()
     private val inFlightLock = Mutex()
@@ -123,10 +129,18 @@ class VersionLookupEngine(
                 .also { memory[coordinates] = PeekResult(it, now) }
         }
 
+        // Offline mode: serve whatever we have, attempt nothing.
+        if (offlineMode) {
+            val result = cached?.toResult(coordinates, stale = true)
+            memory[coordinates] = PeekResult(result, now, failed = result == null)
+            return result
+        }
+
         return withContext(ioDispatcher) {
             val url = MavenRepositoryUrls.metadataUrl(repositoryBaseUrl, coordinates)
             when (val result = client.fetchMetadata(url, cached?.etag)) {
                 is FetchResult.Fetched -> {
+                    failureCounts.remove(coordinates)
                     val metadata = try {
                         MavenMetadata.parse(result.body)
                     } catch (_: MetadataParseException) {
@@ -139,6 +153,7 @@ class VersionLookupEngine(
                 }
 
                 FetchResult.NotModified -> {
+                    failureCounts.remove(coordinates)
                     // Same content — refresh the clock, keep everything else.
                     val refreshed = cached?.copy(fetchedAtMillis = now) ?: return@withContext null
                     cache.write(coordinates, refreshed)
@@ -157,15 +172,20 @@ class VersionLookupEngine(
         }
     }
 
+    private val failureCounts = java.util.concurrent.ConcurrentHashMap<Coordinates, Int>()
+
     /**
      * Serve stale data after a failure, marked failed=true so peek() callers
-     * know to keep asking, and timestamped so the memory fast path performs a
-     * real retry only every [FAILURE_RETRY_MILLIS] instead of either
-     * hammering the network every pass or going quiet for a full TTL.
+     * know to keep asking, and timestamped with PROGRESSIVE backoff: retry
+     * spacing doubles per consecutive failure (5min → 10min → … capped at
+     * [maxFailureRetryMillis]) so an outage never turns into a retry storm.
      */
     private fun staleFallback(coordinates: Coordinates, cached: CachedArtifact?): ArtifactVersions? {
+        val failures = failureCounts.merge(coordinates, 1, Int::plus) ?: 1
+        val delay = (failureRetryMillis shl (failures - 1).coerceAtMost(10))
+            .coerceAtMost(maxFailureRetryMillis)
         val result = cached?.toResult(coordinates, stale = true)
-        memory[coordinates] = PeekResult(result, clock() - ttlMillis + FAILURE_RETRY_MILLIS, failed = true)
+        memory[coordinates] = PeekResult(result, clock() - ttlMillis + delay, failed = true)
         return result
     }
 
@@ -211,6 +231,7 @@ class VersionLookupEngine(
 
     companion object {
         const val DEFAULT_TTL_MILLIS: Long = 24 * 60 * 60 * 1000 // 24h — decided 2026-08-13
-        const val FAILURE_RETRY_MILLIS: Long = 5 * 60 * 1000 // retry failed fetches after 5min
+        const val FAILURE_RETRY_MILLIS: Long = 5 * 60 * 1000 // first retry after 5min
+        const val MAX_FAILURE_RETRY_MILLIS: Long = 60 * 60 * 1000 // backoff cap: 1h
     }
 }

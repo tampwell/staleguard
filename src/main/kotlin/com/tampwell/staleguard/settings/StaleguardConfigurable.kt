@@ -21,6 +21,11 @@ class StaleguardConfigurable : BoundConfigurable(StaleguardBundle.message("setti
 
     override fun createPanel(): DialogPanel = panel {
         row {
+            checkBox(StaleguardBundle.message("settings.offline"))
+                .comment(StaleguardBundle.message("settings.offline.comment"))
+                .bindSelected(settings::offlineMode)
+        }
+        row {
             checkBox(StaleguardBundle.message("settings.prereleases"))
                 .comment(StaleguardBundle.message("settings.prereleases.comment"))
                 .bindSelected(settings::suggestPrereleases)

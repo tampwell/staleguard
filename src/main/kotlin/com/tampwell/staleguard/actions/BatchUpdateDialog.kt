@@ -31,7 +31,11 @@ class BatchUpdateDialog(project: Project, private val plan: UpgradePlan) : Dialo
         for (severity in DISPLAY_ORDER) {
             val group = plan.candidates
                 .filter { it.severity == severity }
-                .sortedWith(compareBy({ it.moduleName }, { it.coordinates.toString() }))
+                .sortedWith(
+                    compareByDescending<UpgradeCandidate> { it.confidence.score }
+                        .thenBy { it.moduleName }
+                        .thenBy { it.coordinates.toString() },
+                )
             if (group.isEmpty()) continue
 
             group(StaleguardBundle.message("severity.${severity.name.lowercase()}")) {
@@ -58,6 +62,7 @@ class BatchUpdateDialog(project: Project, private val plan: UpgradePlan) : Dialo
 
     private fun label(c: UpgradeCandidate): String {
         val base = "${c.moduleName}: ${c.coordinates}  ${c.currentVersion.value} → ${c.suggestedVersion.value}" +
+            "  [" + StaleguardBundle.message("confidence.label", c.confidence.score) + "]" +
             " — " + StaleguardBundle.message(c.recommendation.bundleKey)
         val property = c.propertyName ?: return base
         val impact = plan.impactOf(property)

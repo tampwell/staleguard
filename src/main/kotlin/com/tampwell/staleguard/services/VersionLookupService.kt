@@ -29,8 +29,10 @@ class VersionLookupService(scope: CoroutineScope) {
         ioDispatcher = Dispatchers.IO,
     )
 
-    suspend fun lookup(coordinates: Coordinates, force: Boolean = false): ArtifactVersions? =
-        engine.lookup(coordinates, force)
+    suspend fun lookup(coordinates: Coordinates, force: Boolean = false): ArtifactVersions? {
+        engine.offlineMode = com.tampwell.staleguard.settings.StaleguardSettings.getInstance().state.offlineMode
+        return engine.lookup(coordinates, force)
+    }
 
     /**
      * Synchronous, I/O-free warm-cache read — the ONLY lookup API that

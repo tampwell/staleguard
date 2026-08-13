@@ -18,6 +18,7 @@ import com.intellij.openapi.components.service
 class StaleguardSettings : PersistentStateComponent<StaleguardSettings.State> {
 
     class State {
+        var offlineMode: Boolean = false
         var suggestPrereleases: Boolean = false
         var abandonmentEnabled: Boolean = true
         var abandonmentYears: Int = 2

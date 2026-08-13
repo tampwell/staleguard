@@ -29,6 +29,7 @@ data class UpgradeCandidate(
     val target: FixTarget,
     val recommendation: Recommendation,
     val moduleId: String = moduleName,
+    val confidence: UpdateConfidence = UpdateConfidence(50, emptyList()),
 ) {
     val propertyName: String? get() = (target as? FixTarget.Property)?.name
 }
@@ -94,6 +95,7 @@ object UpgradePlanner {
                 target = target,
                 recommendation = Recommendation.of(severity, releaseAge, abandoned),
                 moduleId = input.moduleId,
+                confidence = ConfidenceScorer.score(severity, releaseAge, abandoned),
             )
         }
 

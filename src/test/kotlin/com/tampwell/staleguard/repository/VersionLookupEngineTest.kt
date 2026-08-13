@@ -226,6 +226,65 @@ class VersionLookupEngineTest {
     }
 
     @Test
+    fun `offline mode serves stale cache with zero network`() = runBlocking {
+        val client = FakeClient({ _, _ -> FetchResult.Fetched(metadataXml(listOf("1.0")), null) })
+        var now = 100L
+        val (engine, _) = newEngine(client, clock = { now }, ttl = 1_000L)
+
+        engine.lookup(coords) // warm the cache online
+        engine.offlineMode = true
+        now = 999_999L // far past TTL
+        val result = engine.lookup(coords)
+
+        assertEquals("1.0", result?.latest?.value)
+        assertTrue(result!!.stale)
+        assertEquals(1, client.fetches.get()) // no second fetch
+    }
+
+    @Test
+    fun `offline mode with no cache returns null without network`() = runBlocking {
+        val client = FakeClient({ _, _ -> FetchResult.Fetched(metadataXml(listOf("1.0")), null) })
+        val (engine, _) = newEngine(client, clock = { 100L })
+        engine.offlineMode = true
+
+        assertNull(engine.lookup(coords))
+        assertEquals(0, client.fetches.get())
+        assertEquals(0, client.headRequests.get())
+    }
+
+    @Test
+    fun `consecutive failures back off progressively`() = runBlocking {
+        var now = 0L
+        val retry = 300_000L // 5min, engine default
+        val client = FakeClient({ _, _ -> FetchResult.Failed("down") })
+        val cache = DiskVersionCache(Files.createTempDirectory("staleguard-backoff-test"))
+        val engine = VersionLookupEngine(
+            scope = kotlinx.coroutines.CoroutineScope(Dispatchers.Default),
+            client = client, cache = cache, ioDispatcher = Dispatchers.IO,
+            clock = { now }, ttlMillis = 1_000L,
+        )
+
+        engine.lookup(coords) // failure #1
+        assertEquals(1, client.fetches.get())
+
+        now += retry - 1_000 // just before first retry window
+        engine.lookup(coords)
+        assertEquals(1, client.fetches.get()) // still throttled
+
+        now += 2_000 // past 5min → retry (failure #2)
+        engine.lookup(coords)
+        assertEquals(2, client.fetches.get())
+
+        now += retry + 1_000 // 5min later: NOT enough — backoff doubled to 10min
+        engine.lookup(coords)
+        assertEquals(2, client.fetches.get())
+
+        now += retry // total ~10min since failure #2 → retry allowed
+        engine.lookup(coords)
+        assertEquals(3, client.fetches.get())
+    }
+
+    @Test
     fun `malformed metadata body falls back to stale cache`() = runBlocking {
         var body = metadataXml(listOf("1.0"))
         val client = FakeClient({ _, _ -> FetchResult.Fetched(body, null) })
