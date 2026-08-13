@@ -1,0 +1,19 @@
+<!-- Plugin Configuration File. Read more: https://plugins.jetbrains.com/docs/intellij/plugin-configuration-file.html -->
+<idea-plugin>
+    <id>com.tampwell.staleguard</id>
+    <name>Staleguard</name>
+    <vendor>Tampwell</vendor>
+    <description><![CDATA[
+        <p>Keeps Maven and Gradle dependencies fresh: inline upgrade hints, one-click version bumps, and warnings for abandoned libraries.</p>
+        <p>(Placeholder description — final marketplace copy to be written by the author before publishing.)</p>
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <resource-bundle>messages.MyBundle</resource-bundle>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow factoryClass="com.tampwell.staleguard.toolWindow.MyToolWindowFactory" id="MyToolWindow"/>
+        <postStartupActivity implementation="com.tampwell.staleguard.startup.MyProjectActivity" />
+    </extensions>
+</idea-plugin>

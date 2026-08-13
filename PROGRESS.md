@@ -1,0 +1,40 @@
+# Staleguard — Progress
+
+> Session ritual: read this file at session start; update it and commit at session end.
+
+## Current state (2026-08-13)
+
+- Repo scaffolded from official `intellij-platform-plugin-template` 2.6.0 (Kotlin 2.1.20, IntelliJ Platform Gradle Plugin 2.16.0, Gradle 9.5 wrapper).
+- Rebranded: package `com.tampwell.staleguard`, plugin id `com.tampwell.staleguard`, name "Staleguard", vendor "Tampwell".
+- Target platform still the template's pinned `intellijIdea("2025.2.6.2")` — deliberate for a known-good first build; bump to 2026.2 (since-build 262) is the next config task and must be re-verified with `verifyPlugin`.
+- Hello-world `runIde` verification: see latest session notes below.
+- GitHub: repo stays LOCAL until `gh auth login` is run by the builder (account: mingzhenm9-cloud). Repo will be PRIVATE until v1.
+
+## Next steps
+
+1. Verify `./gradlew.bat build` and `runIde` (day-1 win).
+2. Bump target platform to 2026.2, re-run build + verifyPlugin.
+3. Delete template demo code (tool window, services) once first real feature starts.
+4. Milestone 1: parse `pom.xml` via Maven DOM API, log every declared dependency + version.
+5. Builder: run `gh auth login` (mingzhenm9-cloud), then we create the private GitHub repo and push.
+
+## Open questions / decisions pending
+
+- LICENSE: template ships Apache-2.0 (JetBrains). Decide our own license before the repo goes public (plugin itself can be closed or open; marketplace allows both).
+- Logo needed before publish (must NOT resemble the template default or JetBrains logos).
+- Final marketplace description + README: written by the builder in his own voice (placeholder text in plugin.xml until then).
+- Registered agent: deferred by decision 2026-08-13 — publishing with existing LLC home address; revisit if the project shows success.
+
+## Decisions log
+
+- 2026-08-13: Name **Staleguard** (verified: no marketplace hits, no findable trademark). Kotlin. IDEA-only target, current release only. Private repo until v1 under mingzhenm9-cloud. v1 defers batch dry-run diff preview to v1.1. Teaching mode: explain concepts as we go.
+- 2026-08-12: Phase 0 verification passed; thesis holds. Full memo: see Claude artifact "Phase 0 Memo — JetBrains Dependency Plugin".
+- Engineering rule #1: never block the EDT — all network I/O on background coroutines, disk-cached, rate-limit-respectful (fetch `maven-metadata.xml` from repo1.maven.org, NOT the search API).
+- v1 scope: Maven + Gradle (Groovy/kts) + libs.versions.toml; inspections + quick fixes; patch/minor/major severity; single-dep one-click bump + simple "update all patch"; abandonment signal (no release >2 years); settings with ignore-list; NO npm, NO CVE/security features, NO telemetry, NO paid tier yet.
+
+## Gates
+
+1. Wk 6–8: approved + listed on marketplace (else: cut scope)
+2. Month 4: ≥1,000 installs (<300 = thesis wrong, stop and reassess)
+3. Month 8: ≥5,000 installs + ≥10 unsolicited requests → design paid tier
+4. Month 12: first $200 payout (else re-scope paid features)
