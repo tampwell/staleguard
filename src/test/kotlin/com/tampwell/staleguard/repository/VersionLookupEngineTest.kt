@@ -179,6 +179,53 @@ class VersionLookupEngineTest {
     }
 
     @Test
+    fun `peek is null before any lookup and populated after`() = runBlocking {
+        val client = FakeClient({ _, _ -> FetchResult.Fetched(metadataXml(listOf("1.0", "2.0")), null) })
+        val (engine, _) = newEngine(client, clock = { 100L })
+
+        assertNull(engine.peek(coords))
+        engine.lookup(coords)
+        assertEquals("2.0", engine.peek(coords)?.value?.latest?.value)
+    }
+
+    @Test
+    fun `peek remembers 404 as known-absent so callers stop re-enqueueing`() = runBlocking {
+        val client = FakeClient({ _, _ -> FetchResult.NotFound })
+        val (engine, _) = newEngine(client, clock = { 100L })
+
+        engine.lookup(coords)
+        val peeked = engine.peek(coords)
+        assertTrue(peeked != null && peeked.value == null)
+    }
+
+    @Test
+    fun `memory fast path serves repeat lookups without touching disk or network`() = runBlocking {
+        val client = FakeClient({ _, _ -> FetchResult.Fetched(metadataXml(listOf("1.0")), null) })
+        var now = 100L
+        val (engine, cacheRef) = newEngine(client, clock = { now }, ttl = 1_000L)
+
+        engine.lookup(coords)
+        // Sabotage the disk cache: if the fast path works, this is never noticed.
+        cacheRef.write(coords, cacheRef.read(coords)!!.copy(versions = listOf("sabotaged")))
+        now = 900L
+        val second = engine.lookup(coords)
+
+        assertEquals("1.0", second?.latest?.value)
+        assertEquals(1, client.fetches.get())
+    }
+
+    @Test
+    fun `latestStable filters prereleases in lookup results`() = runBlocking {
+        val client = FakeClient({ _, _ -> FetchResult.Fetched(metadataXml(listOf("1.0", "2.0-rc1")), null) })
+        val (engine, _) = newEngine(client, clock = { 100L })
+
+        val result = engine.lookup(coords)
+
+        assertEquals("2.0-rc1", result?.latest?.value)
+        assertEquals("1.0", result?.latestStable?.value)
+    }
+
+    @Test
     fun `malformed metadata body falls back to stale cache`() = runBlocking {
         var body = metadataXml(listOf("1.0"))
         val client = FakeClient({ _, _ -> FetchResult.Fetched(body, null) })

@@ -16,16 +16,27 @@ import org.jetbrains.idea.maven.dom.model.MavenDomProjectModel
  * Must be called under a read action (action event handlers and inspections
  * already provide one).
  */
+/** A declared dependency paired with its DOM element, for PSI-anchored UI. */
+data class DomDeclaredDependency(
+    val dom: MavenDomDependency,
+    val declared: DeclaredDependency,
+)
+
 object PomDependencyCollector {
 
     fun collect(project: Project, pomFile: VirtualFile): List<DeclaredDependency> {
         val model = MavenDomUtil.getMavenDomProjectModel(project, pomFile) ?: return emptyList()
+        return collectWithDom(model).map { it.declared }
+    }
+
+    /** Same walk, but keeps the DOM handle so callers can highlight/edit. */
+    fun collectWithDom(model: MavenDomProjectModel): List<DomDeclaredDependency> {
         val properties = effectiveProperties(model)
 
         val direct = model.dependencies.dependencies
-            .map { it.toDeclared(properties, DeclaredDependency.Origin.DEPENDENCIES) }
+            .map { DomDeclaredDependency(it, it.toDeclared(properties, DeclaredDependency.Origin.DEPENDENCIES)) }
         val managed = model.dependencyManagement.dependencies.dependencies
-            .map { it.toDeclared(properties, DeclaredDependency.Origin.DEPENDENCY_MANAGEMENT) }
+            .map { DomDeclaredDependency(it, it.toDeclared(properties, DeclaredDependency.Origin.DEPENDENCY_MANAGEMENT)) }
 
         return direct + managed
     }

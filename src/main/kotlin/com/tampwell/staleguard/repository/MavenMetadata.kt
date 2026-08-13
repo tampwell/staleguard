@@ -1,6 +1,7 @@
 package com.tampwell.staleguard.repository
 
 import com.tampwell.staleguard.version.MavenVersion
+import com.tampwell.staleguard.version.isStable
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -38,21 +39,6 @@ data class MavenMetadata(
     companion object {
 
         private val LAST_UPDATED = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
-
-        /** Prerelease markers, checked against Maven's canonical form. */
-        private val PRERELEASE_MARKERS = listOf("alpha", "beta", "milestone", "rc", "snapshot")
-
-        private val MavenVersion.isStable: Boolean
-            get() = canonical.split('.', '-').none { token ->
-                PRERELEASE_MARKERS.any { marker ->
-                    // matches the marker itself ("rc") or marker+number ("rc1"),
-                    // but never mere substrings ("arch", "search", "jre")
-                    token == marker ||
-                        (token.length > marker.length &&
-                            token.startsWith(marker) &&
-                            token.substring(marker.length).all(Char::isDigit))
-                }
-            }
 
         /**
          * Parses a maven-metadata.xml document. Throws [MetadataParseException]

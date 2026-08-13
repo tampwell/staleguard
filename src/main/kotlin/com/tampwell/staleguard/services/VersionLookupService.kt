@@ -1,14 +1,13 @@
 package com.tampwell.staleguard.services
 
-import com.intellij.ide.plugins.PluginManagerCore
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
-import com.intellij.openapi.extensions.PluginId
 import com.tampwell.staleguard.repository.ArtifactVersions
 import com.tampwell.staleguard.repository.Coordinates
 import com.tampwell.staleguard.repository.DiskVersionCache
 import com.tampwell.staleguard.repository.HttpMavenRepositoryClient
+import com.tampwell.staleguard.repository.PeekResult
 import com.tampwell.staleguard.repository.VersionLookupEngine
 import java.nio.file.Path
 import kotlinx.coroutines.CoroutineScope
@@ -32,13 +31,23 @@ class VersionLookupService(scope: CoroutineScope) {
 
     suspend fun lookup(coordinates: Coordinates): ArtifactVersions? = engine.lookup(coordinates)
 
+    /**
+     * Synchronous, I/O-free warm-cache read — the ONLY lookup API that
+     * highlighting passes may call. Null = never resolved this session;
+     * PeekResult(value = null) = artifact known absent, do not re-enqueue.
+     */
+    fun peek(coordinates: Coordinates): PeekResult? = engine.peek(coordinates)
+
     companion object {
         fun getInstance(): VersionLookupService = service()
 
         private fun cacheDirectory(): Path =
             Path.of(PathManager.getSystemPath(), "staleguard", "version-cache")
 
+        /** Baked in at build time via processResources — no platform API needed. */
         private fun pluginVersion(): String =
-            PluginManagerCore.getPlugin(PluginId.getId("com.tampwell.staleguard"))?.version ?: "dev"
+            VersionLookupService::class.java.getResourceAsStream("/staleguard.properties")
+                ?.use { stream -> java.util.Properties().apply { load(stream) }.getProperty("version") }
+                ?: "dev"
     }
 }

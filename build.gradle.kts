@@ -24,3 +24,11 @@ intellijPlatform {
         }
     }
 }
+
+tasks.processResources {
+    val pluginVersion = version.toString()
+    inputs.property("pluginVersion", pluginVersion)
+    filesMatching("staleguard.properties") {
+        expand("pluginVersion" to pluginVersion)
+    }
+}

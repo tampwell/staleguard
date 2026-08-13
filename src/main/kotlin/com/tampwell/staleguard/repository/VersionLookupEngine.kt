@@ -1,6 +1,7 @@
 package com.tampwell.staleguard.repository
 
 import com.tampwell.staleguard.version.MavenVersion
+import com.tampwell.staleguard.version.isStable
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -19,7 +20,16 @@ data class ArtifactVersions(
     val stale: Boolean,
 ) {
     val latest: MavenVersion? get() = versions.maxOrNull()
+
+    /** Newest stable version — what Staleguard suggests by default. */
+    val latestStable: MavenVersion? get() = versions.filter { it.isStable }.maxOrNull()
 }
+
+/**
+ * A synchronous snapshot read. [value] == null means the repository is known
+ * NOT to have this artifact (404) — callers must not re-enqueue those.
+ */
+data class PeekResult(val value: ArtifactVersions?, val fetchedAtMillis: Long)
 
 /**
  * Orchestrates cache + network for version lookups. Platform-free by design:
@@ -46,6 +56,15 @@ class VersionLookupEngine(
     private val inFlight = mutableMapOf<Coordinates, Deferred<ArtifactVersions?>>()
     private val inFlightLock = Mutex()
 
+    /** Warm snapshot of completed lookups. THE only thing peek() touches. */
+    private val memory = java.util.concurrent.ConcurrentHashMap<Coordinates, PeekResult>()
+
+    /**
+     * Synchronous, I/O-free read of the warm cache. Safe from any thread,
+     * including highlighting passes. Null = never looked up this session.
+     */
+    fun peek(coordinates: Coordinates): PeekResult? = memory[coordinates]
+
     /**
      * Latest known versions for [coordinates], or null when the artifact is
      * unknown to the repository (404) or has never been fetchable.
@@ -64,11 +83,17 @@ class VersionLookupEngine(
     }
 
     private suspend fun doLookup(coordinates: Coordinates): ArtifactVersions? {
+        // Memory fast path: repeat lookups within the TTL cost one map read.
+        memory[coordinates]?.let { snapshot ->
+            if (clock() - snapshot.fetchedAtMillis < ttlMillis) return snapshot.value
+        }
+
         val cached = withContext(ioDispatcher) { cache.read(coordinates) }
         val now = clock()
 
         if (cached != null && now - cached.fetchedAtMillis < ttlMillis) {
             return cached.toResult(coordinates, stale = false)
+                .also { memory[coordinates] = PeekResult(it, now) }
         }
 
         return withContext(ioDispatcher) {
@@ -78,11 +103,12 @@ class VersionLookupEngine(
                     val metadata = try {
                         MavenMetadata.parse(result.body)
                     } catch (_: MetadataParseException) {
-                        return@withContext cached?.toResult(coordinates, stale = true)
+                        return@withContext staleFallback(coordinates, cached)
                     }
                     val entry = buildEntry(coordinates, metadata, result.etag, cached, now)
                     cache.write(coordinates, entry)
                     entry.toResult(coordinates, stale = false)
+                        .also { memory[coordinates] = PeekResult(it, now) }
                 }
 
                 FetchResult.NotModified -> {
@@ -90,13 +116,29 @@ class VersionLookupEngine(
                     val refreshed = cached?.copy(fetchedAtMillis = now) ?: return@withContext null
                     cache.write(coordinates, refreshed)
                     refreshed.toResult(coordinates, stale = false)
+                        .also { memory[coordinates] = PeekResult(it, now) }
                 }
 
-                FetchResult.NotFound -> null
+                // 404s are stable: remember for a full TTL so nothing re-enqueues them.
+                FetchResult.NotFound -> {
+                    memory[coordinates] = PeekResult(null, now)
+                    null
+                }
 
-                is FetchResult.Failed -> cached?.toResult(coordinates, stale = true)
+                is FetchResult.Failed -> staleFallback(coordinates, cached)
             }
         }
+    }
+
+    /**
+     * Serve stale data after a failure, but timestamp the snapshot so the
+     * memory fast path retries after [FAILURE_RETRY_MILLIS] instead of either
+     * hammering the network every pass or going quiet for a full TTL.
+     */
+    private fun staleFallback(coordinates: Coordinates, cached: CachedArtifact?): ArtifactVersions? {
+        val result = cached?.toResult(coordinates, stale = true)
+        memory[coordinates] = PeekResult(result, clock() - ttlMillis + FAILURE_RETRY_MILLIS)
+        return result
     }
 
     private fun buildEntry(
@@ -135,5 +177,6 @@ class VersionLookupEngine(
 
     companion object {
         const val DEFAULT_TTL_MILLIS: Long = 24 * 60 * 60 * 1000 // 24h — decided 2026-08-13
+        const val FAILURE_RETRY_MILLIS: Long = 5 * 60 * 1000 // retry failed fetches after 5min
     }
 }

@@ -15,6 +15,13 @@
 
     <extensions defaultExtensionNs="com.intellij">
         <notificationGroup id="Staleguard" displayType="BALLOON"/>
+        <localInspection language="XML"
+                         bundle="messages.StaleguardBundle"
+                         key="inspection.freshness.display.name"
+                         groupKey="inspection.group"
+                         enabledByDefault="true"
+                         level="WARNING"
+                         implementationClass="com.tampwell.staleguard.inspection.DependencyFreshnessInspection"/>
     </extensions>
 
     <actions>
