@@ -1,4 +1,8 @@
 <idea-plugin>
+    <extensions defaultExtensionNs="org.jetbrains.kotlin">
+        <!-- Pure syntactic PSI only (no K1 analysis APIs) — K2 compatible. -->
+        <supportsKotlinPluginMode supportsK2="true"/>
+    </extensions>
     <extensions defaultExtensionNs="com.intellij">
         <localInspection language="kotlin"
                          bundle="messages.StaleguardBundle"

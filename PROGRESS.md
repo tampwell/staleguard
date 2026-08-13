@@ -35,6 +35,30 @@ RESOLVED (2026-08-13): inspection confirmed working END-TO-END by the owner: squ
 
 Deferred with notes: batch diff preview (DiffPanel), per-project filter persistence, description text in batch rows (data now cached, surface pending), ignore-list format validation, ignore import/export, stats CSV/icons/sorting, timeline click-to-inspect/zoom/threshold-line, license group-by view + warn-list setting, Phase 3 H (impact estimation), I (HTML report), J (extract-to-property).
 
+## Session 7: complete Gradle support + marketplace prep — DONE (2026-08-13, commits ace47de + next)
+
+Implemented:
+- Gradle Kotlin DSL (build.gradle.kts): string notation, named-argument notation, and libs.* version-catalog references; optional org.jetbrains.kotlin dependency; K2-compatible (syntactic PSI only, supportsK2=true declared in staleguard-withKotlin.xml).
+- Version catalogs: pure VersionCatalog subset parser ([versions] + [libraries]: inline tables, module=, shorthand; dotted-accessor normalization; 13 tests). UpdateCatalogVersionQuickFix edits the [versions] entry with blast-radius confirmation for shared keys; table-aware range finding never touches same-named [plugins] keys.
+- testProjects/gradle-kotlin-sample (catalog with shared jackson key for the confirmation flow, string + named-arg notations).
+- NOTICE file (Apache Maven ComparableVersion attribution — marketplace legal blocker cleared).
+- Placeholder pluginIcon.svg (green circle + check; professional logo still needed pre-launch).
+- plugin.xml description rewritten (factual feature list, first-40-chars English) — OWNER MUST REVIEW/REWRITE before submission per public-prose rule; docs/MARKETPLACE_DESCRIPTION.md is a clearly-marked DRAFT source-material file, not paste-ready.
+
+Deviations:
+- Part 3G "clone JetBrains/kotlin + spring-framework" NOT executed: multi-GB clones + hour-scale Gradle syncs are infeasible in this environment. Substitute: expanded local fixtures; real-world pass = owner opens 1-2 of his own/other local Gradle projects in the sandbox. Documented as the remaining verification gap for kts/catalogs.
+- Residual verifier note "1 compatibility warning": the K2 declaration lives in the optional Kotlin config file (where the Kotlin plugin reads it); the verifier only scans the main plugin.xml for it. Moving it would risk unknown-EP errors in Kotlin-less IDEs. Cosmetic; both verify runs pass.
+- Kts interpolated versions ("${Versions.gson}", buildSrc constants) skipped by design — later milestone. platform()/project() skipped. Inline catalog versions report-only.
+
+Deferred owner actions (marketplace blockers only the owner can do):
+1. Rewrite plugin.xml description + marketplace copy in his own voice.
+2. Professional logo (replace placeholder SVG).
+3. 4 screenshots (list in docs/MARKETPLACE_DESCRIPTION.md), 1280×800.
+4. JetBrains vendor profile: Tampwell LLC, staleguard@tampwell.com, tampwell.com, trader declaration (parent).
+5. Sandbox pass on gradle-kotlin-sample: squiggles on libs.* refs, catalog fix writes to libs.versions.toml, shared-key confirmation dialog.
+
+Recommendation for next session: EARLY LAUNCH (Option 2) — the core is verified end-to-end, coverage now spans all four build-file formats; remaining polish (timeline zoom, CSV export, diff preview) ships better as v1.1 informed by real users. Gate 1 clock favors submission.
+
 ## Next steps
 
 1. Builder: visually confirm the inspection in the sandbox (squiggles on outdated deps in maven-sample, quick-fix bump on a literal and on `${guava.version}`), then close the sandbox window (leftover sandboxes hold file locks and break builds).
