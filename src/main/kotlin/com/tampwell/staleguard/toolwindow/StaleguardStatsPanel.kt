@@ -174,10 +174,19 @@ class StaleguardStatsPanel(private val project: Project) :
             for (row in moduleRows) {
                 val coordinate = row.input.declared.coordinate
                 val candidate = candidatesByCoords[coordinate]
+                val licenseSuffix = row.input.known?.licenses?.firstOrNull()?.let { license ->
+                    val warn = if (com.tampwell.staleguard.repository.PomInfo.isCopyleft(license)) {
+                        " " + StaleguardBundle.message("license.copyleft.marker")
+                    } else {
+                        ""
+                    }
+                    "  [$license$warn]"
+                } ?: ""
                 val label = when {
                     candidate != null ->
                         "$coordinate  ${candidate.currentVersion.value} → ${candidate.suggestedVersion.value}" +
-                            " (" + StaleguardBundle.message("severity.${candidate.severity.name.lowercase()}") + ")"
+                            " (" + StaleguardBundle.message("severity.${candidate.severity.name.lowercase()}") + ")" +
+                            licenseSuffix
                     row.input.known == null -> {
                         row.input.declared.groupId?.let { g ->
                             row.input.declared.artifactId?.let { a -> unresolvedCoordinates.add(Coordinates(g, a)) }

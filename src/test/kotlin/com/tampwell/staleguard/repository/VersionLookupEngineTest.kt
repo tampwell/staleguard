@@ -35,9 +35,9 @@ class VersionLookupEngineTest {
             return onFetch(url, previousEtag)
         }
 
-        override fun fetchLastModified(url: String): Long? {
+        override fun fetchPomDetails(url: String): PomDetails? {
             headRequests.incrementAndGet()
-            return lastModified
+            return PomDetails(lastModified, PomInfo(licenses = listOf("Apache-2.0"), scmUrl = "https://github.com/x/y"))
         }
     }
 

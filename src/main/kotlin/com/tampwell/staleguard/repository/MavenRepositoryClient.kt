@@ -13,8 +13,11 @@ interface MavenRepositoryClient {
      */
     fun fetchMetadata(url: String, previousEtag: String?): FetchResult
 
-    /** Last-Modified of a URL via HEAD, as epoch millis, or null if unavailable. */
-    fun fetchLastModified(url: String): Long?
+    /**
+     * GETs an artifact's .pom: Last-Modified header (= that version's release
+     * date) plus parsed licenses/scm/description. Null when unavailable.
+     */
+    fun fetchPomDetails(url: String): PomDetails?
 }
 
 sealed interface FetchResult {

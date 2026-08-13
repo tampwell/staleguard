@@ -20,9 +20,13 @@ data class CachedArtifact(
     /** Release date of the newest version, from its .pom Last-Modified. Immutable per version. */
     @SerializedName("newestReleaseAt") val newestReleaseAtMillis: Long?,
     @SerializedName("newestReleaseVersion") val newestReleaseVersion: String?,
+    /** From the newest version's .pom; refreshed only when the newest version changes. */
+    @SerializedName("licenses") val licenses: List<String> = emptyList(),
+    @SerializedName("scmUrl") val scmUrl: String? = null,
+    @SerializedName("pomDescription") val description: String? = null,
 ) {
     companion object {
-        const val SCHEMA_VERSION = 1
+        const val SCHEMA_VERSION = 2 // v2: adds licenses/scmUrl/description; v1 caches self-discard
     }
 }
 

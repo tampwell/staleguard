@@ -99,10 +99,12 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
                         declared.anchor,
                         message,
                         isOnTheFly,
-                        arrayOf(
+                        listOfNotNull(
                             GradleBumpVersionQuickFix(suggested.value, declared.fixMode),
+                            com.tampwell.staleguard.repository.ScmUrls.changelogUrl(data.scmUrl)
+                                ?.let { com.tampwell.staleguard.inspection.OpenChangelogQuickFix(it) },
                             com.tampwell.staleguard.inspection.IgnoreDependencyQuickFix(declared.group, declared.name),
-                        ),
+                        ).toTypedArray<com.intellij.codeInspection.LocalQuickFix>(),
                         DependencyFreshnessInspection.highlightTypeFor(severity),
                     )
                 }

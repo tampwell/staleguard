@@ -80,11 +80,15 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                     val anchor = dom.version.xmlTag ?: dom.xmlTag
                     if (anchor != null) {
                         val target = FixTarget.of(declared.rawVersion)
-                        val ignoreFix = IgnoreDependencyQuickFix(groupId, artifactId)
-                        val fixes = when (target) {
-                            FixTarget.None -> arrayOf<com.intellij.codeInspection.LocalQuickFix>(ignoreFix)
-                            else -> arrayOf(BumpVersionQuickFix(suggested.value, target), ignoreFix)
-                        }
+                        val fixes = listOfNotNull(
+                            when (target) {
+                                FixTarget.None -> null
+                                else -> BumpVersionQuickFix(suggested.value, target)
+                            },
+                            com.tampwell.staleguard.repository.ScmUrls.changelogUrl(data.scmUrl)
+                                ?.let(::OpenChangelogQuickFix),
+                            IgnoreDependencyQuickFix(groupId, artifactId),
+                        ).toTypedArray<com.intellij.codeInspection.LocalQuickFix>()
                         val releaseAge = data.newestReleaseAtMillis?.let { now - it }
                         val recommendation = Recommendation.of(
                             severity,

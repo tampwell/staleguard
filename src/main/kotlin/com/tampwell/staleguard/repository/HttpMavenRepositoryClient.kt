@@ -42,25 +42,25 @@ class HttpMavenRepositoryClient(pluginVersion: String) : MavenRepositoryClient {
             FetchResult.Failed("${e.javaClass.simpleName}: ${e.message}")
         }
 
-    override fun fetchLastModified(url: String): Long? =
+    override fun fetchPomDetails(url: String): PomDetails? =
         try {
             HttpRequests.request(url)
                 .userAgent(userAgent)
                 .connectTimeout(CONNECT_TIMEOUT_MS)
                 .readTimeout(READ_TIMEOUT_MS)
                 .throwStatusCodeException(false)
-                .tuner { connection ->
-                    (connection as HttpURLConnection).requestMethod = "HEAD"
-                }
                 .connect { request ->
                     val connection = request.connection as HttpURLConnection
                     if (connection.responseCode == HttpURLConnection.HTTP_OK) {
-                        connection.lastModified.takeIf { it > 0 }
+                        val lastModified = connection.lastModified.takeIf { it > 0 }
+                        val info = runCatching { PomInfo.parse(request.readString()) }.getOrDefault(PomInfo.EMPTY)
+                        PomDetails(lastModified, info)
                     } else {
                         null
                     }
                 }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            log.info("Staleguard: pom fetch failed for $url: ${e.javaClass.simpleName}: ${e.message}")
             null
         }
 

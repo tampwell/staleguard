@@ -18,6 +18,10 @@ data class ArtifactVersions(
     val newestReleaseAtMillis: Long?,
     /** True when this result came from cache older than the TTL (network was down). */
     val stale: Boolean,
+    /** From the newest version's .pom (may be empty/null when unfetched). */
+    val licenses: List<String> = emptyList(),
+    val scmUrl: String? = null,
+    val description: String? = null,
 ) {
     val latest: MavenVersion? get() = versions.maxOrNull()
 
@@ -173,13 +177,13 @@ class VersionLookupEngine(
         now: Long,
     ): CachedArtifact {
         val newest = metadata.latest?.value
-        // Release dates are immutable: refetch only when the newest version changed.
-        val newestReleaseAt = if (newest != null && newest == previous?.newestReleaseVersion) {
-            previous.newestReleaseAtMillis
-        } else if (newest != null) {
-            client.fetchLastModified(MavenRepositoryUrls.pomUrl(repositoryBaseUrl, coordinates, newest))
-        } else {
-            null
+        // Pom-derived facts are immutable per version: refetch the .pom only
+        // when the newest version changed; otherwise carry everything forward.
+        val carryForward = newest != null && newest == previous?.newestReleaseVersion
+        val details = when {
+            carryForward -> null
+            newest != null -> client.fetchPomDetails(MavenRepositoryUrls.pomUrl(repositoryBaseUrl, coordinates, newest))
+            else -> null
         }
         return CachedArtifact(
             groupId = coordinates.groupId,
@@ -187,8 +191,11 @@ class VersionLookupEngine(
             versions = metadata.versions.map { it.value },
             etag = etag,
             fetchedAtMillis = now,
-            newestReleaseAtMillis = newestReleaseAt,
+            newestReleaseAtMillis = if (carryForward) previous?.newestReleaseAtMillis else details?.lastModifiedMillis,
             newestReleaseVersion = newest,
+            licenses = if (carryForward) previous?.licenses.orEmpty() else details?.info?.licenses.orEmpty(),
+            scmUrl = if (carryForward) previous?.scmUrl else details?.info?.scmUrl,
+            description = if (carryForward) previous?.description else details?.info?.description,
         )
     }
 
@@ -197,6 +204,9 @@ class VersionLookupEngine(
         versions = versions.map(::MavenVersion),
         newestReleaseAtMillis = newestReleaseAtMillis,
         stale = stale,
+        licenses = licenses,
+        scmUrl = scmUrl,
+        description = description,
     )
 
     companion object {
