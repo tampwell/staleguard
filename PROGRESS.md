@@ -13,10 +13,15 @@
 
 ## Next steps
 
-1. Verify Milestone 1 end-to-end in `runIde` against a real multi-module Maven project (Tools → "Staleguard: List Declared Dependencies").
-2. Milestone 3: cached Maven Central lookups via repo1 maven-metadata.xml (background coroutines, disk cache, never EDT).
-3. Milestone 4: the inspection — highlight outdated versions in pom.xml with severity tiers, wired to MavenVersion + UpgradeSeverity.
-4. Before publish: add Apache Maven attribution to a NOTICE file (MavenVersion is a ported ComparableVersion).
+1. Milestone 4: LocalInspectionTool over pom.xml dependency versions reading ONLY the warm cache; background refresh service triggers DaemonCodeAnalyzer.restart(project) when lookups land; severity mapping MAJOR/MINOR/PATCH; quick fix = one-click version bump via Maven DOM write; abandonment flag when newestReleaseAt > 2 years old (threshold decided 2026-08-13).
+2. Then: Gradle + libs.versions.toml parsing; settings page (ignore list, thresholds, prerelease toggle); batch "update all patch".
+3. Before publish: NOTICE file with Apache Maven attribution (MavenVersion is a ported ComparableVersion).
+
+## Decided defaults (builder, 2026-08-13)
+
+- Suggest latest STABLE only (prereleases behind a future setting)
+- Abandonment threshold: 2 years
+- Cache TTL: 24 hours
 
 ## Contact / vendor details
 
