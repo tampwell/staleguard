@@ -59,6 +59,32 @@ Deferred owner actions (marketplace blockers only the owner can do):
 
 Recommendation for next session: EARLY LAUNCH (Option 2) — the core is verified end-to-end, coverage now spans all four build-file formats; remaining polish (timeline zoom, CSV export, diff preview) ships better as v1.1 informed by real users. Gate 1 clock favors submission.
 
+## Session 8: scope decision + lean launch features — DONE (2026-08-13, commit 7be3d4d)
+
+STRATEGIC DECISION (agent pushback, per mandate to disagree openly): the session-8
+work order requested ~8 hours of pre-launch feature expansion (12 features).
+Declined the bulk of it — Gate 2 exists to let INSTALL DATA choose v1.1 features;
+building ahead of validation is the momentum-over-gates failure the plan forbids.
+Implemented only the lean, launch-retention subset:
+
+- ConfidenceScorer: 0-100 deterministic score (severity/age/abandonment), batch
+  dialog sorts by it and shows per-row scores. 7 tests.
+- Offline mode setting: engine never touches the network; stale-marked results.
+- Progressive failure backoff: 5min doubling to 1h cap, reset on success. Pinned
+  by timing tests. 163 tests total.
+
+Rejected/deferred with reasons:
+- Adoption metrics factor: INFEASIBLE — Maven Central publishes no download stats.
+- Breaking-change detection via JAR downloads: conflicts with rate-limit
+  etiquette architecture (two full JARs per dependency). Reconsider via
+  metadata-only signals in v1.1.
+- GitHub/GitLab PR integration (PAT storage): real security surface; not a
+  pre-launch feature. v1.1+ candidate if users ask.
+- Weekly scheduled reports, upgrade-path planner, tutorial tour, keyboard map,
+  shared .staleguard-ignore, in-IDE help system: all v1.1 backlog, to be
+  prioritized by Gate 2 data and actual user requests.
+- COMPLETE_USER_GUIDE.md: public-facing prose — owner writes it (hard rule).
+
 ## Next steps
 
 1. Builder: visually confirm the inspection in the sandbox (squiggles on outdated deps in maven-sample, quick-fix bump on a literal and on `${guava.version}`), then close the sandbox window (leftover sandboxes hold file locks and break builds).
