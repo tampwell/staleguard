@@ -10,6 +10,7 @@
 
     <depends>com.intellij.modules.platform</depends>
     <depends>org.jetbrains.idea.maven</depends>
+    <depends optional="true" config-file="staleguard-withGroovy.xml">org.intellij.groovy</depends>
 
     <resource-bundle>messages.StaleguardBundle</resource-bundle>
 

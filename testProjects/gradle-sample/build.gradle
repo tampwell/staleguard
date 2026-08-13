@@ -1,0 +1,23 @@
+plugins {
+    id 'java'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // string notation, old versions on purpose
+    implementation 'com.google.code.gson:gson:2.8.9'
+    implementation 'org.slf4j:slf4j-api:1.7.32'
+
+    // map notation
+    implementation group: 'com.google.guava', name: 'guava', version: '31.0.1-jre'
+
+    // abandoned library
+    implementation 'commons-collections:commons-collections:3.2.2'
+
+    // project + files deps must be ignored by Staleguard
+    // implementation project(':other-module')
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.9.0'
+}
