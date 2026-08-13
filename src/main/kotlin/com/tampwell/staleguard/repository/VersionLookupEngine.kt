@@ -26,10 +26,19 @@ data class ArtifactVersions(
 }
 
 /**
- * A synchronous snapshot read. [value] == null means the repository is known
- * NOT to have this artifact (404) — callers must not re-enqueue those.
+ * A synchronous snapshot read.
+ *
+ * [failed] distinguishes the two null-ish cases callers MUST treat
+ * differently: value == null && !failed means the repository is known NOT to
+ * have this artifact (404) — never re-enqueue. failed == true means the last
+ * fetch errored — callers should keep requesting lookups (the engine
+ * throttles real retries to every few minutes).
  */
-data class PeekResult(val value: ArtifactVersions?, val fetchedAtMillis: Long)
+data class PeekResult(
+    val value: ArtifactVersions?,
+    val fetchedAtMillis: Long,
+    val failed: Boolean = false,
+)
 
 /**
  * Orchestrates cache + network for version lookups. Platform-free by design:
@@ -131,13 +140,14 @@ class VersionLookupEngine(
     }
 
     /**
-     * Serve stale data after a failure, but timestamp the snapshot so the
-     * memory fast path retries after [FAILURE_RETRY_MILLIS] instead of either
+     * Serve stale data after a failure, marked failed=true so peek() callers
+     * know to keep asking, and timestamped so the memory fast path performs a
+     * real retry only every [FAILURE_RETRY_MILLIS] instead of either
      * hammering the network every pass or going quiet for a full TTL.
      */
     private fun staleFallback(coordinates: Coordinates, cached: CachedArtifact?): ArtifactVersions? {
         val result = cached?.toResult(coordinates, stale = true)
-        memory[coordinates] = PeekResult(result, clock() - ttlMillis + FAILURE_RETRY_MILLIS)
+        memory[coordinates] = PeekResult(result, clock() - ttlMillis + FAILURE_RETRY_MILLIS, failed = true)
         return result
     }
 

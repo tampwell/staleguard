@@ -22,6 +22,11 @@
                          enabledByDefault="true"
                          level="WARNING"
                          implementationClass="com.tampwell.staleguard.inspection.DependencyFreshnessInspection"/>
+        <applicationConfigurable parentId="tools"
+                                 id="com.tampwell.staleguard.settings"
+                                 instance="com.tampwell.staleguard.settings.StaleguardConfigurable"
+                                 bundle="messages.StaleguardBundle"
+                                 key="settings.display.name"/>
     </extensions>
 
     <actions>

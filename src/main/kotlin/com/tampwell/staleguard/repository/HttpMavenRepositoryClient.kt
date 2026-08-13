@@ -1,5 +1,6 @@
 package com.tampwell.staleguard.repository
 
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.util.io.HttpRequests
 import java.net.HttpURLConnection
 
@@ -9,6 +10,8 @@ import java.net.HttpURLConnection
  * design — always called from Dispatchers.IO by the engine.
  */
 class HttpMavenRepositoryClient(pluginVersion: String) : MavenRepositoryClient {
+
+    private val log = logger<HttpMavenRepositoryClient>()
 
     private val userAgent = "Staleguard/$pluginVersion (+https://github.com/mingzhenm9-cloud/staleguard; staleguard@tampwell.com)"
 
@@ -30,9 +33,12 @@ class HttpMavenRepositoryClient(pluginVersion: String) : MavenRepositoryClient {
                         HttpURLConnection.HTTP_NOT_MODIFIED -> FetchResult.NotModified
                         HttpURLConnection.HTTP_NOT_FOUND -> FetchResult.NotFound
                         else -> FetchResult.Failed("HTTP $code for $url")
+                            .also { log.info("Staleguard: metadata fetch got HTTP $code for $url") }
                     }
                 }
         } catch (e: Exception) {
+            // Never silent: a broken network must be visible in idea.log.
+            log.info("Staleguard: metadata fetch failed for $url: ${e.javaClass.simpleName}: ${e.message}")
             FetchResult.Failed("${e.javaClass.simpleName}: ${e.message}")
         }
 

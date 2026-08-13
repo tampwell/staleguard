@@ -25,6 +25,8 @@ import kotlinx.coroutines.withContext
 @Service(Service.Level.PROJECT)
 class FreshnessRefreshService(private val project: Project, private val scope: CoroutineScope) {
 
+    private val log = com.intellij.openapi.diagnostic.logger<FreshnessRefreshService>()
+
     private val pending = ConcurrentHashMap.newKeySet<Coordinates>()
     private val restartScheduled = AtomicBoolean(false)
 
@@ -39,9 +41,19 @@ class FreshnessRefreshService(private val project: Project, private val scope: C
             } finally {
                 pending.remove(coordinates)
             }
+            val after = lookupService.peek(coordinates)
+            log.info(
+                "Staleguard: resolved $coordinates -> " +
+                    when {
+                        after == null -> "no result"
+                        after.failed -> "FAILED (stale=${after.value != null})"
+                        after.value == null -> "not found (404)"
+                        else -> "${after.value.versions.size} versions, latest=${after.value.latest?.value}"
+                    },
+            )
             // Only repaint when the answer changed — a warm-cache confirmation
             // (or a still-failing lookup) must not churn the editor.
-            if (lookupService.peek(coordinates)?.value != before?.value) {
+            if (after?.value != before?.value) {
                 scheduleRestart()
             }
         }
