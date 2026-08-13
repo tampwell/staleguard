@@ -25,7 +25,15 @@ Verifier note: 4 deprecated + 6 experimental flags are all inherited default met
 
 Ops note: Gradle local build cache served stale test classes once after a binary-incompatible signature change (NoSuchMethodError in tests that pass in isolation). Recovery: `gradlew --no-build-cache clean build`, then purge `~/.gradle/caches/build-cache-1`.
 
-OPEN ISSUE (highest priority next session): squiggles were not visibly appearing in the sandbox for lib/pom.xml despite correct registration — diagnostic logging is now in place (idea.log lines "Staleguard: checked <file>" will show whether checkFile runs). Reproduce with the new build before anything else.
+RESOLVED (2026-08-13): inspection confirmed working END-TO-END by the owner: squiggles appeared, quick fix applied (gson 2.8.9→2.14.0, slf4j 1.7.32→2.0.18 live in testProjects/maven-sample/lib/pom.xml). Log evidence: "checked pom.xml: 4 problem(s), 0 cache miss(es)" declining to 2 as fixes were applied; stable-only filter proven in production (slf4j latest is 2.1.0-alpha1, suggestion was 2.0.18). Earlier invisibility was the since-fixed failed-first-fetch silencing bug.
+
+## Polish sprint — DONE (2026-08-13, commits a7f8c8e + d3556f9)
+
+- a7f8c8e UX polish: humanized tooltip ages ("released 2 months ago"), abandonment messages with real last-release month/year, IgnoreDependencyQuickFix on every problem, one-time offline balloon, settings cache section (stats + clear), Tools "Apply All Patch Updates" (UpgradeApplier shared with batch dialog), cache hit/miss logging. Decision: PATCH stays WARNING, not INFORMATION.
+- d3556f9 Licenses + changelog (Phase 3 F+G): per-artifact HEAD upgraded to GET of the same .pom → PomInfo (licenses/scm/description, XXE-hardened, 7 tests), cache schema v2, ScmUrls normalization + releases URLs (9 tests), "View changelog" quick fix (Maven+Gradle), license + copyleft marker in stats rows. Tests caught a real bug pre-ship: spelled-out "General Public License" missed by acronym-only matching.
+- Build cache DISABLED in gradle.properties (stale-test-class poisoning twice in one day). 140 tests green; verifier Compatible (only inherited ToolWindowFactory flags).
+
+Deferred with notes: batch diff preview (DiffPanel), per-project filter persistence, description text in batch rows (data now cached, surface pending), ignore-list format validation, ignore import/export, stats CSV/icons/sorting, timeline click-to-inspect/zoom/threshold-line, license group-by view + warn-list setting, Phase 3 H (impact estimation), I (HTML report), J (extract-to-property).
 
 ## Next steps
 
