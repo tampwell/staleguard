@@ -10,9 +10,20 @@ import com.intellij.ui.content.ContentFactory
 class StaleguardToolWindowFactory : ToolWindowFactory, DumbAware {
 
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
-        val panel = StaleguardStatsPanel(project)
-        val content = ContentFactory.getInstance().createContent(panel, "", false)
-        Disposer.register(content, panel)
-        toolWindow.contentManager.addContent(content)
+        val contentFactory = ContentFactory.getInstance()
+
+        val stats = StaleguardStatsPanel(project)
+        val statsContent = contentFactory.createContent(
+            stats, com.tampwell.staleguard.StaleguardBundle.message("toolwindow.tab.stats"), false,
+        )
+        Disposer.register(statsContent, stats)
+        toolWindow.contentManager.addContent(statsContent)
+
+        val timeline = TimelinePanel(project)
+        val timelineContent = contentFactory.createContent(
+            timeline, com.tampwell.staleguard.StaleguardBundle.message("toolwindow.tab.timeline"), false,
+        )
+        Disposer.register(timelineContent, timeline)
+        toolWindow.contentManager.addContent(timelineContent)
     }
 }
