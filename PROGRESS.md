@@ -13,10 +13,15 @@
 
 ## Next steps
 
-1. Builder: finish `gh auth login` (mingzhenm9-cloud), then create private GitHub repo + push.
-2. Verify Milestone 1 end-to-end in `runIde` against a real multi-module Maven project (Tools → "Staleguard: List Declared Dependencies").
-3. Milestone 2: version-comparison engine (pure Kotlin, exhaustive tests — Maven version ordering spec incl. qualifiers, SNAPSHOT, .Final, date versions).
-4. Milestone 3: cached Maven Central lookups via repo1 maven-metadata.xml (background, never EDT).
+1. Verify Milestone 1 end-to-end in `runIde` against a real multi-module Maven project (Tools → "Staleguard: List Declared Dependencies").
+2. Milestone 3: cached Maven Central lookups via repo1 maven-metadata.xml (background coroutines, disk cache, never EDT).
+3. Milestone 4: the inspection — highlight outdated versions in pom.xml with severity tiers, wired to MavenVersion + UpgradeSeverity.
+4. Before publish: add Apache Maven attribution to a NOTICE file (MavenVersion is a ported ComparableVersion).
+
+## Contact / vendor details
+
+- Public business email: staleguard@tampwell.com (created 2026-08-13; use for vendor profile + trader disclosure — never personal addresses)
+- Vendor website: tampwell.com (domain owned)
 
 ## Open questions / decisions pending
 
