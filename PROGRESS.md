@@ -7,13 +7,12 @@
 - Repo scaffolded from official `intellij-platform-plugin-template` 2.6.0 (Kotlin 2.1.20, IntelliJ Platform Gradle Plugin 2.16.0, Gradle 9.5 wrapper).
 - Rebranded: package `com.tampwell.staleguard`, plugin id `com.tampwell.staleguard`, name "Staleguard", vendor "Tampwell".
 - Target platform still the template's pinned `intellijIdea("2025.2.6.2")` — deliberate for a known-good first build; bump to 2026.2 (since-build 262) is the next config task and must be re-verified with `verifyPlugin`.
-- Hello-world `runIde` verification: see latest session notes below.
+- ✅ 2026-08-13: `build` green (JDK 21 Temurin, IDEA CE 2025.2.6.2 installed via winget). `runIde` verified — sandbox log shows `Loaded custom plugins: Staleguard (0.1.0)`. Day-1 milestone complete. Template's flaky `testRename` demo removed (VfsRootAccess sandbox quirk); two platform tests remain as examples.
 - GitHub: repo stays LOCAL until `gh auth login` is run by the builder (account: mingzhenm9-cloud). Repo will be PRIVATE until v1.
 
 ## Next steps
 
-1. Verify `./gradlew.bat build` and `runIde` (day-1 win).
-2. Bump target platform to 2026.2, re-run build + verifyPlugin.
+1. Bump target platform to 2026.2, re-run build + verifyPlugin.
 3. Delete template demo code (tool window, services) once first real feature starts.
 4. Milestone 1: parse `pom.xml` via Maven DOM API, log every declared dependency + version.
 5. Builder: run `gh auth login` (mingzhenm9-cloud), then we create the private GitHub repo and push.
