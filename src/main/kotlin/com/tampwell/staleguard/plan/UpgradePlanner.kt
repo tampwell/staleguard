@@ -14,6 +14,8 @@ data class PlannerInput(
     val declared: DeclaredDependency,
     /** Warm-cache data, or null when not resolved / not found. */
     val known: ArtifactVersions?,
+    /** Stable identifier for the module (e.g. pom file path); display name is not unique. */
+    val moduleId: String = moduleName,
 )
 
 /** An applicable upgrade: where it is, what it becomes, how risky it looks. */
@@ -26,6 +28,7 @@ data class UpgradeCandidate(
     /** Literal or Property — None never becomes a candidate. */
     val target: FixTarget,
     val recommendation: Recommendation,
+    val moduleId: String = moduleName,
 ) {
     val propertyName: String? get() = (target as? FixTarget.Property)?.name
 }
@@ -90,6 +93,7 @@ object UpgradePlanner {
                 severity = severity,
                 target = target,
                 recommendation = Recommendation.of(severity, releaseAge, abandoned),
+                moduleId = input.moduleId,
             )
         }
 

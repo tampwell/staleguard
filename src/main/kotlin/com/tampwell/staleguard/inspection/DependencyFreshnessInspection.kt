@@ -9,6 +9,7 @@ import com.intellij.psi.xml.XmlFile
 import com.intellij.openapi.diagnostic.logger
 import com.tampwell.staleguard.StaleguardBundle
 import com.tampwell.staleguard.maven.PomDependencyCollector
+import com.tampwell.staleguard.plan.Recommendation
 import com.tampwell.staleguard.repository.Coordinates
 import com.tampwell.staleguard.services.FreshnessRefreshService
 import com.tampwell.staleguard.services.VersionLookupService
@@ -82,6 +83,12 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                             FixTarget.None -> emptyArray()
                             else -> arrayOf(BumpVersionQuickFix(suggested.value, target))
                         }
+                        val releaseAge = data.newestReleaseAtMillis?.let { now - it }
+                        val recommendation = Recommendation.of(
+                            severity,
+                            releaseAge,
+                            abandoned = releaseAge != null && releaseAge > abandonmentThresholdMs,
+                        )
                         problems += manager.createProblemDescriptor(
                             anchor,
                             StaleguardBundle.message(
@@ -89,6 +96,7 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                                 StaleguardBundle.message("severity.${severity.name.lowercase()}"),
                                 current.value,
                                 suggested.value,
+                                StaleguardBundle.message(recommendation.bundleKey),
                             ),
                             isOnTheFly,
                             fixes,

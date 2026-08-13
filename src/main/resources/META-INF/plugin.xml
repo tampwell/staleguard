@@ -36,5 +36,11 @@
                 description="Log every dependency declared in the project's Maven pom files">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
         </action>
+        <action id="com.tampwell.staleguard.BatchUpdate"
+                class="com.tampwell.staleguard.actions.BatchUpdateAction"
+                text="Staleguard: Update Dependencies…"
+                description="Preview and apply available dependency upgrades across all Maven modules">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
     </actions>
 </idea-plugin>

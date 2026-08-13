@@ -22,6 +22,9 @@ class StaleguardSettings : PersistentStateComponent<StaleguardSettings.State> {
         var abandonmentEnabled: Boolean = true
         var abandonmentYears: Int = 2
         var ignoredCoordinates: MutableList<String> = mutableListOf()
+
+        /** Properties the user opted out of blast-radius confirmation for. */
+        var suppressedPropertyWarnings: MutableList<String> = mutableListOf()
     }
 
     private var state = State()
