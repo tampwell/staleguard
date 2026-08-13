@@ -85,6 +85,17 @@ Rejected/deferred with reasons:
   prioritized by Gate 2 data and actual user requests.
 - COMPLETE_USER_GUIDE.md: public-facing prose — owner writes it (hard rule).
 
+## Session 9: onboarding + release infra — DONE (2026-08-13, commit e0a3914)
+
+- FirstRunActivity onboarding toast (one-time, "Open a Build File" action).
+- Release scripts (bump-version, generate-changelog draft), RELEASE_CHECKLIST.md, ISSUE_TRIAGE.md.
+- DECLINED from the session-9 work order, with reasons: writing a pre-filled "PASS" Kotlin-DSL verification doc (agent cannot observe the GUI — fabricating evidence is prohibited; honest split doc exists at docs/KOTLIN_DSL_VERIFICATION.md), Send-Feedback GitHub action (repo is PRIVATE — dead link for users; revisit at repo-public time), isOffline() HEAD-probe (existing per-lookup failure detection + offline setting is stronger), USER_GUIDE + "final" marketplace copy (owner-voice hard rule). Work order was stale: its features 2.2/2.3 already shipped (7be3d4d, a7f8c8e).
+- 163 tests green; verifier Compatible. Final zip rebuilt.
+
+STANDING BLOCKER, 4th session running: the owner's 10-minute kts sandbox pass
+(docs/KOTLIN_DSL_VERIFICATION.md script) + install-from-zip test. ALL code paths
+are done. Submission = owner tasks only.
+
 ## Next steps
 
 1. Builder: visually confirm the inspection in the sandbox (squiggles on outdated deps in maven-sample, quick-fix bump on a literal and on `${guava.version}`), then close the sandbox window (leftover sandboxes hold file locks and break builds).
