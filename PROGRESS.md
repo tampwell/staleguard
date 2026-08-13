@@ -11,6 +11,22 @@
 - ✅ 2026-08-13 (later): Target bumped to IDEA 2026.2.1 / Kotlin 2.3.20 (2026.2 = JVM target 25; Kotlin 2.1.x can't emit it). **verifyPlugin: Compatible** against IU-262.9437.185. **Milestone 1 done**: MavenPropertyInterpolator (12 unit tests) + PomDependencyCollector (DOM, deps + depMgmt + property resolution) + Tools-menu logging action. All 13 tests green. Demo code deleted.
 - GitHub: repo stays LOCAL until `gh auth login` is run by the builder (account: mingzhenm9-cloud). Repo will be PRIVATE until v1.
 
+## Feature sprint — DONE (2026-08-13, commits ac1831f..f2c4044)
+
+All six planned features shipped, each verifier-Compatible, 124 tests green:
+1. Batch update (7d9868e): Tools menu, severity-grouped preview, patch pre-selected, one undo step, shared-property dedup (highest wins). Deviation: no intention/Alt+Enter entry point yet — Tools menu only.
+2. Property blast-radius safety (7d9868e): confirmation with affected list before editing multi-use properties; per-property don't-ask in settings.
+3. Recommendations (7d9868e): SAFE/REVIEW/BREAKING heuristic in inspection + batch rows. Deferred: "View Changelog" links (needs artifact-POM fetching for <scm> in the engine).
+4. Stats tool window (31206d1): summary + per-module counts, navigable rows, live rebuild via FreshnessListener bus, Refresh All with TTL bypass (force flag; ETags still sent). Deviations: window state persistence = platform default; "checking" is per-row text, not a progress bar.
+5. Gradle Groovy DSL (9d28854): optional Groovy-plugin dependency; string + map notation; GStrings/project()/files()/catalogs skipped; kts untouched. Deferred: plugins{} block (Gradle Plugin Portal lookups), Gradle properties resolution, version catalogs.
+6. Age timeline (f2c4044): 5-year bars, legend, tooltips, PNG export. Deviation: bars = time since NEWEST release (cached), not in-use version's release date (would cost one HEAD per dependency).
+
+Verifier note: 4 deprecated + 6 experimental flags are all inherited default methods of the ToolWindowFactory interface — not calls in our code; nothing actionable. Internal API usage: zero.
+
+Ops note: Gradle local build cache served stale test classes once after a binary-incompatible signature change (NoSuchMethodError in tests that pass in isolation). Recovery: `gradlew --no-build-cache clean build`, then purge `~/.gradle/caches/build-cache-1`.
+
+OPEN ISSUE (highest priority next session): squiggles were not visibly appearing in the sandbox for lib/pom.xml despite correct registration — diagnostic logging is now in place (idea.log lines "Staleguard: checked <file>" will show whether checkFile runs). Reproduce with the new build before anything else.
+
 ## Next steps
 
 1. Builder: visually confirm the inspection in the sandbox (squiggles on outdated deps in maven-sample, quick-fix bump on a literal and on `${guava.version}`), then close the sandbox window (leftover sandboxes hold file locks and break builds).
