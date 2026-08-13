@@ -1,0 +1,18 @@
+Staleguard — dependency freshness for IntelliJ IDEA
+Copyright 2026 Tampwell LLC
+
+This product includes software developed at
+The Apache Software Foundation (https://www.apache.org/).
+
+Specifically:
+
+- MavenVersion.kt is a Kotlin port, with modifications, of
+  ComparableVersion.java from Apache Maven (maven-artifact),
+  licensed under the Apache License, Version 2.0.
+  Original source:
+  https://github.com/apache/maven/blob/master/compat/maven-artifact/src/main/java/org/apache/maven/artifact/versioning/ComparableVersion.java
+  Its test suite (MavenVersionTest.kt) is likewise ported from
+  ComparableVersionTest.java of the same project.
+
+The Apache License, Version 2.0 is available at
+https://www.apache.org/licenses/LICENSE-2.0

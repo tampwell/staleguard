@@ -1,0 +1,11 @@
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <localInspection language="kotlin"
+                         bundle="messages.StaleguardBundle"
+                         key="inspection.gradle.kts.display.name"
+                         groupKey="inspection.group"
+                         enabledByDefault="true"
+                         level="WARNING"
+                         implementationClass="com.tampwell.staleguard.gradle.GradleKotlinDslFreshnessInspection"/>
+    </extensions>
+</idea-plugin>

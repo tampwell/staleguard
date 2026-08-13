@@ -14,6 +14,7 @@ dependencies {
         intellijIdea("2026.2.1")
         bundledPlugin("org.jetbrains.idea.maven")
         bundledPlugin("org.intellij.groovy")
+        bundledPlugin("org.jetbrains.kotlin")
         testFramework(TestFrameworkType.Platform)
     }
 }

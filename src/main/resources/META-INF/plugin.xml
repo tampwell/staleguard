@@ -4,13 +4,22 @@
     <name>Staleguard</name>
     <vendor>Tampwell</vendor>
     <description><![CDATA[
-        <p>Keeps Maven and Gradle dependencies fresh: inline upgrade hints, one-click version bumps, and warnings for abandoned libraries.</p>
-        <p>(Placeholder description — final marketplace copy to be written by the author before publishing.)</p>
+        <p>Staleguard shows outdated Maven and Gradle dependencies right in the editor: severity-labeled warnings, one-click version bumps, and abandonment alerts for libraries that stopped shipping releases.</p>
+        <ul>
+            <li><b>Inline upgrade hints</b> with major/minor/patch severity and release-age context</li>
+            <li><b>One-click fixes</b> that correctly edit Maven properties and Gradle version catalogs — never inline literals over references</li>
+            <li><b>Abandonment detection</b>: flags dependencies whose newest release is years old, with the actual date</li>
+            <li><b>Batch updates</b> with a severity-grouped preview, plus one-click "apply all patch"</li>
+            <li><b>Statistics and timeline</b> tool window with license visibility and PNG export</li>
+            <li><b>Changelog links</b> straight to the project's releases page</li>
+        </ul>
+        <p>Supports pom.xml, build.gradle, build.gradle.kts, and libs.versions.toml. Stable-only suggestions by default. No telemetry, no accounts — data comes directly from Maven Central with a polite 24-hour cache.</p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
     <depends>org.jetbrains.idea.maven</depends>
     <depends optional="true" config-file="staleguard-withGroovy.xml">org.intellij.groovy</depends>
+    <depends optional="true" config-file="staleguard-withKotlin.xml">org.jetbrains.kotlin</depends>
 
     <resource-bundle>messages.StaleguardBundle</resource-bundle>
 
