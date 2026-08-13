@@ -13,9 +13,21 @@
 
 ## Next steps
 
-1. Milestone 4: LocalInspectionTool over pom.xml dependency versions reading ONLY the warm cache; background refresh service triggers DaemonCodeAnalyzer.restart(project) when lookups land; severity mapping MAJOR/MINOR/PATCH; quick fix = one-click version bump via Maven DOM write; abandonment flag when newestReleaseAt > 2 years old (threshold decided 2026-08-13).
-2. Then: Gradle + libs.versions.toml parsing; settings page (ignore list, thresholds, prerelease toggle); batch "update all patch".
+1. Builder: visually confirm the inspection in the sandbox (squiggles on outdated deps in maven-sample, quick-fix bump on a literal and on `${guava.version}`), then close the sandbox window (leftover sandboxes hold file locks and break builds).
+2. Milestone 5: Gradle + libs.versions.toml parsing; settings page (ignore list, thresholds, prerelease toggle); batch "update all patch".
 3. Before publish: NOTICE file with Apache Maven attribution (MavenVersion is a ported ComparableVersion).
+
+## Milestone 4 — DONE (2026-08-13, commit 4d70aa8)
+
+Inspection + quick fixes shipped per docs/REFERENCE.md §7 spec. verifyPlugin: Compatible, zero internal/deprecated API usages. 99 tests green.
+
+Deviations from spec (deliberate):
+- QUALIFIER upgrades (e.g. 1.0-rc1 → 1.0) weren't specified; mapped to WEAK_WARNING rather than dropped.
+- ${project.*} version references offer no fix (not user-editable properties) — spec's property-edit rule would have produced a wrong edit.
+- Whole-project DaemonCodeAnalyzer.restart() is deprecated in 262; used per-file restart(psiFile, reason) on open pom.xml editors instead (also less daemon work).
+- Plugin version for the HTTP User-Agent is baked in at build time (processResources) — every runtime plugin-descriptor lookup API turned out to be @ApiStatus.Internal.
+
+Explicitly deferred (documented known gaps — not re-solved here): version ranges ([1.0,2.0)), LATEST/RELEASE keywords, multi-repo poms, parent-inherited properties.
 
 ## Decided defaults (builder, 2026-08-13)
 
