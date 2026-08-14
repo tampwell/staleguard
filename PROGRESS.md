@@ -96,6 +96,29 @@ STANDING BLOCKER, 4th session running: the owner's 10-minute kts sandbox pass
 (docs/KOTLIN_DSL_VERIFICATION.md script) + install-from-zip test. ALL code paths
 are done. Submission = owner tasks only.
 
+## Session 10-11: UI polish + honest reset — DONE (2026-08-13, commits 897f5e4, c072ee4)
+
+- 897f5e4: professional plugin icon (shield + green up-arrow, light + dark SVGs,
+  auto-discovered by filename — the work order's <icon> plugin.xml element does
+  not exist), Iconable icons on all 6 quick fixes, theme audit CLEAN (all
+  JBColor), docs/UI_AUDIT_AND_STYLE_GUIDE.md. Icon awaits OWNER APPROVAL —
+  if approved, the "professional logo" launch blocker is cleared.
+- c072ee4: KtsDependencyCollector extracted (inspection = thin shell). Platform
+  test for it attempted twice, removed per policy: the light test environment
+  does not load Kotlin language support at all (.gradle.kts AND .kt parse as
+  plain text); adopting the full Kotlin test framework = the flaky-heavyweight
+  territory the policy forbids. Collector stays isolated and test-ready.
+- Gap analysis (session-11 reset order): TODO/FIXME 0, unsafe !! 0, hardcoded
+  colors 0, working tree clean. NO ENGINEERING WORK REMAINS for v1.0.0.
+
+ANSWERS to the reset order's clarity questions (from evidence, not assumption):
+1. Sandbox verification: NOT completed — zero "checked build.gradle.kts" log
+   entries across all sandbox sessions. It remains the sole technical unknown.
+2. Submission imminent? Blocked exclusively on owner checklist
+   (docs/MARKETPLACE_SUBMISSION_CHECKLIST.md).
+3. Genuine problem needing solving: none in code. The project decision point
+   is Option A (ship now) — recommended for the 6th consecutive session.
+
 ## Next steps
 
 1. Builder: visually confirm the inspection in the sandbox (squiggles on outdated deps in maven-sample, quick-fix bump on a literal and on `${guava.version}`), then close the sandbox window (leftover sandboxes hold file locks and break builds).
