@@ -115,9 +115,11 @@ class FreshnessRefreshService(private val project: Project, private val scope: C
                 val daemon = DaemonCodeAnalyzer.getInstance(project)
                 val psiManager = PsiManager.getInstance(project)
                 FileEditorManager.getInstance(project).openFiles
-                    .filter { it.name == "pom.xml" }
+                    .filter { it.name == "pom.xml" || it.name.endsWith(".gradle") || it.name.endsWith(".gradle.kts") }
                     .mapNotNull(psiManager::findFile)
-                    .forEach { daemon.restart(it, "Staleguard: dependency versions resolved") }
+                    // restart(PsiFile) is the current API on the public 253 line;
+                    // the reason-taking overload only exists in the unreleased 262 branch.
+                    .forEach { daemon.restart(it) }
             }
         }
     }

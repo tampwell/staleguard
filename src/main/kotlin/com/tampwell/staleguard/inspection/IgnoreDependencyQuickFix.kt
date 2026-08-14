@@ -32,7 +32,7 @@ class IgnoreDependencyQuickFix(
             settings.state.ignoredCoordinates.add(entry)
         }
         descriptor.psiElement?.containingFile?.let {
-            DaemonCodeAnalyzer.getInstance(project).restart(it, "Staleguard: dependency ignored")
+            DaemonCodeAnalyzer.getInstance(project).restart(it)
         }
     }
 }
