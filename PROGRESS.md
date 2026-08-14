@@ -119,6 +119,20 @@ ANSWERS to the reset order's clarity questions (from evidence, not assumption):
 3. Genuine problem needing solving: none in code. The project decision point
    is Option A (ship now) — recommended for the 6th consecutive session.
 
+## Session 12: post-launch response kit — DONE (2026-08-14, commit be21c6a)
+
+Metrics script (standalone, proven live: rival 18525 at 183,524 downloads,
+~60/day — Gate-2 calibration), response-template drafts (owner-adapted,
+reality-grounded), emergency/rollback doc (fix-forward-first, no invented
+marketplace mechanics), triage intake/labels, V1.1_PLANNING (demand-first,
+seeded from real deferred ledger). DECLINED: in-plugin metrics/review-monitor
+code (ops must not ship inside users' IDEs), Slack webhook infra, fabricated
+demand numbers. No plugin code changed.
+
+Engineering is COMPLETE through post-launch prep. Everything from here to
+launch is on the owner checklist; everything after launch has a documented
+playbook.
+
 ## Next steps
 
 1. Builder: visually confirm the inspection in the sandbox (squiggles on outdated deps in maven-sample, quick-fix bump on a literal and on `${guava.version}`), then close the sandbox window (leftover sandboxes hold file locks and break builds).
