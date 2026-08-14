@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 40 40">
-  <!-- Staleguard: shield (guard) + up arrow (freshness/update). Light theme. -->
+  <!-- Staleguard icon, dark-theme variant: lighter strokes for contrast. -->
   <path d="M20 3 L5 9 L5 19 C5 28 11 34.5 20 37 C29 34.5 35 28 35 19 L35 9 Z"
-        fill="#F7F8FA" stroke="#6E6E6E" stroke-width="2.4" stroke-linejoin="round"/>
+        fill="#2B2D30" stroke="#A0A0A0" stroke-width="2.4" stroke-linejoin="round"/>
   <path d="M20 27.5 L20 13.5 M13.5 20 L20 13.5 L26.5 20"
-        fill="none" stroke="#5C962C" stroke-width="3.4"
+        fill="none" stroke="#7BC96F" stroke-width="3.4"
         stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

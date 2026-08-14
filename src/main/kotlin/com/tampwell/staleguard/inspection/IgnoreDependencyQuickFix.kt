@@ -15,9 +15,11 @@ import com.tampwell.staleguard.settings.StaleguardSettings
 class IgnoreDependencyQuickFix(
     private val groupId: String,
     private val artifactId: String,
-) : LocalQuickFix {
+) : LocalQuickFix, com.intellij.openapi.util.Iconable {
 
     override fun startInWriteAction(): Boolean = false
+
+    override fun getIcon(flags: Int): javax.swing.Icon = com.intellij.icons.AllIcons.Actions.Cancel
 
     override fun getFamilyName(): String = StaleguardBundle.message("fix.ignore.family")
 

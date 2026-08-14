@@ -28,9 +28,11 @@ import org.jetbrains.idea.maven.dom.MavenDomUtil
 class BumpVersionQuickFix(
     private val newVersion: String,
     private val target: FixTarget,
-) : LocalQuickFix {
+) : LocalQuickFix, com.intellij.openapi.util.Iconable {
 
     override fun startInWriteAction(): Boolean = false
+
+    override fun getIcon(flags: Int): javax.swing.Icon = com.intellij.icons.AllIcons.Actions.Edit
 
     override fun getFamilyName(): String = StaleguardBundle.message("fix.bump.family")
 

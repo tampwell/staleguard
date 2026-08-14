@@ -14,7 +14,7 @@ import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.literals
 class GradleBumpVersionQuickFix(
     private val newVersion: String,
     private val mode: Mode,
-) : LocalQuickFix {
+) : LocalQuickFix, com.intellij.openapi.util.Iconable {
 
     enum class Mode {
         /** `implementation 'g:a:1.0'` — swap the version inside the notation. */
@@ -23,6 +23,8 @@ class GradleBumpVersionQuickFix(
         /** `version: '1.0'` in map notation — replace the whole literal content. */
         MAP_VERSION,
     }
+
+    override fun getIcon(flags: Int): javax.swing.Icon = com.intellij.icons.AllIcons.Actions.Edit
 
     override fun getFamilyName(): String = StaleguardBundle.message("fix.bump.family")
 

@@ -11,9 +11,11 @@ import com.tampwell.staleguard.StaleguardBundle
  * the project's releases page (derived from the newest .pom's <scm> tag,
  * cached; no extra network). User-initiated browser open only.
  */
-class OpenChangelogQuickFix(private val changelogUrl: String) : LocalQuickFix {
+class OpenChangelogQuickFix(private val changelogUrl: String) : LocalQuickFix, com.intellij.openapi.util.Iconable {
 
     override fun startInWriteAction(): Boolean = false
+
+    override fun getIcon(flags: Int): javax.swing.Icon = com.intellij.icons.AllIcons.Vcs.History
 
     override fun getFamilyName(): String = StaleguardBundle.message("fix.changelog.family")
 

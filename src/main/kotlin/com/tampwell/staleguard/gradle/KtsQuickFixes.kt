@@ -19,7 +19,9 @@ import org.jetbrains.kotlin.psi.KtStringTemplateExpression
 class BumpKtsVersionQuickFix(
     private val newVersion: String,
     private val mode: Mode,
-) : LocalQuickFix {
+) : LocalQuickFix, com.intellij.openapi.util.Iconable {
+
+    override fun getIcon(flags: Int): javax.swing.Icon = com.intellij.icons.AllIcons.Actions.Edit
 
     enum class Mode { NOTATION, WHOLE_LITERAL }
 
@@ -54,7 +56,9 @@ class UpdateCatalogVersionQuickFix(
     private val newVersion: String,
     private val referenceCount: Int,
     private val catalogFilePath: String,
-) : LocalQuickFix {
+) : LocalQuickFix, com.intellij.openapi.util.Iconable {
+
+    override fun getIcon(flags: Int): javax.swing.Icon = com.intellij.icons.AllIcons.Actions.Edit
 
     override fun startInWriteAction(): Boolean = false // may show a dialog
 
