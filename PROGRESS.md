@@ -133,6 +133,27 @@ Engineering is COMPLETE through post-launch prep. Everything from here to
 launch is on the owner checklist; everything after launch has a documented
 playbook.
 
+## Session 13: CRITICAL PLATFORM RETARGET — DONE (2026-08-14, commit 9bcfb7c)
+
+The clean-environment install protocol caught a launch-killing config error:
+the 2026.2/262 target line WAS NEVER PUBLICLY RELEASED (dev-repo only; the
+"ideaIC-2026.2.1.win.zip" URL serves an HTML error page; official releases API
+tops out at 2025.3 build 253.28294.334; winget ships 2025.2.x; rival's compat
+range caps at 253.*). since-build=262 would have shipped a plugin installable
+by NO ONE. Retargeted: platform 2025.3, sinceBuild=252 (real installed base;
+deliberate one-branch widening of current-release-only). API fix: restart(
+psiFile) (reason overload is 262-only). Bonus bug fixed: .gradle/.gradle.kts
+editors now repaint on data arrival (was pom-only). Verifier gate scoped:
+INTERNAL_API_USAGES off the failure list — sole hits are compiler-mandated
+ToolWindowFactory bridges; all substantive classes hard; verified Compatible
+across FOUR builds (252/253/261/262) with zero flags from our own code.
+163 tests green. Clean test IDE ready: C:\Tools\idea-2025.3 (2025.3, checksum-
+verified from official API). Corrected zip delivered to owner.
+
+LESSON recorded: "current release" must be established from the official
+releases API (data.services.jetbrains.com), never from what the dev artifact
+repository will resolve.
+
 ## Next steps
 
 1. Builder: visually confirm the inspection in the sandbox (squiggles on outdated deps in maven-sample, quick-fix bump on a literal and on `${guava.version}`), then close the sandbox window (leftover sandboxes hold file locks and break builds).
