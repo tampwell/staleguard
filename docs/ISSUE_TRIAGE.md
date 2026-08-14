@@ -1,5 +1,13 @@
 # Issue triage guidelines (post-launch)
 
+## Intake + labels (GitHub, once repo is public)
+Channels: GitHub issues (primary) · staleguard@tampwell.com · marketplace
+reviews · social mentions. Labels: bug / enhancement / question / duplicate /
+wontfix + P0-P3. Every intake gets: severity call within 24h, a reply from
+the templates in RESPONSE_TEMPLATES.md (owner-adapted), and a line in
+PROGRESS.md if P0/P1. Close the loop on every fix: comment "fixed in vX",
+thank, close.
+
 ## Response targets
 - P0 Critical (IDE crash/freeze, corrupts build files, security): 24h
 - P1 Major (feature broken, wrong version suggestions, proxy-blocked): 48h
