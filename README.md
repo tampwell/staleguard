@@ -1,15 +1,47 @@
 # Staleguard
 
-Dependency freshness and upgrade hygiene for IntelliJ IDEA. Maven + Gradle + version catalogs.
+An IntelliJ IDEA plugin that shows outdated Maven and Gradle dependencies directly in the editor.
 
-> Private repo — pre-release. This README is an internal placeholder; the public README will be written by the author before launch.
+> Draft README — replace this wording with your own before or shortly after launch.
 
-## Dev quickstart
+## What it does
 
+- Warns on outdated dependency versions with major / minor / patch severity
+- One-click version updates via <kbd>Alt</kbd>+<kbd>Enter</kbd>
+- Edits Maven `<properties>` and Gradle version catalogs correctly, rather than inlining literals
+- Flags dependencies whose newest release is years old
+- Batch update dialog with a per-dependency confidence score
+- Shows dependency licenses, with a marker for copyleft terms
+- Links to a project's release notes when its POM declares an SCM URL
+
+Supported build files: `pom.xml`, `build.gradle`, `build.gradle.kts`, `gradle/libs.versions.toml`.
+
+Suggests stable releases only by default. Prereleases are available behind a setting.
+
+## Privacy
+
+No telemetry, no accounts, no external services beyond Maven Central. Version data is
+cached on disk for 24 hours and revalidated with ETags. An offline mode is available in
+settings.
+
+## Requirements
+
+IntelliJ IDEA 2025.2 or newer.
+
+## Building from source
+
+```bash
+./gradlew build          # compile and run tests
+./gradlew runIde         # launch a sandbox IDE with the plugin
+./gradlew verifyPlugin   # binary compatibility check
+./gradlew buildPlugin    # produce the distributable ZIP
 ```
-./gradlew.bat build      # compile + tests
-./gradlew.bat runIde     # sandboxed IDE with the plugin installed
-./gradlew.bat verifyPlugin
-```
 
-Requires JDK 21. See `CLAUDE.md` for project conventions and `PROGRESS.md` for current state.
+Requires JDK 21.
+
+## License
+
+Apache License 2.0 — see [LICENSE](LICENSE) and [NOTICE](NOTICE).
+
+`MavenVersion.kt` is a Kotlin port of Apache Maven's `ComparableVersion`, so that version
+ordering matches Maven exactly; attribution is in the NOTICE file.

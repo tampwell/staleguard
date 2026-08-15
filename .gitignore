@@ -4,3 +4,8 @@
 .intellijPlatform
 .kotlin
 build
+
+# Internal working documents — kept locally, not published
+/PROGRESS.md
+/CLAUDE.md
+/docs/
