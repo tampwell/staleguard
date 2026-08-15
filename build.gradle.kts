@@ -23,6 +23,17 @@ dependencies {
     }
 }
 
+// Apache-2.0 §4 compliance: MavenVersion.kt is a port of Maven's
+// ComparableVersion, so the License text and NOTICE must travel WITH the
+// distributed artifact — not just live in the repo. Ships them inside the
+// jar's META-INF, which is where reviewers and users look.
+tasks.jar {
+    from(rootDir) {
+        include("LICENSE", "NOTICE")
+        into("META-INF")
+    }
+}
+
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
