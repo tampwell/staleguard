@@ -154,6 +154,31 @@ LESSON recorded: "current release" must be established from the official
 releases API (data.services.jetbrains.com), never from what the dev artifact
 repository will resolve.
 
+## Session 14: FULL TECHNICAL VERIFICATION COMPLETE (2026-08-15, commit e91bd55)
+
+Owner's real-IDE install test caught the last P0 and then confirmed the fix:
+- P0 FIXED: supportsKotlinPluginMode moved to MAIN plugin.xml (IDE checks K2
+  compat BEFORE loading optional config files — declaring it inside the
+  optional file was circular; kts support was silently dead on all real IDEs).
+  The old verifier warning about this was right all along.
+- VERIFIED IN REAL INSTALLED IDE (log + owner screenshots):
+  * Install-from-disk works (both IDEA 2025.2 and 2025.3 environments)
+  * Maven loop end-to-end: 0 problems/3 misses → resolve → 2 → quick fix → 1
+  * Kotlin DSL loop end-to-end: checked build.gradle.kts 0/7 misses →
+    7 artifacts resolved (~130ms) → repaint → 9 problems; NO K2 warning
+  * Alt+Enter menu confirmed visually: Update (pencil) / View changelog
+    (history) / Ignore (cancel) with icons, stable-only suggestion
+    33.6.0-jre for guava
+- Known noise (documented, non-blocking): bundle SEVERE during pre-restart
+  dynamic staging only; post-restart clean.
+- v1.1 polish note: quick-fix menu ordering puts Ignore above Update —
+  consider PriorityAction to rank the bump fix first.
+
+NOTHING TECHNICAL REMAINS. Owner checklist to submission: icon approval,
+marketplace copy, 4 screenshots (TIP: this verification session IS the
+screenshot opportunity — squiggles + Alt+Enter menu are on screen), vendor +
+trader onboarding by parent.
+
 ## Next steps
 
 1. Builder: visually confirm the inspection in the sandbox (squiggles on outdated deps in maven-sample, quick-fix bump on a literal and on `${guava.version}`), then close the sandbox window (leftover sandboxes hold file locks and break builds).
