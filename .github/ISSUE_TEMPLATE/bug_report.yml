@@ -1,5 +1,5 @@
 name: Bug report
-description: Create a report to help us improve
+description: Something in Staleguard is not working
 labels: ["bug"]
 body:
 
@@ -7,57 +7,43 @@ body:
     id: issue
     attributes:
       label: What happened?
-      description: A clear and concise description of what the bug is.
-    validations:
-      required: true
-
-  - type: textarea
-    id: logs
-    attributes:
-      label: Relevant log output or stack trace
-      description: |
-        Please copy and paste any relevant log output.
-        Add the full stack trace if available.
-        If possible, run the failing task with `--stacktrace` flag.
-        
-        *This will be automatically formatted into code, so there is no need for backticks.*
-      render: shell
-
-  - type: textarea
-    id: steps
-    attributes:
-      label: Steps to reproduce
-      description: Steps to reproduce the behavior – provide your build configuration.
-    validations:
-      required: true
-
-  - type: input
-    id: version
-    attributes:
-      label: Gradle IntelliJ Plugin version
-      placeholder: 1.16.0
-    validations:
-      required: true
-
-  - type: input
-    id: gradle
-    attributes:
-      label: Gradle version
-      placeholder: 8.2.1
+      description: What did you expect, and what did you see instead?
     validations:
       required: true
 
   - type: dropdown
-    id: os
+    id: buildfile
     attributes:
-      label: Operating System
+      label: Which build file is involved?
       options:
-        - macOS
-        - Linux
-        - Windows
+        - pom.xml (Maven)
+        - build.gradle (Gradle, Groovy DSL)
+        - build.gradle.kts (Gradle, Kotlin DSL)
+        - gradle/libs.versions.toml (version catalog)
+        - Not specific to one build file
+    validations:
+      required: true
 
   - type: input
-    id: url
+    id: dependency
     attributes:
-      label: Link to build, i.e. failing GitHub Action job
-      placeholder: https://github.com/username/project/actions/runs/1234567890
+      label: Dependency involved
+      description: The coordinates and the version exactly as written in your build file.
+      placeholder: com.google.code.gson:gson:2.8.9
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Staleguard log lines
+      description: >
+        Help → Show Log in Explorer, open idea.log, and paste any lines containing
+        "Staleguard". These usually identify the cause immediately.
+      render: text
+
+  - type: input
+    id: versions
+    attributes:
+      label: IDE and Staleguard version
+      placeholder: IntelliJ IDEA 2025.3, Staleguard 1.0.0
+    validations:
+      required: true
