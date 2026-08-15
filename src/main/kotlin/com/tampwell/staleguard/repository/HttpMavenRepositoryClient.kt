@@ -13,7 +13,9 @@ class HttpMavenRepositoryClient(pluginVersion: String) : MavenRepositoryClient {
 
     private val log = logger<HttpMavenRepositoryClient>()
 
-    private val userAgent = "Staleguard/$pluginVersion (+https://github.com/mingzhenm9-cloud/staleguard; staleguard@tampwell.com)"
+    // Identifies us politely to Maven Central without embedding a personal
+    // account handle — contact address only, stable across repo moves.
+    private val userAgent = "Staleguard/$pluginVersion (IntelliJ plugin; staleguard@tampwell.com)"
 
     override fun fetchMetadata(url: String, previousEtag: String?): FetchResult =
         try {

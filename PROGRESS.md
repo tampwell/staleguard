@@ -9,7 +9,7 @@
 - Target platform still the template's pinned `intellijIdea("2025.2.6.2")` — deliberate for a known-good first build; bump to 2026.2 (since-build 262) is the next config task and must be re-verified with `verifyPlugin`.
 - ✅ 2026-08-13: `build` green (JDK 21 Temurin, IDEA CE 2025.2.6.2 installed via winget). `runIde` verified — sandbox log shows `Loaded custom plugins: Staleguard (0.1.0)`. Day-1 milestone complete. Template's flaky `testRename` demo removed (VfsRootAccess sandbox quirk).
 - ✅ 2026-08-13 (later): Target bumped to IDEA 2026.2.1 / Kotlin 2.3.20 (2026.2 = JVM target 25; Kotlin 2.1.x can't emit it). **verifyPlugin: Compatible** against IU-262.9437.185. **Milestone 1 done**: MavenPropertyInterpolator (12 unit tests) + PomDependencyCollector (DOM, deps + depMgmt + property resolution) + Tools-menu logging action. All 13 tests green. Demo code deleted.
-- GitHub: repo stays LOCAL until `gh auth login` is run by the builder (account: mingzhenm9-cloud). Repo will be PRIVATE until v1.
+- GitHub: repo stays LOCAL until `gh auth login` is run by the builder (account: tampwell). Repo will be PRIVATE until v1.
 
 ## Feature sprint — DONE (2026-08-13, commits ac1831f..f2c4044)
 
@@ -217,7 +217,7 @@ Explicitly deferred (documented known gaps — not re-solved here): version rang
 
 ## Decisions log
 
-- 2026-08-13: Name **Staleguard** (verified: no marketplace hits, no findable trademark). Kotlin. IDEA-only target, current release only. Private repo until v1 under mingzhenm9-cloud. v1 defers batch dry-run diff preview to v1.1. Teaching mode: explain concepts as we go.
+- 2026-08-13: Name **Staleguard** (verified: no marketplace hits, no findable trademark). Kotlin. IDEA-only target, current release only. Private repo until v1 under tampwell. v1 defers batch dry-run diff preview to v1.1. Teaching mode: explain concepts as we go.
 - 2026-08-12: Phase 0 verification passed; thesis holds. Full memo: see Claude artifact "Phase 0 Memo — JetBrains Dependency Plugin".
 - Engineering rule #1: never block the EDT — all network I/O on background coroutines, disk-cached, rate-limit-respectful (fetch `maven-metadata.xml` from repo1.maven.org, NOT the search API).
 - v1 scope: Maven + Gradle (Groovy/kts) + libs.versions.toml; inspections + quick fixes; patch/minor/major severity; single-dep one-click bump + simple "update all patch"; abandonment signal (no release >2 years); settings with ignore-list; NO npm, NO CVE/security features, NO telemetry, NO paid tier yet.
