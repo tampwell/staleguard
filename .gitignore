@@ -7,5 +7,6 @@ build
 
 # Internal working documents — kept locally, not published
 /PROGRESS.md
-/CLAUDE.md
+/project-conventions.local.md
+/*.local.md
 /docs/
