@@ -23,6 +23,16 @@
 
     <resource-bundle>messages.StaleguardBundle</resource-bundle>
 
+    <!-- MUST live in the MAIN descriptor: the IDE checks K2 compatibility
+         BEFORE loading optional config files, so declaring it inside
+         staleguard-withKotlin.xml is circular and the file gets skipped
+         (observed live 2026-08-15: "not compatible with the Kotlin plugin in
+         the K2 mode" -> kts support silently dead). Safe here because the
+         Kotlin plugin is bundled with IntelliJ IDEA, our only target. -->
+    <extensions defaultExtensionNs="org.jetbrains.kotlin">
+        <supportsKotlinPluginMode supportsK2="true"/>
+    </extensions>
+
     <extensions defaultExtensionNs="com.intellij">
         <notificationGroup id="Staleguard" displayType="BALLOON"/>
         <postStartupActivity implementation="com.tampwell.staleguard.onboarding.FirstRunActivity"/>
