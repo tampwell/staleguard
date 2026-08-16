@@ -103,6 +103,12 @@ class GradleKotlinDslFreshnessInspection : LocalInspectionTool() {
                         isOnTheFly,
                         listOfNotNull(
                             declared.fix(suggested.value),
+                            data.scmUrl?.let {
+                                com.tampwell.staleguard.inspection.ShowChangelogQuickFix(
+                                    coordinates.toString(), it, declared.name,
+                                    current.value, suggested.value, data.versions.map { v -> v.value },
+                                )
+                            },
                             ScmUrls.changelogUrl(data.scmUrl)?.let(::OpenChangelogQuickFix),
                             IgnoreDependencyQuickFix(declared.group, declared.name),
                         ).toTypedArray<LocalQuickFix>(),

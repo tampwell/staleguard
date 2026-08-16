@@ -207,6 +207,12 @@ class TomlCatalogFreshnessInspection : LocalInspectionTool() {
                         } else {
                             null
                         },
+                        data.scmUrl?.let {
+                            com.tampwell.staleguard.inspection.ShowChangelogQuickFix(
+                                coordinates.toString(), it, coordinates.artifactId,
+                                current.value, suggested.value, data.versions.map { v -> v.value },
+                            )
+                        },
                         ScmUrls.changelogUrl(data.scmUrl)?.let(::OpenChangelogQuickFix),
                         IgnoreDependencyQuickFix(coordinates.groupId, coordinates.artifactId),
                     ).toTypedArray<LocalQuickFix>(),

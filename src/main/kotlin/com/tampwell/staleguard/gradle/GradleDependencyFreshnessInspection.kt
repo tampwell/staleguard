@@ -99,6 +99,12 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
                         isOnTheFly,
                         listOfNotNull(
                             GradleBumpVersionQuickFix(suggested.value, declared.fixMode),
+                            data.scmUrl?.let {
+                                com.tampwell.staleguard.inspection.ShowChangelogQuickFix(
+                                    coordinates.toString(), it, declared.name,
+                                    current.value, suggested.value, data.versions.map { v -> v.value },
+                                )
+                            },
                             com.tampwell.staleguard.repository.ScmUrls.changelogUrl(data.scmUrl)
                                 ?.let { com.tampwell.staleguard.inspection.OpenChangelogQuickFix(it) },
                             com.tampwell.staleguard.inspection.IgnoreDependencyQuickFix(declared.group, declared.name),

@@ -86,6 +86,12 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                                 FixTarget.None -> null
                                 else -> BumpVersionQuickFix(suggested.value, target)
                             },
+                            data.scmUrl?.let {
+                                ShowChangelogQuickFix(
+                                    coordinates.toString(), it, artifactId,
+                                    current.value, suggested.value, data.versions.map { v -> v.value },
+                                )
+                            },
                             com.tampwell.staleguard.repository.ScmUrls.changelogUrl(data.scmUrl)
                                 ?.let(::OpenChangelogQuickFix),
                             IgnoreDependencyQuickFix(groupId, artifactId),
