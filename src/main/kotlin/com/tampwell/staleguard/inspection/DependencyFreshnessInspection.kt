@@ -96,7 +96,18 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                             releaseAge,
                             abandoned = releaseAge != null && releaseAge > abandonmentThresholdMs,
                         )
-                        val message = if (releaseAge != null) {
+                        val message = if (declared.origin == com.tampwell.staleguard.model.DeclaredDependency.Origin.PARENT) {
+                            // The parent version controls every managed
+                            // dependency below it — say so instead of the
+                            // generic per-artifact line.
+                            StaleguardBundle.message(
+                                "inspection.parent.message",
+                                artifactId,
+                                current.value,
+                                suggested.value,
+                                StaleguardBundle.message(recommendation.bundleKey),
+                            )
+                        } else if (releaseAge != null) {
                             StaleguardBundle.message(
                                 "inspection.outdated.message",
                                 StaleguardBundle.message("severity.${severity.name.lowercase()}"),

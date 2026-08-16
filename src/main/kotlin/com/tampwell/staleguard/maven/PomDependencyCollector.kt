@@ -4,7 +4,7 @@ import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.tampwell.staleguard.model.DeclaredDependency
 import org.jetbrains.idea.maven.dom.MavenDomUtil
-import org.jetbrains.idea.maven.dom.model.MavenDomDependency
+import org.jetbrains.idea.maven.dom.model.MavenDomArtifactCoordinates
 import org.jetbrains.idea.maven.dom.model.MavenDomProjectModel
 
 /**
@@ -18,7 +18,7 @@ import org.jetbrains.idea.maven.dom.model.MavenDomProjectModel
  */
 /** A declared dependency paired with its DOM element, for PSI-anchored UI. */
 data class DomDeclaredDependency(
-    val dom: MavenDomDependency,
+    val dom: MavenDomArtifactCoordinates,
     val declared: DeclaredDependency,
 )
 
@@ -38,7 +38,13 @@ object PomDependencyCollector {
         val managed = model.dependencyManagement.dependencies.dependencies
             .map { DomDeclaredDependency(it, it.toDeclared(properties, DeclaredDependency.Origin.DEPENDENCY_MANAGEMENT)) }
 
-        return direct + managed
+        // The <parent> IS a dependency — for Spring Boot projects it is THE
+        // dependency, the platform BOM every managed version flows from.
+        // JetBrains' own tooling ignores it (IDEA-286295); we don't.
+        val parent = model.mavenParent.takeIf { it.artifactId.stringValue != null }
+            ?.let { DomDeclaredDependency(it, it.toDeclared(properties, DeclaredDependency.Origin.PARENT)) }
+
+        return listOfNotNull(parent) + direct + managed
     }
 
     /**
@@ -62,7 +68,7 @@ object PomDependencyCollector {
         return result
     }
 
-    private fun MavenDomDependency.toDeclared(
+    private fun MavenDomArtifactCoordinates.toDeclared(
         properties: Map<String, String>,
         origin: DeclaredDependency.Origin,
     ): DeclaredDependency {
