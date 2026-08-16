@@ -28,7 +28,7 @@ import org.jetbrains.idea.maven.dom.MavenDomUtil
 class BumpVersionQuickFix(
     private val newVersion: String,
     private val target: FixTarget,
-) : LocalQuickFix, com.intellij.openapi.util.Iconable {
+) : LocalQuickFix, com.intellij.openapi.util.Iconable, com.intellij.codeInsight.intention.HighPriorityAction {
 
     override fun startInWriteAction(): Boolean = false
 

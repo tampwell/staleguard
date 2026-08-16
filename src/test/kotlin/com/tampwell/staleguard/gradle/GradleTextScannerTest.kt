@@ -1,0 +1,91 @@
+package com.tampwell.staleguard.gradle
+
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class GradleTextScannerTest {
+
+    private val catalog = VersionCatalog.parse(
+        """
+        [versions]
+        gson = "2.8.9"
+
+        [libraries]
+        gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
+        kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version = "1.9.22" }
+
+        [plugins]
+        kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "gson" }
+        """.trimIndent(),
+    )
+
+    @Test
+    fun `kts string notation with parentheses`() {
+        val text = """implementation("com.google.guava:guava:31.0.1-jre")"""
+        val hits = GradleTextScanner.scan(text, catalog)
+        assertEquals(1, hits.size)
+        assertEquals("com.google.guava", hits[0].group)
+        assertEquals("31.0.1-jre", hits[0].version)
+    }
+
+    @Test
+    fun `groovy single-quote notation without parentheses`() {
+        val hits = GradleTextScanner.scan("implementation 'org.slf4j:slf4j-api:1.7.32'", catalog)
+        assertEquals("org.slf4j", hits.single().group)
+    }
+
+    @Test
+    fun `catalog reference resolves through the catalog`() {
+        val hits = GradleTextScanner.scan("implementation(libs.gson)", catalog)
+        assertEquals("com.google.code.gson", hits.single().group)
+        assertEquals("2.8.9", hits.single().version)
+    }
+
+    @Test
+    fun `dashed catalog key matches dotted accessor`() {
+        val hits = GradleTextScanner.scan("implementation(libs.kotlin.stdlib)", catalog)
+        assertEquals("org.jetbrains.kotlin", hits.single().group)
+        assertEquals("1.9.22", hits.single().version)
+    }
+
+    @Test
+    fun `libs versions and plugins accessors are not dependencies`() {
+        val text = "val v = libs.versions.gson\nalias(libs.plugins.kotlin.jvm)"
+        assertTrue(GradleTextScanner.scan(text, catalog).isEmpty())
+    }
+
+    @Test
+    fun `interpolated versions never match`() {
+        val text = "implementation(\"org.example:thing:\${'$'}{ver}\")"
+        assertTrue(GradleTextScanner.scan(text, catalog).isEmpty())
+    }
+
+    @Test
+    fun `plugin id strings without coordinates never match`() {
+        val text = """id("org.jetbrains.kotlin.jvm") version "1.9.22""""
+        assertTrue(GradleTextScanner.scan(text, catalog).isEmpty())
+    }
+
+    @Test
+    fun `unknown catalog accessor is skipped`() {
+        assertTrue(GradleTextScanner.scan("implementation(libs.nope)", catalog).isEmpty())
+    }
+
+    @Test
+    fun `offsets point at the declaration`() {
+        val text = "// header\nimplementation(libs.gson)"
+        val hit = GradleTextScanner.scan(text, catalog).single()
+        assertEquals(text.indexOf("libs.gson"), hit.offset)
+    }
+
+    @Test
+    fun `multiple declarations all found`() {
+        val text = """
+            implementation(libs.gson)
+            implementation("com.google.guava:guava:31.0.1-jre")
+            testImplementation 'junit:junit:4.13.2'
+        """.trimIndent()
+        assertEquals(3, GradleTextScanner.scan(text, catalog).size)
+    }
+}

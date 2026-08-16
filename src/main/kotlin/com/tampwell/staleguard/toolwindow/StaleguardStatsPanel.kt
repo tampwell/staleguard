@@ -14,14 +14,11 @@ import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.treeStructure.Tree
 import com.tampwell.staleguard.StaleguardBundle
-import com.tampwell.staleguard.maven.PomDependencyCollector
-import com.tampwell.staleguard.plan.PlannerInput
 import com.tampwell.staleguard.plan.StatsCalculator
 import com.tampwell.staleguard.plan.UpgradePlanner
 import com.tampwell.staleguard.repository.Coordinates
 import com.tampwell.staleguard.services.FreshnessListener
 import com.tampwell.staleguard.services.FreshnessRefreshService
-import com.tampwell.staleguard.services.VersionLookupService
 import com.tampwell.staleguard.settings.StaleguardSettings
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
@@ -30,8 +27,6 @@ import javax.swing.JComponent
 import javax.swing.SwingUtilities
 import javax.swing.tree.DefaultMutableTreeNode
 import javax.swing.tree.DefaultTreeModel
-import org.jetbrains.idea.maven.dom.MavenDomUtil
-import org.jetbrains.idea.maven.project.MavenProjectsManager
 
 /**
  * The Staleguard tool window: project summary, per-module freshness stats,
@@ -101,37 +96,7 @@ class StaleguardStatsPanel(private val project: Project) :
             Coordinates(g, a)
         }.toSet()
 
-    private class Row(val input: PlannerInput, val file: VirtualFile, val offset: Int)
-
-    private fun collectRows(): List<Row> {
-        val lookup = VersionLookupService.getInstance()
-        val rows = mutableListOf<Row>()
-        for (mavenProject in MavenProjectsManager.getInstance(project).projects) {
-            val model = MavenDomUtil.getMavenDomProjectModel(project, mavenProject.file) ?: continue
-            for ((dom, declared) in PomDependencyCollector.collectWithDom(model)) {
-                val groupId = declared.groupId
-                val artifactId = declared.artifactId
-                val known = if (groupId != null && artifactId != null) {
-                    lookup.peek(Coordinates(groupId, artifactId))?.value
-                } else {
-                    null
-                }
-                rows.add(
-                    Row(
-                        input = PlannerInput(
-                            moduleName = mavenProject.displayName,
-                            declared = declared,
-                            known = known,
-                            moduleId = mavenProject.file.path,
-                        ),
-                        file = mavenProject.file,
-                        offset = dom.xmlTag?.textOffset ?: 0,
-                    ),
-                )
-            }
-        }
-        return rows
-    }
+    private fun collectRows(): List<BuildFileRows.Entry> = BuildFileRows.collect(project)
 
     fun rebuild() {
         val settings = StaleguardSettings.getInstance()

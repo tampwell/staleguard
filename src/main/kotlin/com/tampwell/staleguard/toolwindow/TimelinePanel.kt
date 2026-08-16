@@ -16,15 +16,12 @@ import com.intellij.ui.components.JBLabel
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.util.ui.JBUI
 import com.tampwell.staleguard.StaleguardBundle
-import com.tampwell.staleguard.maven.PomDependencyCollector
 import com.tampwell.staleguard.plan.AgeBucket
 import com.tampwell.staleguard.plan.PlannerInput
 import com.tampwell.staleguard.plan.TimelineEntry
 import com.tampwell.staleguard.plan.TimelineModel
 import com.tampwell.staleguard.plan.UpgradePlanner
-import com.tampwell.staleguard.repository.Coordinates
 import com.tampwell.staleguard.services.FreshnessListener
-import com.tampwell.staleguard.services.VersionLookupService
 import com.tampwell.staleguard.settings.StaleguardSettings
 import java.awt.BorderLayout
 import java.awt.Color
@@ -40,8 +37,6 @@ import javax.imageio.ImageIO
 import javax.swing.JComponent
 import javax.swing.JPanel
 import javax.swing.SwingUtilities
-import org.jetbrains.idea.maven.dom.MavenDomUtil
-import org.jetbrains.idea.maven.project.MavenProjectsManager
 
 /**
  * "Dependency Age Timeline": one bar per dependency from its newest release
@@ -78,26 +73,7 @@ class TimelinePanel(private val project: Project) : SimpleToolWindowPanel(true, 
         chart.update(TimelineModel.build(inputs, plan, now), now)
     }
 
-    private fun collectInputs(): List<PlannerInput> {
-        val lookup = VersionLookupService.getInstance()
-        val inputs = mutableListOf<PlannerInput>()
-        for (mavenProject in MavenProjectsManager.getInstance(project).projects) {
-            val model = MavenDomUtil.getMavenDomProjectModel(project, mavenProject.file) ?: continue
-            for ((_, declared) in PomDependencyCollector.collectWithDom(model)) {
-                val g = declared.groupId ?: continue
-                val a = declared.artifactId ?: continue
-                inputs.add(
-                    PlannerInput(
-                        moduleName = mavenProject.displayName,
-                        declared = declared,
-                        known = lookup.peek(Coordinates(g, a))?.value,
-                        moduleId = mavenProject.file.path,
-                    ),
-                )
-            }
-        }
-        return inputs
-    }
+    private fun collectInputs(): List<PlannerInput> = BuildFileRows.collect(project).map { it.input }
 
     private fun buildToolbar(): JComponent {
         val toolbar = ActionManager.getInstance()

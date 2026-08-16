@@ -15,7 +15,7 @@ import com.tampwell.staleguard.settings.StaleguardSettings
 class IgnoreDependencyQuickFix(
     private val groupId: String,
     private val artifactId: String,
-) : LocalQuickFix, com.intellij.openapi.util.Iconable {
+) : LocalQuickFix, com.intellij.openapi.util.Iconable, com.intellij.codeInsight.intention.LowPriorityAction {
 
     override fun startInWriteAction(): Boolean = false
 

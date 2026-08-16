@@ -14,7 +14,7 @@ import org.jetbrains.plugins.groovy.lang.psi.api.statements.expressions.literals
 class GradleBumpVersionQuickFix(
     private val newVersion: String,
     private val mode: Mode,
-) : LocalQuickFix, com.intellij.openapi.util.Iconable {
+) : LocalQuickFix, com.intellij.openapi.util.Iconable, com.intellij.codeInsight.intention.HighPriorityAction {
 
     enum class Mode {
         /** `implementation 'g:a:1.0'` — swap the version inside the notation. */
