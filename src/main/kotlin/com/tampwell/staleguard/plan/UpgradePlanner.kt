@@ -6,7 +6,7 @@ import com.tampwell.staleguard.repository.ArtifactVersions
 import com.tampwell.staleguard.repository.Coordinates
 import com.tampwell.staleguard.version.MavenVersion
 import com.tampwell.staleguard.version.UpgradeSeverity
-import com.tampwell.staleguard.version.isStable
+import com.tampwell.staleguard.version.VersionSuggestion
 
 /** One declared dependency plus what we know about it — the planner's input row. */
 data class PlannerInput(
@@ -78,7 +78,7 @@ object UpgradePlanner {
             if (ignored(groupId, artifactId)) return@mapNotNull null
             val known = input.known ?: return@mapNotNull null
             val current = declared.resolvedVersion?.let(::MavenVersion) ?: return@mapNotNull null
-            val suggested = (if (suggestPrereleases) known.latest else known.versions.filter { it.isStable }.maxOrNull())
+            val suggested = VersionSuggestion.suggest(current, known.versions, suggestPrereleases)
                 ?: return@mapNotNull null
             val severity = UpgradeSeverity.classify(current, suggested) ?: return@mapNotNull null
             val target = FixTarget.of(declared.rawVersion)

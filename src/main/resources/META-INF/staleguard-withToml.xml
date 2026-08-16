@@ -1,0 +1,11 @@
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <localInspection language="TOML"
+                         bundle="messages.StaleguardBundle"
+                         key="inspection.toml.display.name"
+                         groupKey="inspection.group"
+                         enabledByDefault="true"
+                         level="WARNING"
+                         implementationClass="com.tampwell.staleguard.toml.TomlCatalogFreshnessInspection"/>
+    </extensions>
+</idea-plugin>

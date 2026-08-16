@@ -32,9 +32,23 @@ object VersionCatalog {
         val versionKey: String?,
     )
 
+    data class Plugin(
+        val id: String,
+        val versionRef: String?,
+        val versionLiteral: String?,
+    ) {
+        /**
+         * The marker artifact the Plugin Portal publishes per plugin id —
+         * lets plugin versions flow through the same lookup pipeline as
+         * libraries.
+         */
+        val markerCoordinates: Pair<String, String> get() = id to "$id.gradle.plugin"
+    }
+
     data class Parsed(
         val versions: Map<String, String>,
         val libraries: Map<String, Library>,
+        val plugins: Map<String, Plugin> = emptyMap(),
     ) {
         /** `libs.kotlin.stdlib` → accessor `kotlin.stdlib` → library + version. */
         fun resolve(accessor: String): Resolved? {
@@ -44,10 +58,20 @@ object VersionCatalog {
             return Resolved(key, library.group, library.name, version, library.versionRef)
         }
 
-        /** How many libraries share a `[versions]` key — catalog blast radius. */
-        fun referenceCount(versionKey: String): Int = libraries.values.count { it.versionRef == versionKey }
+        /** How many libraries and plugins share a `[versions]` key — catalog blast radius. */
+        fun referenceCount(versionKey: String): Int =
+            libraries.values.count { it.versionRef == versionKey } +
+                plugins.values.count { it.versionRef == versionKey }
 
-        val isEmpty: Boolean get() = versions.isEmpty() && libraries.isEmpty()
+        fun resolvePlugin(accessor: String): Pair<String, Plugin>? {
+            val wanted = normalize(accessor)
+            return plugins.entries.firstOrNull { normalize(it.key) == wanted }?.toPair()
+        }
+
+        fun pluginVersion(plugin: Plugin): String? =
+            plugin.versionLiteral ?: plugin.versionRef?.let { versions[it] }
+
+        val isEmpty: Boolean get() = versions.isEmpty() && libraries.isEmpty() && plugins.isEmpty()
     }
 
     val EMPTY = Parsed(emptyMap(), emptyMap())
@@ -62,6 +86,7 @@ object VersionCatalog {
     fun parse(text: String): Parsed {
         val versions = mutableMapOf<String, String>()
         val libraries = mutableMapOf<String, Library>()
+        val plugins = mutableMapOf<String, Plugin>()
         var table = ""
 
         for (line in text.lineSequence()) {
@@ -71,17 +96,52 @@ object VersionCatalog {
                 continue
             }
             when (table) {
-                "versions" -> SIMPLE_VERSION.matchEntire(line)?.let {
-                    versions[it.groupValues[1]] = it.groupValues[2]
+                "versions" -> {
+                    SIMPLE_VERSION.matchEntire(line)?.let {
+                        versions[it.groupValues[1]] = it.groupValues[2]
+                    } ?: LIBRARY_LINE.matchEntire(line)?.let { match ->
+                        richVersionValue(match.groupValues[2])?.let { versions[match.groupValues[1]] = it }
+                    }
                 }
 
                 "libraries" -> LIBRARY_LINE.matchEntire(line)?.let { match ->
                     val key = match.groupValues[1]
                     parseLibraryValue(match.groupValues[2])?.let { libraries[key] = it }
                 }
+
+                "plugins" -> LIBRARY_LINE.matchEntire(line)?.let { match ->
+                    val key = match.groupValues[1]
+                    parsePluginValue(match.groupValues[2])?.let { plugins[key] = it }
+                }
             }
         }
-        return Parsed(versions, libraries)
+        return Parsed(versions, libraries, plugins)
+    }
+
+    /**
+     * Rich version tables (`{ strictly = "...", prefer = "..." }`): the value
+     * Gradle would pick when unconstrained is prefer, then require, then
+     * strictly. Range syntax has no single answer — those keys resolve to
+     * nothing and the entry is simply not checked.
+     */
+    private fun richVersionValue(value: String): String? {
+        if (!value.startsWith('{')) return null
+        val pairs = KV.findAll(value).associate { it.groupValues[1] to it.groupValues[2] }
+        val candidate = pairs["prefer"] ?: pairs["require"] ?: pairs["strictly"] ?: return null
+        return candidate.takeUnless { it.any { c -> c in "[]()," } }
+    }
+
+    private fun parsePluginValue(value: String): Plugin? {
+        // Shorthand: alias = "plugin.id:version"
+        if (value.startsWith('"')) {
+            val literal = value.trim().removeSurrounding("\"")
+            val parts = literal.split(':')
+            return if (parts.size == 2) Plugin(parts[0], versionRef = null, versionLiteral = parts[1]) else null
+        }
+        if (!value.startsWith('{')) return null
+        val pairs = KV.findAll(value).associate { it.groupValues[1] to it.groupValues[2] }
+        val id = pairs["id"] ?: return null
+        return Plugin(id, versionRef = pairs["version.ref"], versionLiteral = pairs["version"])
     }
 
     private fun parseLibraryValue(value: String): Library? {

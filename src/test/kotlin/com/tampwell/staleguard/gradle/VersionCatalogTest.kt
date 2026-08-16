@@ -80,7 +80,8 @@ class VersionCatalogTest {
 
     @Test
     fun `reference count reflects shared versions`() {
-        assertEquals(2, parsed.referenceCount("kotlin"))
+        // 2 libraries + the kotlin-jvm plugin share the "kotlin" key
+        assertEquals(3, parsed.referenceCount("kotlin"))
         assertEquals(1, parsed.referenceCount("gson"))
         assertEquals(0, parsed.referenceCount("unused"))
     }
@@ -114,5 +115,68 @@ class VersionCatalogTest {
     @Test
     fun `empty text parses to empty catalog`() {
         assertTrue(VersionCatalog.parse("").isEmpty)
+    }
+
+    @Test
+    fun `rich version resolves through prefer`() {
+        val parsed = VersionCatalog.parse(
+            """
+            [versions]
+            lang3 = { strictly = "[3.8, 4.0[", prefer = "3.9" }
+            [libraries]
+            lang3 = { module = "org.apache.commons:commons-lang3", version.ref = "lang3" }
+            """.trimIndent(),
+        )
+        assertEquals("3.9", parsed.resolve("lang3")?.version)
+    }
+
+    @Test
+    fun `rich version falls back to require then strictly`() {
+        val parsed = VersionCatalog.parse(
+            """
+            [versions]
+            a = { require = "1.4" }
+            b = { strictly = "2.0" }
+            """.trimIndent(),
+        )
+        assertEquals("1.4", parsed.versions["a"])
+        assertEquals("2.0", parsed.versions["b"])
+    }
+
+    @Test
+    fun `range-only rich version resolves to nothing`() {
+        val parsed = VersionCatalog.parse(
+            """
+            [versions]
+            ranged = { strictly = "[1.0, 2.0[" }
+            """.trimIndent(),
+        )
+        assertNull(parsed.versions["ranged"])
+    }
+
+    @Test
+    fun `plugins table parses inline and shorthand forms`() {
+        val kotlinJvm = parsed.resolvePlugin("kotlin.jvm")!!.second
+        assertEquals("org.jetbrains.kotlin.jvm", kotlinJvm.id)
+        assertEquals("1.9.22", parsed.pluginVersion(kotlinJvm))
+        assertEquals(
+            "org.jetbrains.kotlin.jvm" to "org.jetbrains.kotlin.jvm.gradle.plugin",
+            kotlinJvm.markerCoordinates,
+        )
+
+        val shorthand = VersionCatalog.parse(
+            """
+            [plugins]
+            versions-check = "com.github.ben-manes.versions:0.45.0"
+            """.trimIndent(),
+        ).plugins["versions-check"]!!
+        assertEquals("com.github.ben-manes.versions", shorthand.id)
+        assertEquals("0.45.0", shorthand.versionLiteral)
+    }
+
+    @Test
+    fun `plugin version refs count toward blast radius`() {
+        // fixture: 2 libraries + 1 plugin share the "kotlin" version key
+        assertEquals(3, parsed.referenceCount("kotlin"))
     }
 }

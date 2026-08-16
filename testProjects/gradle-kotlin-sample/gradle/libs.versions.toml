@@ -2,6 +2,8 @@
 gson = "2.8.9"
 slf4j = "1.7.32"
 jackson = "2.13.0"
+androidx-core = "1.9.0"
+kotlin = "1.9.22"
 
 [libraries]
 gson = { group = "com.google.code.gson", name = "gson", version.ref = "gson" }
@@ -9,3 +11,7 @@ slf4j-api = { group = "org.slf4j", name = "slf4j-api", version.ref = "slf4j" }
 jackson-databind = { module = "com.fasterxml.jackson.core:jackson-databind", version.ref = "jackson" }
 jackson-annotations = { module = "com.fasterxml.jackson.core:jackson-annotations", version.ref = "jackson" }
 commons-collections = { group = "commons-collections", name = "commons-collections", version = "3.2.1" }
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "androidx-core" }
+
+[plugins]
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

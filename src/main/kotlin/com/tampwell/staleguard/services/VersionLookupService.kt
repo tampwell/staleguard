@@ -8,6 +8,7 @@ import com.tampwell.staleguard.repository.Coordinates
 import com.tampwell.staleguard.repository.DiskVersionCache
 import com.tampwell.staleguard.repository.HttpMavenRepositoryClient
 import com.tampwell.staleguard.repository.PeekResult
+import com.tampwell.staleguard.repository.SourceRouter
 import com.tampwell.staleguard.repository.VersionLookupEngine
 import java.nio.file.Path
 import kotlinx.coroutines.CoroutineScope
@@ -22,12 +23,16 @@ import kotlinx.coroutines.Dispatchers
 @Service(Service.Level.APP)
 class VersionLookupService(scope: CoroutineScope) {
 
-    private val engine = VersionLookupEngine(
-        scope = scope,
-        client = HttpMavenRepositoryClient(pluginVersion()),
-        cache = DiskVersionCache(cacheDirectory()),
-        ioDispatcher = Dispatchers.IO,
-    )
+    private val engine = run {
+        val client = HttpMavenRepositoryClient(pluginVersion())
+        VersionLookupEngine(
+            scope = scope,
+            client = client,
+            cache = DiskVersionCache(cacheDirectory()),
+            ioDispatcher = Dispatchers.IO,
+            router = SourceRouter.default(client),
+        )
+    }
 
     suspend fun lookup(coordinates: Coordinates, force: Boolean = false): ArtifactVersions? {
         engine.offlineMode = com.tampwell.staleguard.settings.StaleguardSettings.getInstance().state.offlineMode

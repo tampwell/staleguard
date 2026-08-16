@@ -16,6 +16,7 @@ import com.tampwell.staleguard.services.VersionLookupService
 import com.tampwell.staleguard.settings.StaleguardSettings
 import com.tampwell.staleguard.version.MavenVersion
 import com.tampwell.staleguard.version.UpgradeSeverity
+import com.tampwell.staleguard.version.VersionSuggestion
 import java.util.concurrent.TimeUnit
 import org.jetbrains.idea.maven.dom.MavenDomUtil
 
@@ -73,7 +74,7 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
 
             // --- Freshness ---
             val current = declared.resolvedVersion?.let(::MavenVersion)
-            val suggested = if (settings.state.suggestPrereleases) data.latest else data.latestStable
+            val suggested = VersionSuggestion.suggest(current, data.versions, settings.state.suggestPrereleases)
             if (current != null && suggested != null) {
                 val severity = UpgradeSeverity.classify(current, suggested)
                 if (severity != null) {

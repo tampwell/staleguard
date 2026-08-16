@@ -5,8 +5,6 @@ import com.tampwell.staleguard.version.isStable
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
-import javax.xml.XMLConstants
-import javax.xml.parsers.DocumentBuilderFactory
 import org.w3c.dom.Element
 
 /**
@@ -45,12 +43,7 @@ data class MavenMetadata(
          * on malformed XML; tolerates missing optional elements.
          */
         fun parse(xml: String): MavenMetadata {
-            val document = try {
-                newHardenedDocumentBuilderFactory().newDocumentBuilder()
-                    .parse(xml.byteInputStream())
-            } catch (e: Exception) {
-                throw MetadataParseException("Malformed maven-metadata.xml", e)
-            }
+            val document = SecureXml.parse(xml, "maven-metadata.xml")
 
             val root = document.documentElement
                 ?: throw MetadataParseException("Empty maven-metadata.xml")
@@ -78,17 +71,6 @@ data class MavenMetadata(
 
         fun lastUpdatedEpochSeconds(metadata: MavenMetadata): Long? =
             metadata.lastUpdatedUtc?.toEpochSecond(ZoneOffset.UTC)
-
-        /** XXE-hardened parser: metadata comes from the network. */
-        private fun newHardenedDocumentBuilderFactory(): DocumentBuilderFactory =
-            DocumentBuilderFactory.newInstance().apply {
-                setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true)
-                setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
-                setFeature("http://xml.org/sax/features/external-general-entities", false)
-                setFeature("http://xml.org/sax/features/external-parameter-entities", false)
-                isXIncludeAware = false
-                isExpandEntityReferences = false
-            }
 
         private fun Element.firstChildElement(name: String): Element? {
             var child = firstChild

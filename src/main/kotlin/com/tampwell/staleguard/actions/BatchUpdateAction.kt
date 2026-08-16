@@ -8,7 +8,6 @@ import com.tampwell.staleguard.StaleguardBundle
 import com.tampwell.staleguard.plan.UpgradePlanner
 import com.tampwell.staleguard.settings.StaleguardSettings
 import java.util.concurrent.TimeUnit
-import org.jetbrains.idea.maven.project.MavenProjectsManager
 
 /**
  * Tools → "Staleguard: Update Dependencies…" — plans every available upgrade
@@ -24,9 +23,9 @@ class BatchUpdateAction : AnAction() {
     override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
     override fun update(e: AnActionEvent) {
-        val project = e.project
-        e.presentation.isEnabledAndVisible =
-            project != null && MavenProjectsManager.getInstance(project).projects.isNotEmpty()
+        // Gradle-only projects have no Maven modules; the action stays
+        // available and reports "nothing to update" when the cache is cold.
+        e.presentation.isEnabledAndVisible = e.project != null
     }
 
     override fun actionPerformed(e: AnActionEvent) {

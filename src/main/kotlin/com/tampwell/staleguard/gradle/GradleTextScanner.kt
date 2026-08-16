@@ -9,7 +9,14 @@ package com.tampwell.staleguard.gradle
  */
 object GradleTextScanner {
 
-    data class Scanned(val group: String, val name: String, val version: String, val offset: Int)
+    data class Scanned(
+        val group: String,
+        val name: String,
+        val version: String,
+        val offset: Int,
+        /** Catalog accessor (`gson`, `kotlin.stdlib`) when this hit is a libs reference. */
+        val catalogAccessor: String? = null,
+    )
 
     private val NOTATION = Regex("""["']([A-Za-z0-9_.\-]+:[A-Za-z0-9_.\-]+:[A-Za-z0-9_.\-+]+)["']""")
     private val LIBS_REF = Regex("""\blibs((?:\.[A-Za-z0-9_]+)+)\b""")
@@ -25,7 +32,7 @@ object GradleTextScanner {
             // libs.versions.* / libs.plugins.* accessors are not library deps
             if (accessor.startsWith("versions") || accessor.startsWith("plugins")) continue
             val resolved = catalog.resolve(accessor) ?: continue
-            out += Scanned(resolved.group, resolved.name, resolved.version, match.range.first)
+            out += Scanned(resolved.group, resolved.name, resolved.version, match.range.first, catalogAccessor = accessor)
         }
         return out
     }

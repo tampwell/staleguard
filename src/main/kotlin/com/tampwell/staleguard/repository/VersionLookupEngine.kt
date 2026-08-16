@@ -63,7 +63,7 @@ class VersionLookupEngine(
     private val ioDispatcher: CoroutineDispatcher,
     private val clock: () -> Long = System::currentTimeMillis,
     private val ttlMillis: Long = DEFAULT_TTL_MILLIS,
-    private val repositoryBaseUrl: String = MavenRepositoryUrls.MAVEN_CENTRAL,
+    private val router: SourceRouter = SourceRouter.centralOnly(),
     private val failureRetryMillis: Long = FAILURE_RETRY_MILLIS,
     private val maxFailureRetryMillis: Long = MAX_FAILURE_RETRY_MILLIS,
 ) {
@@ -137,38 +137,47 @@ class VersionLookupEngine(
         }
 
         return withContext(ioDispatcher) {
-            val url = MavenRepositoryUrls.metadataUrl(repositoryBaseUrl, coordinates)
-            when (val result = client.fetchMetadata(url, cached?.etag)) {
-                is FetchResult.Fetched -> {
-                    failureCounts.remove(coordinates)
-                    val metadata = try {
-                        MavenMetadata.parse(result.body)
-                    } catch (_: MetadataParseException) {
-                        return@withContext staleFallback(coordinates, cached)
+            // Sources are tried in router order; a miss in one (404, or a
+            // Google group-index without this artifact) falls through to the
+            // next. The stored etag belongs to whichever source answered last
+            // time — only the first gets it, and a mismatched etag just costs
+            // a full 200 instead of a 304.
+            val sources = router.sourcesFor(coordinates)
+            for ((index, source) in sources.withIndex()) {
+                val url = source.metadataUrl(coordinates)
+                when (val result = client.fetchMetadata(url, cached?.etag.takeIf { index == 0 })) {
+                    is FetchResult.Fetched -> {
+                        val versions = try {
+                            source.versionsIn(result.body, coordinates)
+                        } catch (_: MetadataParseException) {
+                            return@withContext staleFallback(coordinates, cached)
+                        }
+                        if (versions.isEmpty()) continue
+                        failureCounts.remove(coordinates)
+                        val entry = buildEntry(coordinates, versions, source, result.etag, cached, now)
+                        cache.write(coordinates, entry)
+                        return@withContext entry.toResult(coordinates, stale = false)
+                            .also { memory[coordinates] = PeekResult(it, now) }
                     }
-                    val entry = buildEntry(coordinates, metadata, result.etag, cached, now)
-                    cache.write(coordinates, entry)
-                    entry.toResult(coordinates, stale = false)
-                        .also { memory[coordinates] = PeekResult(it, now) }
-                }
 
-                FetchResult.NotModified -> {
-                    failureCounts.remove(coordinates)
-                    // Same content — refresh the clock, keep everything else.
-                    val refreshed = cached?.copy(fetchedAtMillis = now) ?: return@withContext null
-                    cache.write(coordinates, refreshed)
-                    refreshed.toResult(coordinates, stale = false)
-                        .also { memory[coordinates] = PeekResult(it, now) }
-                }
+                    FetchResult.NotModified -> {
+                        failureCounts.remove(coordinates)
+                        // Same content — refresh the clock, keep everything else.
+                        val refreshed = cached?.copy(fetchedAtMillis = now) ?: return@withContext null
+                        cache.write(coordinates, refreshed)
+                        return@withContext refreshed.toResult(coordinates, stale = false)
+                            .also { memory[coordinates] = PeekResult(it, now) }
+                    }
 
-                // 404s are stable: remember for a full TTL so nothing re-enqueues them.
-                FetchResult.NotFound -> {
-                    memory[coordinates] = PeekResult(null, now)
-                    null
-                }
+                    FetchResult.NotFound -> continue
 
-                is FetchResult.Failed -> staleFallback(coordinates, cached)
+                    is FetchResult.Failed -> return@withContext staleFallback(coordinates, cached)
+                }
             }
+            // Every source came up empty: remember for a full TTL so nothing
+            // re-enqueues the lookup.
+            memory[coordinates] = PeekResult(null, now)
+            null
         }
     }
 
@@ -191,24 +200,25 @@ class VersionLookupEngine(
 
     private fun buildEntry(
         coordinates: Coordinates,
-        metadata: MavenMetadata,
+        versions: List<String>,
+        source: VersionSource,
         etag: String?,
         previous: CachedArtifact?,
         now: Long,
     ): CachedArtifact {
-        val newest = metadata.latest?.value
+        val newest = versions.map(::MavenVersion).maxOrNull()?.value
         // Pom-derived facts are immutable per version: refetch the .pom only
         // when the newest version changed; otherwise carry everything forward.
         val carryForward = newest != null && newest == previous?.newestReleaseVersion
         val details = when {
             carryForward -> null
-            newest != null -> client.fetchPomDetails(MavenRepositoryUrls.pomUrl(repositoryBaseUrl, coordinates, newest))
+            newest != null -> client.fetchPomDetails(source.pomUrl(coordinates, newest))
             else -> null
         }
         return CachedArtifact(
             groupId = coordinates.groupId,
             artifactId = coordinates.artifactId,
-            versions = metadata.versions.map { it.value },
+            versions = versions,
             etag = etag,
             fetchedAtMillis = now,
             newestReleaseAtMillis = if (carryForward) previous?.newestReleaseAtMillis else details?.lastModifiedMillis,

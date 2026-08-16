@@ -19,6 +19,7 @@ dependencies {
         bundledPlugin("org.jetbrains.idea.maven")
         bundledPlugin("org.intellij.groovy")
         bundledPlugin("org.jetbrains.kotlin")
+        bundledPlugin("org.toml.lang")
         testFramework(TestFrameworkType.Platform)
     }
 }

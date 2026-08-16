@@ -16,7 +16,7 @@ import com.tampwell.staleguard.services.VersionLookupService
 import com.tampwell.staleguard.settings.StaleguardSettings
 import com.tampwell.staleguard.version.MavenVersion
 import com.tampwell.staleguard.version.UpgradeSeverity
-import com.tampwell.staleguard.version.isStable
+import com.tampwell.staleguard.version.VersionSuggestion
 import java.util.concurrent.TimeUnit
 import org.jetbrains.plugins.groovy.lang.psi.GroovyFile
 import org.jetbrains.plugins.groovy.lang.psi.api.statements.blocks.GrClosableBlock
@@ -64,9 +64,7 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
             val data = snapshot.value ?: continue
 
             val current = MavenVersion(declared.version)
-            val suggested =
-                if (settings.state.suggestPrereleases) data.latest
-                else data.versions.filter { it.isStable }.maxOrNull()
+            val suggested = VersionSuggestion.suggest(current, data.versions, settings.state.suggestPrereleases)
 
             if (suggested != null) {
                 val severity = UpgradeSeverity.classify(current, suggested)

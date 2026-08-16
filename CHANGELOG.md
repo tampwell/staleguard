@@ -6,6 +6,29 @@
 
 ### Added
 
+- Freshness checks inside `libs.versions.toml` itself: stale `[versions]`
+  keys, inline library versions, and `[plugins]` versions are flagged in the
+  catalog file, with one-click updates and the same blast-radius confirmation
+  for shared version keys
+- Google Maven repository support: `androidx.*`, `com.android.*`, and other
+  Google-hosted dependencies (Firebase, Play Services) now resolve — Android
+  projects get real version data instead of silence
+- Gradle Plugin Portal support: versions in `plugins { }` catalog entries are
+  checked through their plugin marker artifacts
+- The batch update dialog now covers Gradle build files and version catalogs,
+  not just Maven modules
+- Statistics tool window: export the current report as Markdown or CSV
+
+### Changed
+
+- Ancient date-stamped versions (for example commons-collections `20040616`)
+  are no longer suggested over normal dotted versions
+- Tool window data collection moved off the UI thread
+
+## [1.1.0] - 2026-08-16
+
+### Added
+
 - Gradle dependencies now appear in the Staleguard tool window: statistics and
   timeline include `build.gradle` and `build.gradle.kts` files, including
   version-catalog references
