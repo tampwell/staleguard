@@ -60,6 +60,17 @@ class GradleKotlinDslFreshnessInspection : LocalInspectionTool() {
             if (settings.isIgnored(declared.group, declared.name)) continue
             val coordinates = Coordinates(declared.group, declared.name)
 
+            // Before the cache guard — internal snapshots never resolve.
+            if (declared.version.endsWith("-SNAPSHOT", ignoreCase = true)) {
+                problems += manager.createProblemDescriptor(
+                    declared.anchor,
+                    StaleguardBundle.message("inspection.snapshot.message", declared.version),
+                    isOnTheFly,
+                    arrayOf<LocalQuickFix>(IgnoreDependencyQuickFix(declared.group, declared.name)),
+                    ProblemHighlightType.WEAK_WARNING,
+                )
+            }
+
             val snapshot = lookup.peek(coordinates)
             if (snapshot == null) {
                 refresh.requestLookup(coordinates)

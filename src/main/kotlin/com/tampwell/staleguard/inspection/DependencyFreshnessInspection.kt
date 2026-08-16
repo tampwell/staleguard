@@ -59,6 +59,25 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
             if (settings.isIgnored(groupId, artifactId)) continue
             val coordinates = Coordinates(groupId, artifactId)
 
+            // Snapshot pinning check BEFORE the cache guard: internal
+            // -SNAPSHOT artifacts 404 on every repository, so a check placed
+            // after resolution would never fire for exactly the deps it is
+            // about.
+            if (declared.resolvedVersion?.endsWith("-SNAPSHOT", ignoreCase = true) == true) {
+                val snapshotAnchor = dom.version.xmlTag ?: dom.xmlTag
+                if (snapshotAnchor != null) {
+                    problems += manager.createProblemDescriptor(
+                        snapshotAnchor,
+                        StaleguardBundle.message("inspection.snapshot.message", declared.resolvedVersion),
+                        isOnTheFly,
+                        arrayOf<com.intellij.codeInspection.LocalQuickFix>(
+                            IgnoreDependencyQuickFix(groupId, artifactId),
+                        ),
+                        ProblemHighlightType.WEAK_WARNING,
+                    )
+                }
+            }
+
             val snapshot = lookup.peek(coordinates)
             if (snapshot == null) {
                 // Never resolved this session — resolve in background, repaint later.

@@ -160,6 +160,17 @@ class TomlCatalogFreshnessInspection : LocalInspectionTool() {
         val coordinates = checkable.coordinates
         if (settings.isIgnored(coordinates.groupId, coordinates.artifactId)) return
 
+        // Before the cache guard — internal snapshots never resolve.
+        if (checkable.version.endsWith("-SNAPSHOT", ignoreCase = true)) {
+            problems += manager.createProblemDescriptor(
+                checkable.anchor,
+                StaleguardBundle.message("inspection.snapshot.message", checkable.version),
+                isOnTheFly,
+                arrayOf<LocalQuickFix>(IgnoreDependencyQuickFix(coordinates.groupId, coordinates.artifactId)),
+                ProblemHighlightType.WEAK_WARNING,
+            )
+        }
+
         val snapshot = lookup.peek(coordinates)
         if (snapshot == null) {
             refresh.requestLookup(coordinates)
