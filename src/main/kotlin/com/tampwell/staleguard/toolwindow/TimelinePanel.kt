@@ -68,12 +68,17 @@ class TimelinePanel(private val project: Project) : SimpleToolWindowPanel(true, 
         val now = System.currentTimeMillis()
         val thresholdMs = TimeUnit.DAYS.toMillis(365L * settings.state.abandonmentYears)
 
-        val inputs = collectInputs()
-        val plan = UpgradePlanner.plan(inputs, settings.state.suggestPrereleases, thresholdMs, settings::isIgnored, now)
-        chart.update(TimelineModel.build(inputs, plan, now), now)
+        // Collection walks the Maven DOM and file index — same off-EDT rule
+        // as the statistics panel.
+        com.intellij.openapi.application.ReadAction
+            .nonBlocking<List<PlannerInput>> { BuildFileRows.collect(project).map { it.input } }
+            .expireWith(this)
+            .finishOnUiThread(com.intellij.openapi.application.ModalityState.any()) { inputs ->
+                val plan = UpgradePlanner.plan(inputs, settings.state.suggestPrereleases, thresholdMs, settings::isIgnored, now)
+                chart.update(TimelineModel.build(inputs, plan, now), now)
+            }
+            .submit(com.intellij.util.concurrency.AppExecutorUtil.getAppExecutorService())
     }
-
-    private fun collectInputs(): List<PlannerInput> = BuildFileRows.collect(project).map { it.input }
 
     private fun buildToolbar(): JComponent {
         val toolbar = ActionManager.getInstance()
