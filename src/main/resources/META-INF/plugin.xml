@@ -68,6 +68,12 @@
                 description="Preview and apply available dependency upgrades across all Maven modules">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
         </action>
+        <action id="com.tampwell.staleguard.TryOutScript"
+                class="com.tampwell.staleguard.scaffold.TryOutScriptAction"
+                text="Staleguard: New Library Try-Out Script…"
+                description="Generate a runnable script that wires in a dependency at its current version, in your language of choice">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
         <action id="com.tampwell.staleguard.ApplyAllPatch"
                 class="com.tampwell.staleguard.actions.ApplyAllPatchAction"
                 text="Staleguard: Apply All Patch Updates"

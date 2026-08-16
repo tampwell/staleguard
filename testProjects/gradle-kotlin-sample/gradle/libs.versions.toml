@@ -2,7 +2,7 @@
 gson = "2.8.9"
 slf4j = "1.7.32"
 jackson = "2.13.0"
-androidx-core = "1.9.0"
+androidx-core = "1.19.0"
 kotlin = "1.9.22"
 
 [libraries]
