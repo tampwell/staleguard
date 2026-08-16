@@ -5,6 +5,14 @@
 ## [Unreleased]
 
 ### Added
+- Library Try-Out Script generator (Tools menu): coordinates to a runnable Java, JBang, Kotlin, JShell, or Groovy script, with the version pre-filled from Staleguard's own data
+- Parent POM freshness: spring-boot-starter-parent and other platform parents are flagged when outdated - one edit updates every managed dependency
+- Show What Changed: in-IDE release notes for every version between yours and the suggested one, with a warning banner when the notes mention breaking changes
+- Status-bar dependency counter (visible only when something needs attention; click opens the overview)
+- Snapshot pinning warnings: -SNAPSHOT versions are flagged as reproducibility risks in all supported build files
+
+
+### Added
 
 - Freshness checks inside `libs.versions.toml` itself: stale `[versions]`
   keys, inline library versions, and `[plugins]` versions are flagged in the

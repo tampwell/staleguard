@@ -45,6 +45,12 @@
                 <artifactId>commons-lang3</artifactId>
                 <version>3.12.0</version>
             </dependency>
-        </dependencies>
+            <!-- exercises the snapshot pinning warning -->
+        <dependency>
+            <groupId>com.example.internal</groupId>
+            <artifactId>team-commons</artifactId>
+            <version>1.4.0-SNAPSHOT</version>
+        </dependency>
+    </dependencies>
     </dependencyManagement>
 </project>
