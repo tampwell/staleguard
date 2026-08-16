@@ -1,5 +1,6 @@
 package com.tampwell.staleguard.toolwindow
 
+import com.intellij.openapi.diagnostic.logger
 import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
@@ -15,14 +16,15 @@ import com.tampwell.staleguard.repository.Coordinates
 import com.tampwell.staleguard.services.VersionLookupService
 import org.jetbrains.idea.maven.dom.MavenDomUtil
 import org.jetbrains.idea.maven.project.MavenProjectsManager
+import java.io.IOException
 
 /**
  * One collection pass shared by the statistics and timeline panels: Maven
- * modules via the DOM (PSI-anchored, as the inspections use), plus Gradle
- * build files via [GradleTextScanner] — text-based on purpose, so the tool
- * window works even where the Groovy/Kotlin plugins are disabled.
+ * modules via the DOM, Gradle build files via [GradleTextScanner].
  */
 internal object BuildFileRows {
+
+    private val LOG = logger<BuildFileRows>()
 
     class Entry(val input: PlannerInput, val file: VirtualFile, val offset: Int)
 
@@ -30,7 +32,6 @@ internal object BuildFileRows {
         val lookup = VersionLookupService.getInstance()
         val entries = mutableListOf<Entry>()
 
-        // Maven modules (existing behavior)
         for (mavenProject in MavenProjectsManager.getInstance(project).projects) {
             val model = MavenDomUtil.getMavenDomProjectModel(project, mavenProject.file) ?: continue
             for ((dom, declared) in PomDependencyCollector.collectWithDom(model)) {
@@ -50,16 +51,15 @@ internal object BuildFileRows {
             }
         }
 
-        // Gradle build files (text scan; index lookups need smart mode —
-        // during indexing this pass simply yields Maven rows, and the next
-        // freshness event rebuilds with everything)
+        // FilenameIndex needs smart mode; during indexing the panel shows
+        // Maven rows only and the next freshness event completes the picture.
         if (!DumbService.isDumb(project)) {
             val scope = GlobalSearchScope.projectScope(project)
             for (fileName in listOf("build.gradle", "build.gradle.kts")) {
                 for (buildFile in FilenameIndex.getVirtualFilesByName(fileName, scope)) {
-                    val text = runCatching { String(buildFile.contentsToByteArray()) }.getOrNull() ?: continue
+                    val text = readText(buildFile) ?: continue
                     val catalog = KtsDependencyCollector.findCatalogFile(buildFile)
-                        ?.let { runCatching { VersionCatalog.parse(String(it.contentsToByteArray())) }.getOrNull() }
+                        ?.let { file -> readText(file)?.let(::parseCatalog) }
                         ?: VersionCatalog.EMPTY
                     val moduleName = buildFile.parent?.name ?: buildFile.name
                     for (dep in GradleTextScanner.scan(text, catalog)) {
@@ -85,5 +85,19 @@ internal object BuildFileRows {
         }
 
         return entries
+    }
+
+    private fun readText(file: VirtualFile): String? = try {
+        String(file.contentsToByteArray())
+    } catch (e: IOException) {
+        LOG.debug("Skipping unreadable build file ${file.path}", e)
+        null
+    }
+
+    private fun parseCatalog(text: String): VersionCatalog.Parsed? = try {
+        VersionCatalog.parse(text)
+    } catch (e: Exception) {
+        LOG.debug("Ignoring malformed version catalog", e)
+        null
     }
 }
