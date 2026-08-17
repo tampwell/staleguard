@@ -51,7 +51,7 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
         var misses = 0
 
         for (declared in collect(file)) {
-            if (settings.isIgnored(declared.group, declared.name)) continue
+            if (com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project).isIgnored(declared.group, declared.name)) continue
             val coordinates = Coordinates(declared.group, declared.name)
 
             // Before the cache guard — internal snapshots never resolve.

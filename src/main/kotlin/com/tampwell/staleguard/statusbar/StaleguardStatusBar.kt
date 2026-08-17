@@ -67,7 +67,7 @@ class StaleguardStatusBarWidget(private val project: Project) :
                 val now = System.currentTimeMillis()
                 val inputs = BuildFileRows.collect(project).map { it.input }
                 val plan = UpgradePlanner.plan(
-                    inputs, settings.state.suggestPrereleases, thresholdMs, settings::isIgnored, now,
+                    inputs, settings.state.suggestPrereleases, thresholdMs, com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project)::isIgnored, now,
                 )
                 val summary = StatsCalculator.summary(StatsCalculator.compute(inputs, plan, thresholdMs, now))
                 summary.totalUpdates to summary.abandoned

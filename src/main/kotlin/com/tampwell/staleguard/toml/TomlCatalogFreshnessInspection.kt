@@ -158,7 +158,8 @@ class TomlCatalogFreshnessInspection : LocalInspectionTool() {
         onMiss: () -> Unit,
     ) {
         val coordinates = checkable.coordinates
-        if (settings.isIgnored(coordinates.groupId, coordinates.artifactId)) return
+        val policy = com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(manager.project)
+        if (policy.isIgnored(coordinates.groupId, coordinates.artifactId)) return
 
         // Before the cache guard — internal snapshots never resolve.
         if (checkable.version.endsWith("-SNAPSHOT", ignoreCase = true)) {

@@ -36,7 +36,7 @@ class BatchUpdateAction : AnAction() {
             inputs = UpgradeApplier.collectInputs(project),
             suggestPrereleases = settings.state.suggestPrereleases,
             abandonmentThresholdMillis = TimeUnit.DAYS.toMillis(365L * settings.state.abandonmentYears),
-            ignored = settings::isIgnored,
+            ignored = com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project)::isIgnored,
             nowMillis = System.currentTimeMillis(),
         )
 

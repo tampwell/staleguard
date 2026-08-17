@@ -102,7 +102,7 @@ class StaleguardStatsPanel(private val project: Project) :
         val rows = BuildFileRows.collect(project)
         val inputs = rows.map { it.input }
         val plan = UpgradePlanner.plan(
-            inputs, settings.state.suggestPrereleases, thresholdMs, settings::isIgnored, now,
+            inputs, settings.state.suggestPrereleases, thresholdMs, com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project)::isIgnored, now,
         )
         val stats = StatsCalculator.compute(inputs, plan, thresholdMs, now)
         return Snapshot(rows, plan, stats, StatsCalculator.summary(stats))

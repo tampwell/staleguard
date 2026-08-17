@@ -56,7 +56,7 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
         for ((dom, declared) in PomDependencyCollector.collectWithDom(model)) {
             val groupId = declared.groupId ?: continue
             val artifactId = declared.artifactId ?: continue
-            if (settings.isIgnored(groupId, artifactId)) continue
+            if (com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project).isIgnored(groupId, artifactId)) continue
             val coordinates = Coordinates(groupId, artifactId)
 
             // Snapshot pinning check BEFORE the cache guard: internal

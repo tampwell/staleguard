@@ -57,7 +57,7 @@ class GradleKotlinDslFreshnessInspection : LocalInspectionTool() {
             ?: VersionCatalog.EMPTY
 
         for (declared in KtsDependencyCollector.collect(file, catalog, catalogFile)) {
-            if (settings.isIgnored(declared.group, declared.name)) continue
+            if (com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project).isIgnored(declared.group, declared.name)) continue
             val coordinates = Coordinates(declared.group, declared.name)
 
             // Before the cache guard — internal snapshots never resolve.
