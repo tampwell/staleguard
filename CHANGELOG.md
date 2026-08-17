@@ -10,6 +10,9 @@
 - Show What Changed: in-IDE release notes for every version between yours and the suggested one, with a warning banner when the notes mention breaking changes
 - Status-bar dependency counter (visible only when something needs attention; click opens the overview)
 - Snapshot pinning warnings: -SNAPSHOT versions are flagged as reproducibility risks in all supported build files
+- Team ignore rules: a committed .staleguard.toml ([ignore] dependencies, group:artifact patterns with wildcards) applies to everyone who opens the project
+- Renovate and Dependabot alignment: ignore rules in renovate.json and .github/dependabot.yml are honored, so editor hints never contradict the team bot
+- Project-declared repositories (anonymous read): corporate mirrors and hosts like JitPack declared in build files are consulted as last-resort lookup sources
 
 
 ### Added
