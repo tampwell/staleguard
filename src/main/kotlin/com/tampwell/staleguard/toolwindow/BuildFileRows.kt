@@ -13,6 +13,8 @@ import com.tampwell.staleguard.gradle.GradleTextScanner
 import com.tampwell.staleguard.gradle.KtsDependencyCollector
 import com.tampwell.staleguard.gradle.VersionCatalog
 import com.tampwell.staleguard.repository.Coordinates
+import com.tampwell.staleguard.repository.DeclaredRepositories
+import com.tampwell.staleguard.repository.ExtraRepositories
 import com.tampwell.staleguard.services.VersionLookupService
 import org.jetbrains.idea.maven.dom.MavenDomUtil
 import org.jetbrains.idea.maven.project.MavenProjectsManager
@@ -33,6 +35,11 @@ internal object BuildFileRows {
         val entries = mutableListOf<Entry>()
 
         for (mavenProject in MavenProjectsManager.getInstance(project).projects) {
+            // Declared remote repositories join the lookup chain as
+            // last-resort sources (anonymous read only).
+            readText(mavenProject.file)?.let {
+                ExtraRepositories.getInstance().register(DeclaredRepositories.fromPomXml(it))
+            }
             val model = MavenDomUtil.getMavenDomProjectModel(project, mavenProject.file) ?: continue
             for ((dom, declared) in PomDependencyCollector.collectWithDom(model)) {
                 val known = declared.groupId?.let { g ->
@@ -58,6 +65,7 @@ internal object BuildFileRows {
             for (fileName in listOf("build.gradle", "build.gradle.kts")) {
                 for (buildFile in FilenameIndex.getVirtualFilesByName(fileName, scope)) {
                     val text = readText(buildFile) ?: continue
+                    ExtraRepositories.getInstance().register(DeclaredRepositories.fromGradle(text))
                     val catalog = KtsDependencyCollector.findCatalogFile(buildFile)
                         ?.let { file -> readText(file)?.let(::parseCatalog) }
                         ?: VersionCatalog.EMPTY

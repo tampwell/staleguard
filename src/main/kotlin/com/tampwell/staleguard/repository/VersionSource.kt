@@ -140,16 +140,19 @@ class SourceRouter(
     private val google: VersionSource,
     private val pluginPortal: VersionSource,
     private val googleGroups: () -> Set<String>?,
+    /** Project-declared repositories — always last, so public artifacts never touch them. */
+    private val extras: () -> List<VersionSource> = { emptyList() },
 ) {
 
     fun sourcesFor(coordinates: Coordinates): List<VersionSource> {
         val group = coordinates.groupId
-        return when {
+        val defaults = when {
             coordinates.artifactId.endsWith(".gradle.plugin") -> listOf(pluginPortal, central)
             GOOGLE_ONLY_PREFIXES.any { group == it || group.startsWith("$it.") } -> listOf(google, central)
             googleGroups()?.contains(group) == true -> listOf(central, google)
             else -> listOf(central)
         }
+        return defaults + extras()
     }
 
     companion object {
@@ -157,13 +160,18 @@ class SourceRouter(
 
         private val GOOGLE_ONLY_PREFIXES = listOf("androidx", "com.android", "android")
 
-        fun default(client: MavenRepositoryClient, clock: () -> Long = System::currentTimeMillis): SourceRouter {
+        fun default(
+            client: MavenRepositoryClient,
+            clock: () -> Long = System::currentTimeMillis,
+            extras: () -> List<VersionSource> = { emptyList() },
+        ): SourceRouter {
             val index = GoogleMasterIndex(client, clock)
             return SourceRouter(
                 central = MavenLayoutSource(MavenRepositoryUrls.MAVEN_CENTRAL),
                 google = GoogleMavenSource(),
                 pluginPortal = MavenLayoutSource(PLUGIN_PORTAL_URL),
                 googleGroups = index::groups,
+                extras = extras,
             )
         }
 

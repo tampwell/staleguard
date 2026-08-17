@@ -30,7 +30,10 @@ class VersionLookupService(scope: CoroutineScope) {
             client = client,
             cache = DiskVersionCache(cacheDirectory()),
             ioDispatcher = Dispatchers.IO,
-            router = SourceRouter.default(client),
+            router = SourceRouter.default(
+                client,
+                extras = com.tampwell.staleguard.repository.ExtraRepositories.getInstance()::sources,
+            ),
         )
     }
 
