@@ -62,6 +62,14 @@ class UpdateCatalogVersionQuickFix(
 
     override fun startInWriteAction(): Boolean = false // may show a dialog
 
+    // Edits a different file (the catalog) and may show a dialog — the
+    // preview of THIS file would be a lie either way.
+    override fun generatePreview(
+        project: Project,
+        previewDescriptor: ProblemDescriptor,
+    ): com.intellij.codeInsight.intention.preview.IntentionPreviewInfo =
+        com.intellij.codeInsight.intention.preview.IntentionPreviewInfo.EMPTY
+
     override fun getFamilyName(): String = StaleguardBundle.message("fix.catalog.family")
 
     override fun getName(): String = StaleguardBundle.message("fix.catalog.name", versionKey, newVersion)

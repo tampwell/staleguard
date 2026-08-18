@@ -21,6 +21,13 @@ class OpenChangelogQuickFix(private val changelogUrl: String) : LocalQuickFix, c
 
     override fun getName(): String = StaleguardBundle.message("fix.changelog.name")
 
+    // Opens a browser — must never run during intention preview.
+    override fun generatePreview(
+        project: Project,
+        previewDescriptor: ProblemDescriptor,
+    ): com.intellij.codeInsight.intention.preview.IntentionPreviewInfo =
+        com.intellij.codeInsight.intention.preview.IntentionPreviewInfo.EMPTY
+
     override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
         BrowserUtil.browse(changelogUrl)
     }

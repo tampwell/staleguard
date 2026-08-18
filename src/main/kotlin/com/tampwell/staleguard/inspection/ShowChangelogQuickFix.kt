@@ -42,6 +42,13 @@ class ShowChangelogQuickFix(
     override fun getName(): String =
         StaleguardBundle.message("fix.whatchanged.name", currentVersion, suggestedVersion)
 
+    // Fetches from the network and opens a dialog — never during preview.
+    override fun generatePreview(
+        project: Project,
+        previewDescriptor: ProblemDescriptor,
+    ): com.intellij.codeInsight.intention.preview.IntentionPreviewInfo =
+        com.intellij.codeInsight.intention.preview.IntentionPreviewInfo.EMPTY
+
     override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
         object : Task.Backgroundable(project, StaleguardBundle.message("whatchanged.progress", coordinate), true) {
             private var summary: ChangelogEngine.Summary? = null

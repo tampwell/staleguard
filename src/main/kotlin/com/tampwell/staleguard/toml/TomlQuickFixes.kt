@@ -28,6 +28,14 @@ class BumpTomlVersionQuickFix(
 
     override fun startInWriteAction(): Boolean = false // may show a dialog
 
+    // The blast-radius confirmation must never fire while the user merely
+    // browses the Alt+Enter menu.
+    override fun generatePreview(
+        project: Project,
+        previewDescriptor: ProblemDescriptor,
+    ): com.intellij.codeInsight.intention.preview.IntentionPreviewInfo =
+        com.intellij.codeInsight.intention.preview.IntentionPreviewInfo.EMPTY
+
     override fun getFamilyName(): String = StaleguardBundle.message("fix.bump.family")
 
     override fun getName(): String = StaleguardBundle.message("fix.bump.name", newVersion)

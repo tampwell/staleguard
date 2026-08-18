@@ -25,6 +25,13 @@ class IgnoreDependencyQuickFix(
 
     override fun getName(): String = StaleguardBundle.message("fix.ignore.name", "$groupId:$artifactId")
 
+    // Mutates settings — must never run during intention preview.
+    override fun generatePreview(
+        project: Project,
+        previewDescriptor: ProblemDescriptor,
+    ): com.intellij.codeInsight.intention.preview.IntentionPreviewInfo =
+        com.intellij.codeInsight.intention.preview.IntentionPreviewInfo.EMPTY
+
     override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
         val settings = StaleguardSettings.getInstance()
         val entry = "$groupId:$artifactId"

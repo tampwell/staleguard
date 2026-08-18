@@ -41,6 +41,18 @@ class BumpVersionQuickFix(
         else -> StaleguardBundle.message("fix.bump.name", newVersion)
     }
 
+    // The Property path shows a blast-radius dialog and edits a tag elsewhere
+    // in the file; only the plain literal edit is previewable.
+    override fun generatePreview(
+        project: Project,
+        previewDescriptor: ProblemDescriptor,
+    ): com.intellij.codeInsight.intention.preview.IntentionPreviewInfo =
+        if (target is FixTarget.Property) {
+            com.intellij.codeInsight.intention.preview.IntentionPreviewInfo.EMPTY
+        } else {
+            super.generatePreview(project, previewDescriptor)
+        }
+
     override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
         val element = descriptor.psiElement ?: return
         when (target) {
