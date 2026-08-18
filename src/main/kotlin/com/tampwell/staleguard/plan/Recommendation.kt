@@ -10,7 +10,8 @@ import java.util.concurrent.TimeUnit
 enum class Recommendation(val bundleKey: String) {
     SAFE("recommendation.safe"),
     REVIEW("recommendation.review"),
-    BREAKING("recommendation.breaking");
+    BREAKING("recommendation.breaking"),
+    STALE("recommendation.stale");
 
     companion object {
 
@@ -25,8 +26,12 @@ enum class Recommendation(val bundleKey: String) {
          *   user's abandonment threshold
          */
         fun of(severity: UpgradeSeverity, releaseAgeMillis: Long?, abandoned: Boolean): Recommendation = when {
-            abandoned || severity == UpgradeSeverity.MAJOR -> BREAKING
-            releaseAgeMillis != null && releaseAgeMillis > TWO_YEARS -> BREAKING
+            // "Breaking" is a claim about the version distance; age-driven
+            // caution is its own thing — a patch to a dormant project is not
+            // "breaking changes likely", it's "check the project still fits".
+            severity == UpgradeSeverity.MAJOR -> BREAKING
+            abandoned -> STALE
+            releaseAgeMillis != null && releaseAgeMillis > TWO_YEARS -> STALE
             severity == UpgradeSeverity.PATCH && releaseAgeMillis != null && releaseAgeMillis < SIX_MONTHS -> SAFE
             severity == UpgradeSeverity.MINOR && releaseAgeMillis != null && releaseAgeMillis < ONE_YEAR -> REVIEW
             else -> REVIEW

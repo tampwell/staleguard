@@ -108,11 +108,11 @@ class UpgradePlannerTest {
     }
 
     @Test
-    fun `abandoned dependency upgrade is BREAKING even for patch`() {
+    fun `abandoned dependency patch upgrade is STALE, not falsely breaking`() {
         val result = plan(
             PlannerInput("app", declared(raw = "1.0.0"), known(listOf("1.0.0", "1.0.1"), releasedDaysAgo = 3 * 365)),
         )
-        assertEquals(Recommendation.BREAKING, result.candidates.single().recommendation)
+        assertEquals(Recommendation.STALE, result.candidates.single().recommendation)
     }
 
     @Test
