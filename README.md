@@ -2,7 +2,7 @@
 
 An IntelliJ IDEA plugin that shows outdated Maven and Gradle dependencies directly in the editor.
 
-> Draft README — replace this wording with your own before or shortly after launch.
+**[Install from the JetBrains Marketplace](https://plugins.jetbrains.com/plugin/33571-staleguard)** - or in the IDE: Settings -> Plugins -> Marketplace -> search "Staleguard".
 
 ## What it does
 
