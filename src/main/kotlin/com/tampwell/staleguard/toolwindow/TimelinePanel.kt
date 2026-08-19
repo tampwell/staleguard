@@ -112,7 +112,9 @@ class TimelinePanel(private val project: Project) : SimpleToolWindowPanel(true, 
         override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
 
         override fun actionPerformed(e: AnActionEvent) {
-            val descriptor = FileSaverDescriptor(StaleguardBundle.message("timeline.snapshot"), "", "png")
+            // Spread forces the vararg (String[]) constructor; the
+            // single-extension overload doesn't exist on the 243 line.
+            val descriptor = FileSaverDescriptor(StaleguardBundle.message("timeline.snapshot"), "", *arrayOf("png"))
             val wrapper = FileChooserFactory.getInstance()
                 .createSaveFileDialog(descriptor, project)
                 .save("staleguard-timeline.png")

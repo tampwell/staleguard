@@ -38,9 +38,11 @@ tasks.jar {
 intellijPlatform {
     pluginConfiguration {
         ideaVersion {
-            // Floor at 2025.2: covers the real installed base (winget still
-            // ships 2025.2.x) at the cost of verifying two branches, 252+253.
-            sinceBuild = "252"
+            // Floor at 2024.3: Android Studio tracks the platform 1-2 lines
+            // behind IDEA, so a higher floor silently hides the plugin from
+            // the marketplace for most AS users (launch-day user report).
+            // Every release must verify green on 243/251 before this holds.
+            sinceBuild = "243"
         }
     }
     pluginVerification {
@@ -59,8 +61,22 @@ intellijPlatform {
             org.jetbrains.intellij.platform.gradle.tasks.VerifyPluginTask.FailureLevel.OVERRIDE_ONLY_API_USAGES,
         )
         ides {
+            // recommended() selects releases across the declared since/until
+            // range — with the 243 floor this must include a 243 and a 251
+            // line IDE. Confirm in the verifier output before trusting a run.
             recommended()
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        // 2024.3 bundles a Kotlin 2.0 stdlib. Newer language levels make the
+        // compiler emit stdlib helpers (coroutine SpillingKt) that don't
+        // exist there, which the 243 verifier flags as NoSuchClassError.
+        // Raise these only when since-build moves past 243.
+        languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
+        apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
     }
 }
 
