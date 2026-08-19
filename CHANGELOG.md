@@ -14,6 +14,9 @@
 - Renovate and Dependabot alignment: ignore rules in renovate.json and .github/dependabot.yml are honored, so editor hints never contradict the team bot
 - Project-declared repositories (anonymous read): corporate mirrors and hosts like JitPack declared in build files are consulted as last-resort lookup sources
 
+### Changed
+- Minimum supported IDE version lowered from 2025.2 to 2024.3, so current stable Android Studio and older IntelliJ installs can use the plugin (verified against every line from 2024.3 through 2026.2)
+
 
 ### Added
 
