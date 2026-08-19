@@ -17,6 +17,7 @@
 ### Changed
 - Minimum supported IDE version lowered from 2025.2 to 2024.3, so current stable Android Studio and older IntelliJ installs can use the plugin (verified against every line from 2024.3 through 2026.2)
 
+## [1.2.0] - 2026-08-18
 
 ### Added
 
@@ -25,8 +26,8 @@
   catalog file, with one-click updates and the same blast-radius confirmation
   for shared version keys
 - Google Maven repository support: `androidx.*`, `com.android.*`, and other
-  Google-hosted dependencies (Firebase, Play Services) now resolve — Android
-  projects get real version data instead of silence
+  Google-hosted dependencies (Firebase, Play Services) now resolve, so
+  Android projects get real version data instead of silence
 - Gradle Plugin Portal support: versions in `plugins { }` catalog entries are
   checked through their plugin marker artifacts
 - The batch update dialog now covers Gradle build files and version catalogs,
@@ -58,7 +59,7 @@
 - Inline warnings for outdated Maven and Gradle dependencies, with
   major / minor / patch severity and release-age context
 - One-click version updates: literal versions, Maven `<properties>`
-  definitions, and Gradle version-catalog `[versions]` entries — with a
+  definitions, and Gradle version-catalog `[versions]` entries, with a
   confirmation when one property or catalog key drives several dependencies
 - Abandonment detection: flags dependencies whose newest release is older
   than a configurable threshold (default two years)
