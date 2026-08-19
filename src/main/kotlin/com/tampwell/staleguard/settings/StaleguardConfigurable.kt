@@ -30,6 +30,11 @@ class StaleguardConfigurable : BoundConfigurable(StaleguardBundle.message("setti
                 .comment(StaleguardBundle.message("settings.prereleases.comment"))
                 .bindSelected(settings::suggestPrereleases)
         }
+        row {
+            checkBox(StaleguardBundle.message("settings.vulns"))
+                .comment(StaleguardBundle.message("settings.vulns.comment"))
+                .bindSelected(settings::vulnerabilityChecksEnabled)
+        }
         lateinit var abandonmentBox: com.intellij.ui.dsl.builder.Cell<javax.swing.JCheckBox>
         row {
             abandonmentBox = checkBox(StaleguardBundle.message("settings.abandonment"))

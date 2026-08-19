@@ -71,6 +71,23 @@ class GradleKotlinDslFreshnessInspection : LocalInspectionTool() {
                 )
             }
 
+            val advisories = com.tampwell.staleguard.inspection.VulnerabilityProblems
+                .advisoriesFor(project, coordinates, declared.version)
+            if (!advisories.isNullOrEmpty()) {
+                val worst = com.tampwell.staleguard.inspection.VulnerabilityProblems.worst(advisories)
+                problems += manager.createProblemDescriptor(
+                    declared.anchor,
+                    com.tampwell.staleguard.inspection.VulnerabilityProblems.message(advisories),
+                    isOnTheFly,
+                    listOfNotNull(
+                        worst.fixedVersion?.let { declared.fix(it) },
+                        com.tampwell.staleguard.inspection.OpenAdvisoryQuickFix(worst.url, worst.displayId),
+                        IgnoreDependencyQuickFix(declared.group, declared.name),
+                    ).toTypedArray<LocalQuickFix>(),
+                    ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+                )
+            }
+
             val snapshot = lookup.peek(coordinates)
             if (snapshot == null) {
                 refresh.requestLookup(coordinates)
@@ -91,6 +108,7 @@ class GradleKotlinDslFreshnessInspection : LocalInspectionTool() {
                         severity,
                         releaseAge,
                         abandoned = releaseAge != null && releaseAge > abandonmentThresholdMs,
+                        vulnerable = !advisories.isNullOrEmpty(),
                     )
                     val message = if (releaseAge != null) {
                         StaleguardBundle.message(

@@ -68,8 +68,41 @@ class FreshnessRefreshService(private val project: Project, private val scope: C
         }
     }
 
+    private val pendingVulns = ConcurrentHashMap.newKeySet<com.tampwell.staleguard.security.VulnKey>()
+
+    /**
+     * Same bridge for vulnerability lookups: cheap to call from the
+     * highlighting pass, resolves in the background, repaints once when the
+     * answer for this key actually appeared.
+     */
+    fun requestVulnerabilityLookup(coordinates: Coordinates, version: String) {
+        val key = com.tampwell.staleguard.security.VulnKey(coordinates, version)
+        if (!pendingVulns.add(key)) return
+
+        scope.launch {
+            val vulnService = VulnerabilityService.getInstance()
+            val before = vulnService.peek(coordinates, version)
+            try {
+                vulnService.lookup(coordinates, version)
+            } finally {
+                pendingVulns.remove(key)
+            }
+            val after = vulnService.peek(coordinates, version)
+            if (after?.advisories != null && after.advisories != before?.advisories) {
+                log.info(
+                    "Staleguard: advisories for $coordinates ${version}: " +
+                        "${after.advisories.size} known (worst=${after.worst?.displayId ?: "none"})",
+                )
+                scheduleRestart()
+                if (!project.isDisposed) {
+                    project.messageBus.syncPublisher(FreshnessListener.TOPIC).freshnessChanged()
+                }
+            }
+        }
+    }
+
     /** True while any lookup requested through this service is still in flight. */
-    fun hasPendingLookups(): Boolean = pending.isNotEmpty()
+    fun hasPendingLookups(): Boolean = pending.isNotEmpty() || pendingVulns.isNotEmpty()
 
     private val offlineNotified = AtomicBoolean(false)
     private val failedCoordinates = ConcurrentHashMap.newKeySet<Coordinates>()

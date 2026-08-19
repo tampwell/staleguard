@@ -78,6 +78,30 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                 }
             }
 
+            // --- Known vulnerabilities: independent of freshness — the
+            // current version being the newest doesn't make it safe.
+            val advisories = VulnerabilityProblems.advisoriesFor(project, coordinates, declared.resolvedVersion)
+            if (!advisories.isNullOrEmpty()) {
+                val anchor = dom.version.xmlTag ?: dom.xmlTag
+                if (anchor != null) {
+                    val worst = VulnerabilityProblems.worst(advisories)
+                    val target = FixTarget.of(declared.rawVersion)
+                    val fixes = listOfNotNull(
+                        worst.fixedVersion?.takeIf { target != FixTarget.None }
+                            ?.let { BumpVersionQuickFix(it, target) },
+                        OpenAdvisoryQuickFix(worst.url, worst.displayId),
+                        IgnoreDependencyQuickFix(groupId, artifactId),
+                    ).toTypedArray<com.intellij.codeInspection.LocalQuickFix>()
+                    problems += manager.createProblemDescriptor(
+                        anchor,
+                        VulnerabilityProblems.message(advisories),
+                        isOnTheFly,
+                        fixes,
+                        ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+                    )
+                }
+            }
+
             val snapshot = lookup.peek(coordinates)
             if (snapshot == null) {
                 // Never resolved this session — resolve in background, repaint later.
@@ -120,6 +144,7 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                             severity,
                             releaseAge,
                             abandoned = releaseAge != null && releaseAge > abandonmentThresholdMs,
+                            vulnerable = !advisories.isNullOrEmpty(),
                         )
                         val message = if (declared.origin == com.tampwell.staleguard.model.DeclaredDependency.Origin.PARENT) {
                             // The parent version controls every managed

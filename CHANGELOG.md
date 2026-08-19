@@ -5,6 +5,11 @@
 ## [Unreleased]
 
 ### Added
+- Known-vulnerability alerts: dependencies are checked against the OSV database (osv.dev), and a version with a published CVE gets an editor warning naming the advisory, its severity, and the first fixed version, with a one-click update to that version and a link to the full advisory. The upgrade recommendation escalates to "Update now" while the current version is vulnerable. Cached 24 hours, honors offline mode, and can be turned off in Settings.
+
+## [1.3.0] - 2026-08-19
+
+### Added
 - Library Try-Out Script generator (Tools menu): coordinates to a runnable Java, JBang, Kotlin, JShell, or Groovy script, with the version pre-filled from Staleguard's own data
 - Parent POM freshness: spring-boot-starter-parent and other platform parents are flagged when outdated - one edit updates every managed dependency
 - Show What Changed: in-IDE release notes for every version between yours and the suggested one, with a warning banner when the notes mention breaking changes

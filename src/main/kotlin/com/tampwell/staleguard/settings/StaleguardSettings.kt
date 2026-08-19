@@ -22,6 +22,13 @@ class StaleguardSettings : PersistentStateComponent<StaleguardSettings.State> {
         var suggestPrereleases: Boolean = false
         var abandonmentEnabled: Boolean = true
         var abandonmentYears: Int = 2
+
+        /**
+         * Queries osv.dev with artifact coordinates — the same class of
+         * traffic as version lookups, but a different host, so it gets its
+         * own switch. Honors offlineMode regardless.
+         */
+        var vulnerabilityChecksEnabled: Boolean = true
         var ignoredCoordinates: MutableList<String> = mutableListOf()
 
         /** Properties the user opted out of blast-radius confirmation for. */

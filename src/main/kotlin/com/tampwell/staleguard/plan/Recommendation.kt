@@ -5,9 +5,11 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Heuristic guidance for "should I take this upgrade?" — deterministic rules,
- * no AI, no network. Bundle keys: recommendation.safe / .review / .breaking.
+ * no AI, no network. Bundle keys: recommendation.urgent / .safe / .review /
+ * .breaking / .stale.
  */
 enum class Recommendation(val bundleKey: String) {
+    URGENT("recommendation.urgent"),
     SAFE("recommendation.safe"),
     REVIEW("recommendation.review"),
     BREAKING("recommendation.breaking"),
@@ -24,8 +26,17 @@ enum class Recommendation(val bundleKey: String) {
          *   (null = unknown — we then never claim SAFE, only advise review)
          * @param abandoned true when the newest release is older than the
          *   user's abandonment threshold
+         * @param vulnerable true when the CURRENT version carries a known
+         *   vulnerability — overrides every hesitation below, because "review
+         *   the changelog first" is the wrong advice while shipping a CVE
          */
-        fun of(severity: UpgradeSeverity, releaseAgeMillis: Long?, abandoned: Boolean): Recommendation = when {
+        fun of(
+            severity: UpgradeSeverity,
+            releaseAgeMillis: Long?,
+            abandoned: Boolean,
+            vulnerable: Boolean = false,
+        ): Recommendation = when {
+            vulnerable -> URGENT
             // "Breaking" is a claim about the version distance; age-driven
             // caution is its own thing — a patch to a dormant project is not
             // "breaking changes likely", it's "check the project still fits".
