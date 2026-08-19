@@ -30,5 +30,17 @@
             <artifactId>joda-time</artifactId>
             <version>2.14.3</version>
         </dependency>
+        <!-- vulnerability fixture: the Log4Shell version, several CVEs -->
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-core</artifactId>
+            <version>2.14.1</version>
+        </dependency>
+        <!-- license fixture: GPL-with-FOSS-exception, denied by .staleguard.toml -->
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>8.0.33</version>
+        </dependency>
     </dependencies>
 </project>

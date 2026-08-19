@@ -1,0 +1,11 @@
+# Committed Staleguard policy for the demo project — exercises the
+# team-rules features live: the ignore list and the license policy.
+
+[ignore]
+dependencies = [
+    "com.example.internal:*",
+]
+
+[licenses]
+deny = ["*GNU General Public License*"]
+warn = ["*Eclipse Public License*"]
