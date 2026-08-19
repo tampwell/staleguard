@@ -104,7 +104,10 @@ class StaleguardStatsPanel(private val project: Project) :
         val plan = UpgradePlanner.plan(
             inputs, settings.state.suggestPrereleases, thresholdMs, com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project)::isIgnored, now,
         )
-        val stats = StatsCalculator.compute(inputs, plan, thresholdMs, now)
+        val stats = StatsCalculator.compute(
+            inputs, plan, thresholdMs, now,
+            com.tampwell.staleguard.services.VulnerabilityService.getInstance().advisoryCounter(),
+        )
         return Snapshot(rows, plan, stats, StatsCalculator.summary(stats))
     }
 
@@ -118,12 +121,16 @@ class StaleguardStatsPanel(private val project: Project) :
         val summary = snapshot.summary
 
         // Positive empty state: an empty-looking tree reads as "broken".
-        val allFresh = summary.totalUpdates == 0 && summary.unresolved == 0 && summary.abandoned == 0
+        val allFresh = summary.totalUpdates == 0 && summary.unresolved == 0 &&
+            summary.abandoned == 0 && summary.vulnerable == 0
         val root = DefaultMutableTreeNode(
-            if (allFresh) {
-                StaleguardBundle.message("toolwindow.allfresh", summary.totalDependencies)
-            } else {
-                StaleguardBundle.message(
+            when {
+                allFresh -> StaleguardBundle.message("toolwindow.allfresh", summary.totalDependencies)
+                summary.vulnerable > 0 -> StaleguardBundle.message(
+                    "toolwindow.summary.vulnerable",
+                    summary.totalDependencies, summary.totalUpdates, summary.abandoned, summary.vulnerable,
+                )
+                else -> StaleguardBundle.message(
                     "toolwindow.summary",
                     summary.totalDependencies, summary.totalUpdates, summary.abandoned,
                 )
@@ -134,11 +141,20 @@ class StaleguardStatsPanel(private val project: Project) :
         for (moduleStats in snapshot.stats) {
             val moduleRows = rows.filter { it.input.moduleName == moduleStats.moduleName }
             val moduleNode = DefaultMutableTreeNode(
-                StaleguardBundle.message(
-                    "toolwindow.module",
-                    moduleStats.moduleName, moduleStats.totalDependencies, moduleStats.patchUpdates,
-                    moduleStats.minorUpdates, moduleStats.majorUpdates, moduleStats.abandoned,
-                ),
+                if (moduleStats.vulnerable > 0) {
+                    StaleguardBundle.message(
+                        "toolwindow.module.vulnerable",
+                        moduleStats.moduleName, moduleStats.totalDependencies, moduleStats.patchUpdates,
+                        moduleStats.minorUpdates, moduleStats.majorUpdates, moduleStats.abandoned,
+                        moduleStats.vulnerable,
+                    )
+                } else {
+                    StaleguardBundle.message(
+                        "toolwindow.module",
+                        moduleStats.moduleName, moduleStats.totalDependencies, moduleStats.patchUpdates,
+                        moduleStats.minorUpdates, moduleStats.majorUpdates, moduleStats.abandoned,
+                    )
+                },
             )
             val candidatesByCoords = plan.candidates
                 .filter { it.moduleName == moduleStats.moduleName }

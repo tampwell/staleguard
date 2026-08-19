@@ -61,7 +61,7 @@ class StaleguardStatusBarWidget(private val project: Project) :
     }
 
     private fun recompute() {
-        ReadAction.nonBlocking<Pair<Int, Int>> {
+        ReadAction.nonBlocking<Triple<Int, Int, Int>> {
                 val settings = StaleguardSettings.getInstance()
                 val thresholdMs = TimeUnit.DAYS.toMillis(365L * settings.state.abandonmentYears)
                 val now = System.currentTimeMillis()
@@ -69,15 +69,21 @@ class StaleguardStatusBarWidget(private val project: Project) :
                 val plan = UpgradePlanner.plan(
                     inputs, settings.state.suggestPrereleases, thresholdMs, com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project)::isIgnored, now,
                 )
-                val summary = StatsCalculator.summary(StatsCalculator.compute(inputs, plan, thresholdMs, now))
-                summary.totalUpdates to summary.abandoned
+                val summary = StatsCalculator.summary(
+                    StatsCalculator.compute(
+                        inputs, plan, thresholdMs, now,
+                        com.tampwell.staleguard.services.VulnerabilityService.getInstance().advisoryCounter(),
+                    ),
+                )
+                Triple(summary.totalUpdates, summary.abandoned, summary.vulnerable)
             }
             .expireWith(this)
-            .finishOnUiThread(com.intellij.openapi.application.ModalityState.any()) { (updates, abandoned) ->
-                text = if (updates == 0 && abandoned == 0) {
-                    ""
-                } else {
-                    StaleguardBundle.message("statusbar.text", updates, abandoned)
+            .finishOnUiThread(com.intellij.openapi.application.ModalityState.any()) { (updates, abandoned, vulnerable) ->
+                text = when {
+                    updates == 0 && abandoned == 0 && vulnerable == 0 -> ""
+                    vulnerable > 0 ->
+                        StaleguardBundle.message("statusbar.text.vulnerable", updates, abandoned, vulnerable)
+                    else -> StaleguardBundle.message("statusbar.text", updates, abandoned)
                 }
                 statusBar?.updateWidget(ID())
             }

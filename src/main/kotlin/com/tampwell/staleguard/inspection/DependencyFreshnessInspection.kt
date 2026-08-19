@@ -115,6 +115,20 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
             }
             val data = snapshot.value ?: continue // known absent (404): nothing to say
 
+            // --- License policy: silent unless the project committed [licenses] rules ---
+            LicenseProblems.check(project, coordinates.toString(), data.licenses)?.let { finding ->
+                val anchor = dom.artifactId.xmlTag ?: dom.xmlTag
+                if (anchor != null) {
+                    problems += manager.createProblemDescriptor(
+                        anchor, finding.message, isOnTheFly,
+                        arrayOf<com.intellij.codeInspection.LocalQuickFix>(
+                            IgnoreDependencyQuickFix(groupId, artifactId),
+                        ),
+                        finding.highlight,
+                    )
+                }
+            }
+
             // --- Freshness ---
             val current = declared.resolvedVersion?.let(::MavenVersion)
             val suggested = VersionSuggestion.suggest(current, data.versions, settings.state.suggestPrereleases)

@@ -12,6 +12,8 @@ data class ModuleStats(
     val majorUpdates: Int,
     val qualifierUpdates: Int,
     val abandoned: Int,
+    /** Dependencies whose declared version has at least one known advisory. */
+    val vulnerable: Int = 0,
 ) {
     val totalUpdates: Int get() = patchUpdates + minorUpdates + majorUpdates + qualifierUpdates
 
@@ -24,6 +26,7 @@ data class ModuleStats(
         majorUpdates = majorUpdates + other.majorUpdates,
         qualifierUpdates = qualifierUpdates + other.qualifierUpdates,
         abandoned = abandoned + other.abandoned,
+        vulnerable = vulnerable + other.vulnerable,
     )
 }
 
@@ -39,6 +42,8 @@ object StatsCalculator {
         plan: UpgradePlan,
         abandonmentThresholdMillis: Long,
         nowMillis: Long,
+        /** Known advisory count for (groupId:artifactId, version); default = feature absent. */
+        advisoryCount: (groupId: String, artifactId: String, version: String) -> Int = { _, _, _ -> 0 },
     ): List<ModuleStats> {
         val byModule = inputs.groupBy { it.moduleId }
         val candidatesByModule = plan.candidates.groupBy { it.moduleId }
@@ -58,10 +63,17 @@ object StatsCalculator {
                     val releasedAt = input.known?.newestReleaseAtMillis
                     releasedAt != null && nowMillis - releasedAt > abandonmentThresholdMillis
                 },
+                vulnerable = moduleInputs.count { input ->
+                    val groupId = input.declared.groupId
+                    val artifactId = input.declared.artifactId
+                    val version = input.declared.resolvedVersion
+                    groupId != null && artifactId != null && version != null &&
+                        advisoryCount(groupId, artifactId, version) > 0
+                },
             )
         }.sortedBy { it.moduleName }
     }
 
     fun summary(stats: List<ModuleStats>): ModuleStats =
-        stats.fold(ModuleStats("", 0, 0, 0, 0, 0, 0, 0), ModuleStats::plus)
+        stats.fold(ModuleStats("", 0, 0, 0, 0, 0, 0, 0, 0), ModuleStats::plus)
 }

@@ -34,25 +34,32 @@ object IgnoreRules {
      * ```
      * Multi-line arrays supported; anything unrecognized is skipped, never fatal.
      */
-    fun parseStaleguardToml(text: String): List<String> {
-        val ignores = mutableListOf<String>()
-        var inIgnoreTable = false
-        var inDependenciesArray = false
+    fun parseStaleguardToml(text: String): List<String> = tomlStringArray(text, "ignore", "dependencies")
+
+    /**
+     * All string entries of `key = [ ... ]` inside `[table]`. Deliberately a
+     * line scan, not a TOML parser: the config surface is flat string arrays
+     * by design, and a scan can never fail on someone's creative TOML.
+     */
+    fun tomlStringArray(text: String, table: String, key: String): List<String> {
+        val values = mutableListOf<String>()
+        var inTable = false
+        var inArray = false
         for (line in text.lineSequence()) {
             val trimmed = line.trim()
             if (trimmed.startsWith("[")) {
-                inIgnoreTable = trimmed == "[ignore]"
-                inDependenciesArray = false
+                inTable = trimmed == "[$table]"
+                inArray = false
                 continue
             }
-            if (!inIgnoreTable) continue
-            if (trimmed.startsWith("dependencies")) inDependenciesArray = true
-            if (inDependenciesArray) {
-                TOML_ARRAY_ENTRY.findAll(trimmed).forEach { ignores += it.groupValues[1] }
-                if (trimmed.endsWith("]")) inDependenciesArray = false
+            if (!inTable) continue
+            if (trimmed.startsWith(key)) inArray = true
+            if (inArray) {
+                TOML_ARRAY_ENTRY.findAll(trimmed).forEach { values += it.groupValues[1] }
+                if (trimmed.endsWith("]")) inArray = false
             }
         }
-        return ignores
+        return values
     }
 
     /**

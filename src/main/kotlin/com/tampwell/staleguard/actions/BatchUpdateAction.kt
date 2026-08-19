@@ -38,6 +38,7 @@ class BatchUpdateAction : AnAction() {
             abandonmentThresholdMillis = TimeUnit.DAYS.toMillis(365L * settings.state.abandonmentYears),
             ignored = com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project)::isIgnored,
             nowMillis = System.currentTimeMillis(),
+            advisoryCount = com.tampwell.staleguard.services.VulnerabilityService.getInstance().advisoryCounter(),
         )
 
         if (plan.candidates.isEmpty()) {

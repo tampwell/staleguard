@@ -64,6 +64,30 @@ class StatsCalculatorTest {
     }
 
     @Test
+    fun `counts vulnerable dependencies per module and in the summary`() {
+        val inputs = listOf(
+            input("app", "log4j-core", "2.14.1", listOf("2.14.1", "2.25.0")),
+            input("app", "clean", "1.0.0", listOf("1.0.0")),
+            input("lib", "unresolved", "1.0", null), // no version data, still countable by version
+        )
+        val plan = UpgradePlanner.plan(inputs, false, twoYears, { _, _ -> false }, now)
+        val stats = StatsCalculator.compute(inputs, plan, twoYears, now) { _, artifact, version ->
+            if (artifact == "log4j-core" && version == "2.14.1") 7 else 0
+        }
+
+        assertEquals(1, stats.first { it.moduleName == "app" }.vulnerable)
+        assertEquals(0, stats.first { it.moduleName == "lib" }.vulnerable)
+        assertEquals(1, StatsCalculator.summary(stats).vulnerable)
+    }
+
+    @Test
+    fun `vulnerable defaults to zero when no advisory counter is supplied`() {
+        val inputs = listOf(input("app", "a", "1.0.0", listOf("1.0.0", "1.0.1")))
+        val plan = UpgradePlanner.plan(inputs, false, twoYears, { _, _ -> false }, now)
+        assertEquals(0, StatsCalculator.summary(StatsCalculator.compute(inputs, plan, twoYears, now)).vulnerable)
+    }
+
+    @Test
     fun `empty input yields empty stats and zero summary`() {
         val stats = StatsCalculator.compute(emptyList(), UpgradePlan(emptyList(), emptyMap()), twoYears, now)
         assertEquals(0, stats.size)

@@ -20,18 +20,24 @@ class ProjectPolicyService(private val project: Project) {
 
     private data class CacheKey(val paths: List<String>, val stamps: List<Long>)
 
+    private data class Parsed(val ignorePatterns: List<String>, val licensePolicy: LicensePolicy)
+
     @Volatile
-    private var cached: Pair<CacheKey, List<String>>? = null
+    private var cached: Pair<CacheKey, Parsed>? = null
 
     fun isIgnored(groupId: String, artifactId: String): Boolean {
         if (StaleguardSettings.getInstance().isIgnored(groupId, artifactId)) return true
-        return projectPatterns().any { IgnoreRules.matches(it, groupId, artifactId) }
+        return parsed().ignorePatterns.any { IgnoreRules.matches(it, groupId, artifactId) }
     }
 
-    private fun projectPatterns(): List<String> {
-        val base = project.baseDir() ?: return emptyList()
+    /** Committed [licenses] rules; EMPTY when the project has none. */
+    fun licensePolicy(): LicensePolicy = parsed().licensePolicy
+
+    private fun parsed(): Parsed {
+        val base = project.baseDir() ?: return Parsed(emptyList(), LicensePolicy.EMPTY)
+        val staleguardToml = base.findChild(".staleguard.toml")
         val sources = listOfNotNull(
-            base.findChild(".staleguard.toml")?.let { it to IgnoreRules::parseStaleguardToml },
+            staleguardToml?.let { it to IgnoreRules::parseStaleguardToml },
             base.findChild("renovate.json")?.let { it to IgnoreRules::parseRenovate },
             base.findChild(".github")?.findChild("renovate.json")?.let { it to IgnoreRules::parseRenovate },
             base.findChild(".github")?.findChild("dependabot.yml")?.let { it to IgnoreRules::parseDependabot },
@@ -39,9 +45,12 @@ class ProjectPolicyService(private val project: Project) {
         val key = CacheKey(sources.map { it.first.path }, sources.map { it.first.modificationStamp })
         cached?.takeIf { it.first == key }?.let { return it.second }
 
-        val patterns = sources.flatMap { (file, parse) -> parse(readText(file)) }
-        cached = key to patterns
-        return patterns
+        val parsed = Parsed(
+            ignorePatterns = sources.flatMap { (file, parse) -> parse(readText(file)) },
+            licensePolicy = staleguardToml?.let { LicensePolicy.parse(readText(it)) } ?: LicensePolicy.EMPTY,
+        )
+        cached = key to parsed
+        return parsed
     }
 
     private fun readText(file: VirtualFile): String = try {

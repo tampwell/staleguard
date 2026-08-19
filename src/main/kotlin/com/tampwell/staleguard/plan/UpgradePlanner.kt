@@ -61,6 +61,8 @@ object UpgradePlanner {
         abandonmentThresholdMillis: Long,
         ignored: (groupId: String, artifactId: String) -> Boolean,
         nowMillis: Long,
+        /** Warm-cache advisory count for the CURRENT version — escalates the recommendation to URGENT. */
+        advisoryCount: (groupId: String, artifactId: String, version: String) -> Int = { _, _, _ -> 0 },
     ): UpgradePlan {
         val propertyUsage = mutableMapOf<String, Int>()
         for (input in inputs) {
@@ -86,6 +88,7 @@ object UpgradePlanner {
 
             val releaseAge = known.newestReleaseAtMillis?.let { nowMillis - it }
             val abandoned = releaseAge != null && releaseAge > abandonmentThresholdMillis
+            val vulnerable = advisoryCount(groupId, artifactId, current.value) > 0
             UpgradeCandidate(
                 moduleName = input.moduleName,
                 coordinates = Coordinates(groupId, artifactId),
@@ -93,7 +96,7 @@ object UpgradePlanner {
                 suggestedVersion = suggested,
                 severity = severity,
                 target = target,
-                recommendation = Recommendation.of(severity, releaseAge, abandoned),
+                recommendation = Recommendation.of(severity, releaseAge, abandoned, vulnerable),
                 moduleId = input.moduleId,
                 confidence = ConfidenceScorer.score(severity, releaseAge, abandoned),
             )

@@ -93,6 +93,17 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
             if (snapshot.failed) refresh.requestLookup(coordinates)
             val data = snapshot.value ?: continue
 
+            com.tampwell.staleguard.inspection.LicenseProblems
+                .check(project, coordinates.toString(), data.licenses)?.let { finding ->
+                    problems += manager.createProblemDescriptor(
+                        declared.anchor, finding.message, isOnTheFly,
+                        arrayOf<com.intellij.codeInspection.LocalQuickFix>(
+                            com.tampwell.staleguard.inspection.IgnoreDependencyQuickFix(declared.group, declared.name),
+                        ),
+                        finding.highlight,
+                    )
+                }
+
             val current = MavenVersion(declared.version)
             val suggested = VersionSuggestion.suggest(current, data.versions, settings.state.suggestPrereleases)
 

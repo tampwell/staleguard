@@ -199,6 +199,15 @@ class TomlCatalogFreshnessInspection : LocalInspectionTool() {
         if (snapshot.failed) refresh.requestLookup(coordinates)
         val data = snapshot.value ?: return
 
+        com.tampwell.staleguard.inspection.LicenseProblems
+            .check(manager.project, coordinates.toString(), data.licenses)?.let { finding ->
+                problems += manager.createProblemDescriptor(
+                    checkable.anchor, finding.message, isOnTheFly,
+                    arrayOf<LocalQuickFix>(IgnoreDependencyQuickFix(coordinates.groupId, coordinates.artifactId)),
+                    finding.highlight,
+                )
+            }
+
         val current = MavenVersion(checkable.version)
         val suggested = VersionSuggestion.suggest(current, data.versions, settings.state.suggestPrereleases)
 
