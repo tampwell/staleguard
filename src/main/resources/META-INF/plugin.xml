@@ -4,16 +4,19 @@
     <name>Staleguard</name>
     <vendor>Tampwell</vendor>
     <description><![CDATA[
-        <p>Staleguard shows outdated Maven and Gradle dependencies right in the editor: severity-labeled warnings, one-click version bumps, and abandonment alerts for libraries that stopped shipping releases.</p>
+        <p>Staleguard shows outdated, abandoned, and vulnerable Maven and Gradle dependencies right in the editor: severity-labeled warnings, one-click version bumps, and plain-language advice on which updates matter.</p>
         <ul>
+            <li><b>Known-vulnerability alerts</b>: versions with published CVEs are flagged with the advisory, its severity, and the first fixed version, checked against the OSV database</li>
             <li><b>Inline upgrade hints</b> with major/minor/patch severity and release-age context</li>
-            <li><b>One-click fixes</b> that correctly edit Maven properties and Gradle version catalogs — never inline literals over references</li>
+            <li><b>One-click fixes</b> that correctly edit Maven properties and Gradle version catalogs instead of inlining literals over references</li>
             <li><b>Abandonment detection</b>: flags dependencies whose newest release is years old, with the actual date</li>
-            <li><b>Batch updates</b> with a severity-grouped preview, plus one-click "apply all patch"</li>
-            <li><b>Statistics and timeline</b> tool window with license visibility and PNG export</li>
-            <li><b>Changelog links</b> straight to the project's releases page</li>
+            <li><b>Show What Changed</b>: the release notes between your version and the suggested one, in a dialog, with breaking-change and security banners</li>
+            <li><b>Team rules</b>: a committed .staleguard.toml shares ignore rules and license policy with the whole team, and Renovate/Dependabot ignores are honored automatically</li>
+            <li><b>Batch updates</b> with confidence scores, security fixes preselected, plus one-click "apply all patch"</li>
+            <li><b>Statistics and timeline</b> tool window with license visibility, vulnerability counts, and Markdown/CSV/PNG export</li>
+            <li><b>Parent POM freshness</b> and a quiet status-bar counter that only appears when something needs attention</li>
         </ul>
-        <p>Supports pom.xml, build.gradle, build.gradle.kts, and libs.versions.toml — including androidx and other Google-hosted dependencies, and Gradle plugin versions. Stable-only suggestions by default. No telemetry, no accounts — data comes directly from Maven Central, Google's Maven repository, and the Gradle Plugin Portal, with a polite 24-hour cache.</p>
+        <p>Supports pom.xml, build.gradle, build.gradle.kts, and libs.versions.toml, including androidx and other Google-hosted dependencies and Gradle plugin versions. Works in IntelliJ IDEA and Android Studio (2024.3 and newer). Stable-only suggestions by default. No telemetry, no accounts: data comes directly from Maven Central, Google's Maven repository, the Gradle Plugin Portal, and osv.dev, with a polite 24-hour cache.</p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
