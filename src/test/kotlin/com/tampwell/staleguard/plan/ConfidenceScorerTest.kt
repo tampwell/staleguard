@@ -58,4 +58,13 @@ class ConfidenceScorerTest {
         assertTrue(patch > qualifier)
         assertTrue(qualifier > major)
     }
+
+    @Test
+    fun `a vulnerability fix earns a confidence bonus with its own factor`() {
+        val base = ConfidenceScorer.score(UpgradeSeverity.MAJOR, null, abandoned = false)
+        val vuln = ConfidenceScorer.score(UpgradeSeverity.MAJOR, null, abandoned = false, vulnerable = true)
+        assertEquals(base.score + 20, vuln.score)
+        assertTrue(vuln.factors.any { it.bundleKey == "confidence.factor.vulnerable" && it.impact == 20 })
+        assertTrue(base.factors.none { it.bundleKey == "confidence.factor.vulnerable" })
+    }
 }

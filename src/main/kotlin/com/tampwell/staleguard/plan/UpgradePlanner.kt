@@ -98,7 +98,7 @@ object UpgradePlanner {
                 target = target,
                 recommendation = Recommendation.of(severity, releaseAge, abandoned, vulnerable),
                 moduleId = input.moduleId,
-                confidence = ConfidenceScorer.score(severity, releaseAge, abandoned),
+                confidence = ConfidenceScorer.score(severity, releaseAge, abandoned, vulnerable),
             )
         }
 

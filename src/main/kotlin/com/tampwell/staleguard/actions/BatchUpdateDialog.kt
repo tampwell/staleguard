@@ -51,7 +51,11 @@ class BatchUpdateDialog(project: Project, private val plan: UpgradePlan) : Dialo
                     cell(selectAll)
                 }
                 groupBoxes = group.map { candidate ->
-                    val box = JBCheckBox(label(candidate), severity == UpgradeSeverity.PATCH)
+                    // Preselected: patches (routine) and security fixes (urgent) —
+                    // a CVE fix should not hide unchecked behind a major bump.
+                    val preselect = severity == UpgradeSeverity.PATCH ||
+                        candidate.recommendation == com.tampwell.staleguard.plan.Recommendation.URGENT
+                    val box = JBCheckBox(label(candidate), preselect)
                     row { cell(box) }
                     rows[box] = candidate
                     box

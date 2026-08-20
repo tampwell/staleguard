@@ -23,6 +23,7 @@ object ConfidenceScorer {
         severity: UpgradeSeverity,
         releaseAgeMillis: Long?,
         abandoned: Boolean,
+        vulnerable: Boolean = false,
     ): UpdateConfidence {
         var score = 50
         val factors = mutableListOf<UpdateConfidence.Factor>()
@@ -47,6 +48,10 @@ object ConfidenceScorer {
         }
 
         if (abandoned) add("confidence.factor.abandoned", -20)
+
+        // The calculus inverts when the current version ships a CVE: staying
+        // is the risky option, so the update deserves the benefit of the doubt.
+        if (vulnerable) add("confidence.factor.vulnerable", +20)
 
         return UpdateConfidence(score.coerceIn(0, 100), factors)
     }

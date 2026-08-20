@@ -50,6 +50,14 @@ class ShowChangelogQuickFix(
         com.intellij.codeInsight.intention.preview.IntentionPreviewInfo.EMPTY
 
     override fun applyFix(project: Project, descriptor: ProblemDescriptor) {
+        // Warm-cache read only; the advisories were resolved when the editor
+        // warning rendered, so this costs a map lookup.
+        val advisories = coordinate.split(':', limit = 2).takeIf { it.size == 2 }?.let { (group, artifact) ->
+            com.tampwell.staleguard.services.VulnerabilityService.getInstance()
+                .peek(com.tampwell.staleguard.repository.Coordinates(group, artifact), currentVersion)
+                ?.advisories.orEmpty()
+        }.orEmpty()
+
         object : Task.Backgroundable(project, StaleguardBundle.message("whatchanged.progress", coordinate), true) {
             private var summary: ChangelogEngine.Summary? = null
 
@@ -59,7 +67,7 @@ class ShowChangelogQuickFix(
             }
 
             override fun onSuccess() {
-                NotesDialog(project, coordinate, currentVersion, suggestedVersion, summary).show()
+                NotesDialog(project, coordinate, currentVersion, suggestedVersion, summary, advisories).show()
             }
         }.queue()
     }
@@ -67,9 +75,10 @@ class ShowChangelogQuickFix(
     private class NotesDialog(
         project: Project,
         coordinate: String,
-        from: String,
+        private val from: String,
         to: String,
         private val summary: ChangelogEngine.Summary?,
+        private val advisories: List<com.tampwell.staleguard.security.OsvAdvisory>,
     ) : DialogWrapper(project) {
 
         init {
@@ -81,22 +90,42 @@ class ShowChangelogQuickFix(
 
         override fun createCenterPanel(): JComponent {
             val panel = JPanel(BorderLayout(0, JBUI.scale(8)))
+            val banners = javax.swing.Box.createVerticalBox()
+
+            // Security first: the strongest reason to take an update belongs
+            // at the top of the dialog that decides it.
+            if (advisories.isNotEmpty()) {
+                val listed = advisories.sortedByDescending { it.severityRank }
+                    .joinToString(", ") { advisory ->
+                        advisory.displayId +
+                            (advisory.severity?.let { " (${it.lowercase()})" } ?: "")
+                    }
+                banners.add(
+                    JBLabel(
+                        StaleguardBundle.message("whatchanged.security.banner", from, listed),
+                        com.intellij.icons.AllIcons.General.Warning,
+                        JBLabel.LEADING,
+                    ),
+                )
+            }
+
             val found = summary
             if (found == null) {
+                if (banners.componentCount > 0) panel.add(banners, BorderLayout.NORTH)
                 panel.add(JBLabel(StaleguardBundle.message("whatchanged.none")), BorderLayout.CENTER)
                 return panel
             }
 
             if (found.signals.hasBreaking) {
-                panel.add(
+                banners.add(
                     JBLabel(
                         StaleguardBundle.message("whatchanged.breaking.banner", found.signals.strong.first()),
                         com.intellij.icons.AllIcons.General.Warning,
                         JBLabel.LEADING,
                     ),
-                    BorderLayout.NORTH,
                 )
             }
+            if (banners.componentCount > 0) panel.add(banners, BorderLayout.NORTH)
 
             val text = buildString {
                 for (notes in found.notes) {
