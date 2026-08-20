@@ -251,6 +251,11 @@ class StaleguardStatsPanel(private val project: Project) :
                     suggestedVersion = candidate.suggestedVersion.value,
                     severity = StaleguardBundle.message("severity.${candidate.severity.name.lowercase()}"),
                     license = known?.licenses?.firstOrNull().orEmpty(),
+                    advisories = com.tampwell.staleguard.services.VulnerabilityService.getInstance()
+                        .peek(candidate.coordinates, candidate.currentVersion.value)
+                        ?.advisories.orEmpty()
+                        .sortedByDescending { it.severityRank }
+                        .joinToString(" ") { it.displayId },
                 )
             }
 

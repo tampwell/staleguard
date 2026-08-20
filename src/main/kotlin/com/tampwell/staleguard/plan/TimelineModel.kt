@@ -17,6 +17,8 @@ data class TimelineEntry(
     val bucket: AgeBucket,
     /** Newest available upgrade, for the tooltip; null when up to date/unknown. */
     val upgradeHint: String?,
+    /** Declared version has at least one known advisory. */
+    val vulnerable: Boolean = false,
 )
 
 enum class AgeBucket { FRESH, AGING, STALE, UNKNOWN }
@@ -26,7 +28,12 @@ object TimelineModel {
     private val SIX_MONTHS = TimeUnit.DAYS.toMillis(182)
     private val TWO_YEARS = TimeUnit.DAYS.toMillis(2 * 365)
 
-    fun build(inputs: List<PlannerInput>, plan: UpgradePlan, nowMillis: Long): List<TimelineEntry> {
+    fun build(
+        inputs: List<PlannerInput>,
+        plan: UpgradePlan,
+        nowMillis: Long,
+        advisoryCount: (groupId: String, artifactId: String, version: String) -> Int = { _, _, _ -> 0 },
+    ): List<TimelineEntry> {
         val upgradeByCoordinate = plan.candidates.associateBy(
             { it.coordinates.toString() },
             { "${it.currentVersion.value} → ${it.suggestedVersion.value}" },
@@ -38,8 +45,14 @@ object TimelineModel {
             .map { input ->
                 val releasedAt = input.known?.newestReleaseAtMillis
                 val age = releasedAt?.let { nowMillis - it }
+                val vulnerable = input.declared.resolvedVersion?.let { version ->
+                    advisoryCount(input.declared.groupId!!, input.declared.artifactId!!, version) > 0
+                } ?: false
                 TimelineEntry(
-                    label = input.declared.coordinate,
+                    // The warning sign travels with the label so tooltips and
+                    // the PNG snapshot carry it for free.
+                    label = if (vulnerable) "⚠ " + input.declared.coordinate else input.declared.coordinate,
+                    vulnerable = vulnerable,
                     releasedAtMillis = releasedAt,
                     bucket = when {
                         age == null -> AgeBucket.UNKNOWN

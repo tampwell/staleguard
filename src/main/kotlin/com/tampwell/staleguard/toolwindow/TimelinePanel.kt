@@ -75,7 +75,13 @@ class TimelinePanel(private val project: Project) : SimpleToolWindowPanel(true, 
             .expireWith(this)
             .finishOnUiThread(com.intellij.openapi.application.ModalityState.any()) { inputs ->
                 val plan = UpgradePlanner.plan(inputs, settings.state.suggestPrereleases, thresholdMs, com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project)::isIgnored, now)
-                chart.update(TimelineModel.build(inputs, plan, now), now)
+                chart.update(
+                    TimelineModel.build(
+                        inputs, plan, now,
+                        com.tampwell.staleguard.services.VulnerabilityService.getInstance().advisoryCounter(),
+                    ),
+                    now,
+                )
             }
             .submit(com.intellij.util.concurrency.AppExecutorUtil.getAppExecutorService())
     }

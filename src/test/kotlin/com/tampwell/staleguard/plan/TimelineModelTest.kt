@@ -34,6 +34,25 @@ class TimelineModelTest {
     }
 
     @Test
+    fun `marks vulnerable dependencies with a warning label and flag`() {
+        val inputs = listOf(
+            input("log4j-core", listOf("1.0", "2.0"), releasedDaysAgo = 30),
+            input("clean", listOf("1.0"), releasedDaysAgo = 30),
+        )
+        val plan = UpgradePlanner.plan(inputs, false, twoYears, { _, _ -> false }, now)
+        val entries = TimelineModel.build(inputs, plan, now) { _, artifact, version ->
+            if (artifact == "log4j-core" && version == "1.0") 7 else 0
+        }
+
+        val vulnerable = entries.first { it.label.contains("log4j-core") }
+        assertEquals(true, vulnerable.vulnerable)
+        assertEquals("⚠ g:log4j-core", vulnerable.label)
+        val clean = entries.first { it.label.contains("clean") }
+        assertEquals(false, clean.vulnerable)
+        assertEquals("g:clean", clean.label)
+    }
+
+    @Test
     fun `buckets by age of newest release`() {
         val entries = buildEntries(
             input("fresh", listOf("1.0"), releasedDaysAgo = 30),

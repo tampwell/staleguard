@@ -13,6 +13,8 @@ object ReportExporter {
         val suggestedVersion: String,
         val severity: String,
         val license: String,
+        /** Space-separated advisory ids for the CURRENT version; empty when clean. */
+        val advisories: String = "",
     )
 
     fun markdown(projectName: String, rows: List<Row>): String = buildString {
@@ -22,22 +24,25 @@ object ReportExporter {
             appendLine("All dependencies are up to date.")
             return@buildString
         }
-        appendLine("| Module | Dependency | Current | Suggested | Severity | License |")
-        appendLine("|---|---|---|---|---|---|")
+        appendLine("| Module | Dependency | Current | Suggested | Severity | License | Advisories |")
+        appendLine("|---|---|---|---|---|---|---|")
         for (row in rows) {
             appendLine(
                 "| ${row.module.mdEscape()} | ${row.coordinate.mdEscape()} | ${row.currentVersion} " +
-                    "| ${row.suggestedVersion} | ${row.severity} | ${row.license.mdEscape()} |",
+                    "| ${row.suggestedVersion} | ${row.severity} | ${row.license.mdEscape()} " +
+                    "| ${row.advisories.mdEscape()} |",
             )
         }
     }
 
     fun csv(rows: List<Row>): String = buildString {
-        appendLine("module,dependency,current,suggested,severity,license")
+        appendLine("module,dependency,current,suggested,severity,license,advisories")
         for (row in rows) {
             appendLine(
-                listOf(row.module, row.coordinate, row.currentVersion, row.suggestedVersion, row.severity, row.license)
-                    .joinToString(",") { it.csvEscape() },
+                listOf(
+                    row.module, row.coordinate, row.currentVersion, row.suggestedVersion,
+                    row.severity, row.license, row.advisories,
+                ).joinToString(",") { it.csvEscape() },
             )
         }
     }

@@ -61,9 +61,20 @@ class BatchUpdateDialog(project: Project, private val plan: UpgradePlan) : Dialo
     }
 
     private fun label(c: UpgradeCandidate): String {
+        // Name the advisory driving an URGENT row — "update now" without a
+        // CVE id reads as alarmism; with one it reads as a fact.
+        val advisory = if (c.recommendation == com.tampwell.staleguard.plan.Recommendation.URGENT) {
+            com.tampwell.staleguard.services.VulnerabilityService.getInstance()
+                .peek(c.coordinates, c.currentVersion.value)?.advisories
+                ?.maxByOrNull { it.severityRank }
+                ?.let { "  [${it.displayId}]" }
+                .orEmpty()
+        } else {
+            ""
+        }
         val base = "${c.moduleName}: ${c.coordinates}  ${c.currentVersion.value} → ${c.suggestedVersion.value}" +
             "  [" + StaleguardBundle.message("confidence.label", c.confidence.score) + "]" +
-            " — " + StaleguardBundle.message(c.recommendation.bundleKey)
+            " — " + StaleguardBundle.message(c.recommendation.bundleKey) + advisory
         val property = c.propertyName ?: return base
         val impact = plan.impactOf(property)
         return if (impact > 1) {
