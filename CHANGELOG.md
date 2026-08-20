@@ -9,6 +9,7 @@
 - License policy rules in the committed .staleguard.toml: a [licenses] table with deny and warn pattern arrays flags dependencies by their published license, so a team can keep copyleft or source-available licenses out of the build. Off unless the project commits rules.
 - Vulnerability counts in the status bar, the statistics tool window, and the batch update dialog, which now shows the same "Update now" recommendation the editor does for vulnerable versions, naming the driving advisory next to it.
 - Exported Markdown and CSV reports include an Advisories column, and the dependency age timeline marks vulnerable versions so the PNG snapshot carries the security picture too.
+- Vulnerability lookups are batched: one request per project scan instead of one per dependency, so large projects stay fast and polite to the OSV service.
 
 ## [1.3.0] - 2026-08-19
 
