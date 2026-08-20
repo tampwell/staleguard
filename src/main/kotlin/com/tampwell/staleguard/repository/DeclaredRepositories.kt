@@ -2,10 +2,12 @@ package com.tampwell.staleguard.repository
 
 /**
  * Repository URLs a project declares in its own build files — corporate
- * mirrors, JitPack, company Nexus with anonymous read. Pure text extraction;
- * the well-known defaults are excluded because the router already covers
- * them. Credentialed repositories are deliberately out of scope: Staleguard
- * never reads or stores repository credentials.
+ * mirrors, JitPack, company Nexus. Pure text extraction; the well-known
+ * defaults are excluded because the router already covers them.
+ *
+ * Authentication is handled one layer down: [RepositoryCredentials] supplies
+ * per-host Basic auth for hosts the user explicitly configured, and nothing
+ * else. This extractor stays credential-blind on purpose.
  */
 object DeclaredRepositories {
 

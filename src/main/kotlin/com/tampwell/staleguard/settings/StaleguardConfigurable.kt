@@ -60,6 +60,14 @@ class StaleguardConfigurable : BoundConfigurable(StaleguardBundle.message("setti
                     )
             }
         }
+        group(StaleguardBundle.message("credentials.settings.title")) {
+            row {
+                button(StaleguardBundle.message("credentials.settings.manage")) {
+                    RepositoryCredentialsDialog(null).show()
+                }
+                comment(StaleguardBundle.message("credentials.settings.comment"))
+            }
+        }
         group(StaleguardBundle.message("settings.cache.title")) {
             row {
                 val lookup = com.tampwell.staleguard.services.VersionLookupService.getInstance()

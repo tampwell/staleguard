@@ -24,7 +24,16 @@ import kotlinx.coroutines.Dispatchers
 class VersionLookupService(scope: CoroutineScope) {
 
     private val engine = run {
-        val client = HttpMavenRepositoryClient(pluginVersion())
+        // Auth resolution happens per request on Dispatchers.IO, which
+        // satisfies the PasswordSafe background-thread contract.
+        val client = HttpMavenRepositoryClient(pluginVersion()) { url ->
+            com.tampwell.staleguard.repository.RepositoryCredentials.getInstance().forUrl(url)
+                ?.let { credentials ->
+                    val user = credentials.userName ?: return@let null
+                    val password = credentials.password?.toCharArray() ?: return@let null
+                    com.tampwell.staleguard.repository.RepositoryCredentials.basicAuthValue(user, password)
+                }
+        }
         VersionLookupEngine(
             scope = scope,
             client = client,

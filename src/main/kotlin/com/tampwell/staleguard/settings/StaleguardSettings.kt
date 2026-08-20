@@ -33,6 +33,12 @@ class StaleguardSettings : PersistentStateComponent<StaleguardSettings.State> {
 
         /** Properties the user opted out of blast-radius confirmation for. */
         var suppressedPropertyWarnings: MutableList<String> = mutableListOf()
+
+        /**
+         * Hosts with repository credentials configured. HOSTS ONLY — the
+         * secrets live in the PasswordSafe, never in this roaming-safe XML.
+         */
+        var credentialHosts: MutableList<String> = mutableListOf()
     }
 
     private var state = State()
