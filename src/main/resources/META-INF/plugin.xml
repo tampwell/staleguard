@@ -61,12 +61,6 @@
     </extensions>
 
     <actions>
-        <action id="com.tampwell.staleguard.ListDeclaredDependencies"
-                class="com.tampwell.staleguard.actions.ListDeclaredDependenciesAction"
-                text="Staleguard: List Declared Dependencies"
-                description="Log every dependency declared in the project's Maven pom files">
-            <add-to-group group-id="ToolsMenu" anchor="last"/>
-        </action>
         <action id="com.tampwell.staleguard.BatchUpdate"
                 class="com.tampwell.staleguard.actions.BatchUpdateAction"
                 text="Staleguard: Update Dependencies…"

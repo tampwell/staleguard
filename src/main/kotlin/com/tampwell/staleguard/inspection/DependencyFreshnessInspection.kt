@@ -171,23 +171,8 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                                 suggested.value,
                                 StaleguardBundle.message(recommendation.bundleKey),
                             )
-                        } else if (releaseAge != null) {
-                            StaleguardBundle.message(
-                                "inspection.outdated.message",
-                                StaleguardBundle.message("severity.${severity.name.lowercase()}"),
-                                current.value,
-                                suggested.value,
-                                StaleguardBundle.message(recommendation.bundleKey),
-                                com.tampwell.staleguard.util.RelativeTime.ago(releaseAge),
-                            )
                         } else {
-                            StaleguardBundle.message(
-                                "inspection.outdated.message.noage",
-                                StaleguardBundle.message("severity.${severity.name.lowercase()}"),
-                                current.value,
-                                suggested.value,
-                                StaleguardBundle.message(recommendation.bundleKey),
-                            )
+                            FreshnessProblems.message(severity, current.value, suggested.value, recommendation, releaseAge)
                         }
                         problems += manager.createProblemDescriptor(
                             anchor, message, isOnTheFly, fixes, highlightTypeFor(severity),
