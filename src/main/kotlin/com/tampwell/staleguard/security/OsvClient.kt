@@ -12,6 +12,13 @@ sealed interface OsvFetch {
 interface OsvClient {
     /** Blocking POST to the OSV query api — always called from Dispatchers.IO by the engine. */
     fun query(packageName: String, version: String): OsvFetch
+
+    /**
+     * One POST answering "which of these have any advisories" for many
+     * (packageName, version) pairs — results are position-matched id stubs,
+     * so hits still need a per-key [query] for details.
+     */
+    fun queryBatch(queries: List<Pair<String, String>>): OsvFetch
 }
 
 /**
@@ -26,11 +33,25 @@ class HttpOsvClient(pluginVersion: String) : OsvClient {
     private val userAgent = "Staleguard/$pluginVersion (IntelliJ plugin; staleguard@tampwell.com)"
 
     override fun query(packageName: String, version: String): OsvFetch =
+        post(QUERY_URL, singleQueryJson(packageName, version), "query for $packageName $version")
+
+    override fun queryBatch(queries: List<Pair<String, String>>): OsvFetch =
+        post(
+            BATCH_URL,
+            queries.joinToString(",", prefix = """{"queries":[""", postfix = "]}") { (name, version) ->
+                singleQueryJson(name, version)
+            },
+            "batch of ${queries.size}",
+        )
+
+    // Field values come from build files, but escape anyway — a version
+    // string with a quote must corrupt the request, not the JSON.
+    private fun singleQueryJson(packageName: String, version: String): String =
+        """{"package":{"name":${jsonString(packageName)},"ecosystem":"Maven"},"version":${jsonString(version)}}"""
+
+    private fun post(url: String, payload: String, what: String): OsvFetch =
         try {
-            // Field values come from build files, but escape anyway — a version
-            // string with a quote must corrupt the request, not the JSON.
-            val payload = """{"package":{"name":${jsonString(packageName)},"ecosystem":"Maven"},"version":${jsonString(version)}}"""
-            HttpRequests.post(QUERY_URL, "application/json")
+            HttpRequests.post(url, "application/json")
                 .userAgent(userAgent)
                 .connectTimeout(CONNECT_TIMEOUT_MS)
                 .readTimeout(READ_TIMEOUT_MS)
@@ -41,11 +62,11 @@ class HttpOsvClient(pluginVersion: String) : OsvClient {
                     when (val code = connection.responseCode) {
                         HttpURLConnection.HTTP_OK -> OsvFetch.Ok(request.readString())
                         else -> OsvFetch.Failed("HTTP $code")
-                            .also { log.info("Staleguard: OSV query got HTTP $code for $packageName $version") }
+                            .also { log.info("Staleguard: OSV $what got HTTP $code") }
                     }
                 }
         } catch (e: Exception) {
-            log.info("Staleguard: OSV query failed for $packageName $version: ${e.javaClass.simpleName}: ${e.message}")
+            log.info("Staleguard: OSV $what failed: ${e.javaClass.simpleName}: ${e.message}")
             OsvFetch.Failed("${e.javaClass.simpleName}: ${e.message}")
         }
 
@@ -54,6 +75,7 @@ class HttpOsvClient(pluginVersion: String) : OsvClient {
 
     private companion object {
         const val QUERY_URL = "https://api.osv.dev/v1/query"
+        const val BATCH_URL = "https://api.osv.dev/v1/querybatch"
         const val CONNECT_TIMEOUT_MS = 10_000
         const val READ_TIMEOUT_MS = 15_000
     }

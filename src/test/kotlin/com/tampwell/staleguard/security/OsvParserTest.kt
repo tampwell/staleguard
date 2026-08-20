@@ -83,4 +83,15 @@ class OsvParserTest {
         assertTrue(advisory(null).severityRank > advisory("MODERATE").severityRank)
         assertTrue(advisory("MODERATE").severityRank > advisory("LOW").severityRank)
     }
+
+    @Test
+    fun `parseBatchHits maps position-matched results to booleans`() {
+        val json = """{"results":[{"vulns":[{"id":"GHSA-1","modified":"x"}]},{},{"vulns":[]}]}"""
+        assertEquals(listOf(true, false, false), OsvParser.parseBatchHits(json, 3))
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun `parseBatchHits rejects a result count mismatch`() {
+        OsvParser.parseBatchHits("""{"results":[{}]}""", 2)
+    }
 }

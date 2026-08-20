@@ -63,6 +63,24 @@ object OsvParser {
         }
     }
 
+    /**
+     * querybatch results: position-matched to the request, `{}` for a clean
+     * version, `{"vulns":[{id,modified}...]}` for a hit. A size mismatch means
+     * the response can't be trusted — throw, the engine treats it as a failed
+     * fetch.
+     */
+    fun parseBatchHits(json: String, expectedCount: Int): List<Boolean> {
+        val results = JsonParser.parseString(json).asJsonObject.getAsJsonArray("results")
+            ?: throw IllegalStateException("no results array")
+        if (results.size() != expectedCount) {
+            throw IllegalStateException("expected $expectedCount results, got ${results.size()}")
+        }
+        return results.map { element ->
+            val vulns = element.asJsonObject.getAsJsonArray("vulns")
+            vulns != null && !vulns.isEmpty
+        }
+    }
+
     private fun fixedVersionFor(vuln: JsonObject, packageName: String, version: MavenVersion): String? {
         val affected = vuln.getAsJsonArray("affected") ?: return null
         for (entry in affected) {

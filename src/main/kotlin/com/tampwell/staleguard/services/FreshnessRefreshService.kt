@@ -69,30 +69,28 @@ class FreshnessRefreshService(private val project: Project, private val scope: C
     }
 
     private val pendingVulns = ConcurrentHashMap.newKeySet<com.tampwell.staleguard.security.VulnKey>()
+    private val vulnFlushScheduled = AtomicBoolean(false)
 
     /**
-     * Same bridge for vulnerability lookups: cheap to call from the
-     * highlighting pass, resolves in the background, repaints once when the
-     * answer for this key actually appeared.
+     * Same bridge for vulnerability lookups, but batched: a highlighting pass
+     * over a big project enqueues every dependency within milliseconds, so we
+     * collect the burst briefly and resolve it as ONE OSV batch request plus
+     * detail queries for actual hits, then repaint once.
      */
     fun requestVulnerabilityLookup(coordinates: Coordinates, version: String) {
-        val key = com.tampwell.staleguard.security.VulnKey(coordinates, version)
-        if (!pendingVulns.add(key)) return
+        pendingVulns.add(com.tampwell.staleguard.security.VulnKey(coordinates, version))
+        if (!vulnFlushScheduled.compareAndSet(false, true)) return
 
         scope.launch {
-            val vulnService = VulnerabilityService.getInstance()
-            val before = vulnService.peek(coordinates, version)
-            try {
-                vulnService.lookup(coordinates, version)
-            } finally {
-                pendingVulns.remove(key)
-            }
-            val after = vulnService.peek(coordinates, version)
-            if (after?.advisories != null && after.advisories != before?.advisories) {
-                log.info(
-                    "Staleguard: advisories for $coordinates ${version}: " +
-                        "${after.advisories.size} known (worst=${after.worst?.displayId ?: "none"})",
-                )
+            delay(VULN_BATCH_DEBOUNCE_MS)
+            vulnFlushScheduled.set(false)
+            val batch = pendingVulns.toList()
+            pendingVulns.removeAll(batch.toSet())
+            if (batch.isEmpty()) return@launch
+
+            val changed = VulnerabilityService.getInstance().lookupBatch(batch)
+            log.info("Staleguard: resolved advisory batch of ${batch.size} (changed=$changed)")
+            if (changed) {
                 scheduleRestart()
                 if (!project.isDisposed) {
                     project.messageBus.syncPublisher(FreshnessListener.TOPIC).freshnessChanged()
@@ -162,6 +160,9 @@ class FreshnessRefreshService(private val project: Project, private val scope: C
 
     companion object {
         private const val RESTART_DEBOUNCE_MS = 300L
+
+        /** Long enough to catch one highlighting pass's whole burst, short enough to feel instant. */
+        private const val VULN_BATCH_DEBOUNCE_MS = 400L
 
         fun getInstance(project: Project): FreshnessRefreshService = project.service()
     }
