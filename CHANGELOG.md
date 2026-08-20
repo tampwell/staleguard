@@ -10,6 +10,7 @@
 - Vulnerability counts in the status bar, the statistics tool window, and the batch update dialog, which now shows the same "Update now" recommendation the editor does for vulnerable versions, naming the driving advisory next to it.
 - Exported Markdown and CSV reports include an Advisories column, and the dependency age timeline marks vulnerable versions so the PNG snapshot carries the security picture too.
 - Vulnerability lookups are batched: one request per project scan instead of one per dependency, so large projects stay fast and polite to the OSV service.
+- Security context at every decision point: the Show What Changed dialog opens with the known vulnerabilities in your current version, vulnerability fixes score higher confidence and float up the batch dialog, and security updates come preselected there.
 
 ## [1.3.0] - 2026-08-19
 
