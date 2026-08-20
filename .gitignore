@@ -10,3 +10,4 @@ build
 /project-conventions.local.md
 /*.local.md
 /docs/
+staleguard-metrics.csv
