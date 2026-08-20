@@ -145,7 +145,12 @@ class VersionLookupEngine(
             val sources = router.sourcesFor(coordinates)
             for ((index, source) in sources.withIndex()) {
                 val url = source.metadataUrl(coordinates)
-                when (val result = client.fetchMetadata(url, cached?.etag.takeIf { index == 0 })) {
+                val fetchResult = client.fetchMetadata(url, cached?.etag.takeIf { index == 0 })
+                RepositoryCredentials.hostOf(url)?.let { host ->
+                    val authFailure = (fetchResult as? FetchResult.Failed)?.statusCode in listOf(401, 403)
+                    if (authFailure) authFailedHosts.add(host) else authFailedHosts.remove(host)
+                }
+                when (val result = fetchResult) {
                     is FetchResult.Fetched -> {
                         val versions = try {
                             source.versionsIn(result.body, coordinates)
@@ -182,6 +187,15 @@ class VersionLookupEngine(
     }
 
     private val failureCounts = java.util.concurrent.ConcurrentHashMap<Coordinates, Int>()
+
+    /**
+     * Hosts whose last answer was 401/403 — a wrong password must produce
+     * "authentication failed for X", never a generic "cannot reach Maven
+     * Central". Cleared the moment the host answers anything non-auth.
+     */
+    private val authFailedHosts = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+    fun authFailedHosts(): Set<String> = authFailedHosts.toSet()
 
     /**
      * Serve stale data after a failure, marked failed=true so peek() callers

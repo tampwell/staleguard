@@ -43,7 +43,7 @@ class HttpMavenRepositoryClient(
                             FetchResult.Fetched(request.readString(), connection.getHeaderField("ETag"))
                         HttpURLConnection.HTTP_NOT_MODIFIED -> FetchResult.NotModified
                         HttpURLConnection.HTTP_NOT_FOUND -> FetchResult.NotFound
-                        else -> FetchResult.Failed("HTTP $code for $url")
+                        else -> FetchResult.Failed("HTTP $code for $url", code)
                             .also { log.info("Staleguard: metadata fetch got HTTP $code for $url") }
                     }
                 }

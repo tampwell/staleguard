@@ -30,6 +30,6 @@ sealed interface FetchResult {
     /** Artifact does not exist in this repository (HTTP 404). */
     data object NotFound : FetchResult
 
-    /** Transient failure — keep serving stale data. */
-    data class Failed(val reason: String) : FetchResult
+    /** Transient failure — keep serving stale data. [statusCode] when the failure was an HTTP status. */
+    data class Failed(val reason: String, val statusCode: Int? = null) : FetchResult
 }

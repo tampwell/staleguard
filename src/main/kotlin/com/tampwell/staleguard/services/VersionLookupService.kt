@@ -60,6 +60,9 @@ class VersionLookupService(scope: CoroutineScope) {
 
     fun cacheStats(): Pair<Int, Long> = engine.cacheStats()
 
+    /** Hosts currently rejecting our credentials — drives the auth-specific notice. */
+    fun authFailedHosts(): Set<String> = engine.authFailedHosts()
+
     fun clearCache() = engine.clearCache()
 
     companion object {

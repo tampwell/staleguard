@@ -105,12 +105,42 @@ class FreshnessRefreshService(private val project: Project, private val scope: C
     private val offlineNotified = AtomicBoolean(false)
     private val failedCoordinates = ConcurrentHashMap.newKeySet<Coordinates>()
 
+    private val authNotified = AtomicBoolean(false)
+
+    /**
+     * A wrong password is not an outage: when the failure is a 401/403 from a
+     * credentialed host, say so and point at Settings — once per session.
+     */
+    private fun notifyAuthFailureOnce(hosts: Set<String>): Boolean {
+        if (hosts.isEmpty()) return false
+        if (!authNotified.compareAndSet(false, true) || project.isDisposed) return true
+        val notification = com.intellij.notification.NotificationGroupManager.getInstance()
+            .getNotificationGroup("Staleguard")
+            .createNotification(
+                com.tampwell.staleguard.StaleguardBundle.message("notification.title"),
+                com.tampwell.staleguard.StaleguardBundle.message("auth.failed.notice", hosts.sorted().joinToString(", ")),
+                com.intellij.notification.NotificationType.WARNING,
+            )
+        notification.addAction(
+            com.intellij.notification.NotificationAction.createSimpleExpiring(
+                com.tampwell.staleguard.StaleguardBundle.message("auth.failed.open.settings"),
+            ) {
+                authNotified.set(false)
+                com.intellij.openapi.options.ShowSettingsUtil.getInstance()
+                    .showSettingsDialog(project, com.tampwell.staleguard.settings.StaleguardConfigurable::class.java)
+            },
+        )
+        notification.notify(project)
+        return true
+    }
+
     /**
      * Offline must be visible, but exactly once per project session — never
      * nag. "Retry Now" bypasses the 5-minute failure throttle for everything
      * that failed, for users who just fixed their proxy/VPN.
      */
     private fun notifyOfflineOnce() {
+        if (notifyAuthFailureOnce(VersionLookupService.getInstance().authFailedHosts())) return
         if (!offlineNotified.compareAndSet(false, true) || project.isDisposed) return
         val notification = com.intellij.notification.NotificationGroupManager.getInstance()
             .getNotificationGroup("Staleguard")

@@ -89,7 +89,7 @@ class AuthenticatedRepositoryIntegrationTest : BasePlatformTestCase() {
         val result = client(authorized = false)
             .fetchMetadata("http://127.0.0.1:$port/private/maven-metadata.xml", previousEtag = null)
         assertTrue("expected Failed, got $result", result is FetchResult.Failed)
-        assertTrue((result as FetchResult.Failed).reason.contains("401"))
+        assertEquals(401, (result as FetchResult.Failed).statusCode)
         assertNull("no credentials must be sent when the lambda declines", lastAuthHeader.get())
     }
 

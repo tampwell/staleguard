@@ -299,4 +299,28 @@ class VersionLookupEngineTest {
         assertEquals("1.0", result?.latest?.value)
         assertTrue(result!!.stale)
     }
+
+    @Test
+    fun `auth failures are tracked per host and cleared on success`() = runBlocking {
+        var time = 0L
+        val client = FakeClient(onFetch = { _, _ -> FetchResult.Failed("HTTP 401 for url", 401) })
+        val (engine, _) = newEngine(client, clock = { time })
+
+        engine.lookup(Coordinates("com.corp", "internal-lib"))
+        assertEquals(setOf("repo1.maven.org"), engine.authFailedHosts())
+
+        // The host answering normally clears the flag (whatever the outcome kind).
+        time += 10_000L
+        client.onFetch = { _, _ -> FetchResult.Fetched(metadataXml(listOf("1.0.0")), etag = null) }
+        engine.lookup(Coordinates("com.corp", "internal-lib"), force = true)
+        assertTrue(engine.authFailedHosts().isEmpty())
+    }
+
+    @Test
+    fun `non-auth failures do not mark the host as auth-failed`() = runBlocking {
+        val client = FakeClient(onFetch = { _, _ -> FetchResult.Failed("HTTP 503 for url", 503) })
+        val (engine, _) = newEngine(client, clock = { 0L })
+        engine.lookup(Coordinates("com.corp", "internal-lib"))
+        assertTrue(engine.authFailedHosts().isEmpty())
+    }
 }
