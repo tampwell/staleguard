@@ -76,4 +76,28 @@ class DeclaredRepositoriesTest {
         assertEquals(listOf(central, corp), router.sourcesFor(Coordinates("com.corp.internal", "lib")))
         assertEquals(listOf(google, central, corp), router.sourcesFor(Coordinates("androidx.core", "core")))
     }
+
+    @Test
+    fun `a mirrored central swaps the base url for every chain`() {
+        val central = MavenLayoutSource(MavenRepositoryUrls.MAVEN_CENTRAL)
+        val router = SourceRouter(
+            central, GoogleMavenSource(), MavenLayoutSource(SourceRouter.PLUGIN_PORTAL_URL), { null },
+            centralRoute = { MavenMirrorSelector.CentralRoute.Via("https://nexus.corp/maven-public", "corp") },
+        )
+        val sources = router.sourcesFor(Coordinates("org.slf4j", "slf4j-api"))
+        val mirrored = sources.single() as MavenLayoutSource
+        assertTrue(mirrored !== central)
+    }
+
+    @Test
+    fun `a blocked central drops it from the chain without touching extras`() {
+        val corp = MavenLayoutSource("https://nexus.corp.example/repo")
+        val router = SourceRouter(
+            MavenLayoutSource(MavenRepositoryUrls.MAVEN_CENTRAL), GoogleMavenSource(),
+            MavenLayoutSource(SourceRouter.PLUGIN_PORTAL_URL), { null },
+            extras = { listOf(corp) },
+            centralRoute = { MavenMirrorSelector.CentralRoute.Blocked("blocker") },
+        )
+        assertEquals(listOf<VersionSource>(corp), router.sourcesFor(Coordinates("org.slf4j", "slf4j-api")))
+    }
 }
