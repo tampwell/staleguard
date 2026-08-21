@@ -11,7 +11,10 @@ import org.jetbrains.kotlin.psi.KtPsiFactory
  */
 class KtsDependencyCollectorPlatformTest : BasePlatformTestCase() {
 
-    private fun collect(body: String): List<KtsDeclared> {
+    private fun collect(
+        body: String,
+        properties: Map<String, String> = emptyMap(),
+    ): List<KtsDeclared> {
         val file = KtPsiFactory(project).createFile(
             "build.gradle.kts",
             """
@@ -20,7 +23,11 @@ class KtsDependencyCollectorPlatformTest : BasePlatformTestCase() {
             }
             """.trimIndent(),
         )
-        return KtsDependencyCollector.collect(file, VersionCatalog.EMPTY, null)
+        return KtsDependencyCollector.collect(
+            file, VersionCatalog.EMPTY, null,
+            gradleProperties = properties,
+            gradlePropertiesPath = if (properties.isEmpty()) null else "/fake/gradle.properties",
+        )
     }
 
     fun `test plain string notation still collects`() {
@@ -86,5 +93,46 @@ class KtsDependencyCollectorPlatformTest : BasePlatformTestCase() {
 
     fun `test project and files calls stay ignored`() {
         assertEmpty(collect("""implementation(project(":core"))${'\n'}implementation(files("libs/local.jar"))"""))
+    }
+
+    fun `test interpolated version resolves from gradle properties`() {
+        val declared = collect(
+            """implementation("com.example:lib:${'$'}{libVersion}")""",
+            properties = mapOf("libVersion" to "2.10.1"),
+        ).single()
+        assertEquals("com.example", declared.group)
+        assertEquals("lib", declared.name)
+        assertEquals("2.10.1", declared.version)
+        assertTrue(declared.fix("3.0.0") is UpdateGradlePropertyQuickFix)
+    }
+
+    fun `test simple-name interpolation also resolves`() {
+        val declared = collect(
+            """implementation("com.example:lib:${'$'}libVersion")""",
+            properties = mapOf("libVersion" to "2.10.1"),
+        ).single()
+        assertEquals("2.10.1", declared.version)
+    }
+
+    fun `test unknown property stays skipped`() {
+        assertEmpty(collect("""implementation("com.example:lib:${'$'}{nope}")""", properties = mapOf("other" to "1")))
+    }
+
+    fun `test complex interpolation stays skipped`() {
+        assertEmpty(
+            collect(
+                """implementation("com.example:lib:${'$'}{rootProject.extra["v"]}")""",
+                properties = mapOf("v" to "1"),
+            ),
+        )
+    }
+
+    fun `test interpolated platform version resolves and keeps the flag`() {
+        val declared = collect(
+            """implementation(platform("org.example:bom:${'$'}{bomVersion}"))""",
+            properties = mapOf("bomVersion" to "1.0.0"),
+        ).single()
+        assertEquals("1.0.0", declared.version)
+        assertTrue(declared.isPlatform)
     }
 }

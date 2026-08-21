@@ -76,7 +76,7 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
                     com.tampwell.staleguard.inspection.VulnerabilityProblems.message(advisories),
                     isOnTheFly,
                     listOfNotNull(
-                        worst.fixedVersion?.let { GradleBumpVersionQuickFix(it, declared.fixMode) },
+                        worst.fixedVersion?.let { declared.bumpFix(it) },
                         com.tampwell.staleguard.inspection.OpenAdvisoryQuickFix(worst.url, worst.displayId),
                         com.tampwell.staleguard.inspection.IgnoreDependencyQuickFix(declared.group, declared.name),
                     ).toTypedArray<com.intellij.codeInspection.LocalQuickFix>(),
@@ -138,7 +138,7 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
                         message,
                         isOnTheFly,
                         listOfNotNull(
-                            GradleBumpVersionQuickFix(suggested.value, declared.fixMode),
+                            declared.bumpFix(suggested.value),
                             data.scmUrl?.let {
                                 com.tampwell.staleguard.inspection.ShowChangelogQuickFix(
                                     coordinates.toString(), it, declared.name,
@@ -187,10 +187,28 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
         val fixMode: GradleBumpVersionQuickFix.Mode,
         /** True when this literal sits inside platform()/enforcedPlatform(). */
         val isPlatform: Boolean = false,
-    )
+        /** Set when the version comes from gradle.properties — fixes edit there. */
+        val propertyKey: String? = null,
+        val propertiesPath: String? = null,
+    ) {
+        fun bumpFix(newVersion: String): com.intellij.codeInspection.LocalQuickFix =
+            if (propertyKey != null && propertiesPath != null) {
+                UpdateGradlePropertyQuickFix(propertyKey, newVersion, propertiesPath)
+            } else {
+                GradleBumpVersionQuickFix(newVersion, fixMode)
+            }
+    }
+
+    /** `"g:a:${'$'}{prop}"` / `"g:a:${'$'}prop"` — one simple property in version position. */
+    private val INTERPOLATED_NOTATION =
+        Regex("""^"([A-Za-z0-9_.\-]+:[A-Za-z0-9_.\-]+):\$(?:\{([A-Za-z0-9_.]+)}|([A-Za-z0-9_.]+))"$""")
 
     /** External dependencies declared inside any `dependencies { }` closure. */
     private fun collect(file: GroovyFile): List<GradleDeclared> {
+        val propertiesFile = GradleProperties.findFile(file.virtualFile)
+        val gradleProperties = propertiesFile
+            ?.let { runCatching { GradleProperties.parse(String(it.contentsToByteArray())) }.getOrNull() }
+            .orEmpty()
         val result = mutableListOf<GradleDeclared>()
         for (call in PsiTreeUtil.findChildrenOfType(file, GrMethodCall::class.java)) {
             if (!isInsideDependenciesBlock(call)) continue
@@ -217,12 +235,30 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
             // iterated on their own here, which is exactly how they get found —
             // the invoked name is what marks them as a BOM import.
             val literal = call.expressionArguments.firstOrNull() as? GrLiteral ?: continue
-            val notation = plainString(literal) ?: continue
-            val parsed = GradleNotationParser.parse(notation) ?: continue
             val isPlatform = call.invokedExpression.text in setOf("platform", "enforcedPlatform")
-            result.add(
-                GradleDeclared(parsed.group, parsed.name, parsed.version, literal, GradleBumpVersionQuickFix.Mode.NOTATION, isPlatform),
-            )
+            val notation = plainString(literal)
+            if (notation != null) {
+                val parsed = GradleNotationParser.parse(notation) ?: continue
+                result.add(
+                    GradleDeclared(parsed.group, parsed.name, parsed.version, literal, GradleBumpVersionQuickFix.Mode.NOTATION, isPlatform),
+                )
+                continue
+            }
+            // GStrings with one simple property in version position resolve
+            // from gradle.properties; anything more expressive stays skipped.
+            if (literal is GrString && propertiesFile != null) {
+                val match = INTERPOLATED_NOTATION.matchEntire(literal.text) ?: continue
+                val key = match.groupValues[2].ifEmpty { match.groupValues[3] }
+                val version = gradleProperties[key] ?: continue
+                val coordinate = match.groupValues[1].split(':')
+                result.add(
+                    GradleDeclared(
+                        coordinate[0], coordinate[1], version, literal,
+                        GradleBumpVersionQuickFix.Mode.NOTATION, isPlatform,
+                        propertyKey = key, propertiesPath = propertiesFile.path,
+                    ),
+                )
+            }
         }
         return result
     }

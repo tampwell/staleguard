@@ -37,6 +37,8 @@ internal object KtsDependencyCollector {
         file: KtFile,
         catalog: VersionCatalog.Parsed,
         catalogFile: VirtualFile?,
+        gradleProperties: Map<String, String> = emptyMap(),
+        gradlePropertiesPath: String? = null,
     ): List<KtsDeclared> {
         val result = mutableListOf<KtsDeclared>()
         for (call in PsiTreeUtil.findChildrenOfType(file, KtCallExpression::class.java)) {
@@ -67,7 +69,8 @@ internal object KtsDependencyCollector {
             }
 
             fun declaredFrom(argument: PsiElement?, isPlatform: Boolean): KtsDeclared? = when (argument) {
-                // String notation: implementation("g:a:v")
+                // String notation: implementation("g:a:v"), or "g:a:${'$'}{prop}"
+                // with prop resolved from gradle.properties.
                 is KtStringTemplateExpression -> {
                     val notation = plainString(argument)
                     val parsed = notation?.let(GradleNotationParser::parse)
@@ -75,7 +78,7 @@ internal object KtsDependencyCollector {
                         KtsDeclared(it.group, it.name, it.version, argument, isPlatform) { newVersion ->
                             BumpKtsVersionQuickFix(newVersion, BumpKtsVersionQuickFix.Mode.NOTATION)
                         }
-                    }
+                    } ?: interpolatedNotation(argument, isPlatform, gradleProperties, gradlePropertiesPath)
                 }
 
                 // Catalog reference: implementation(libs.gson)
@@ -118,6 +121,38 @@ internal object KtsDependencyCollector {
             }
         }
         return result
+    }
+
+    /**
+     * "g:a:${'$'}{libVersion}" with exactly one simple-name template entry after a
+     * literal "g:a:" prefix, resolved from gradle.properties. Anything more
+     * expressive (rootProject.extra, string math) stays skipped — resolving
+     * it wrong is worse than staying quiet. The fix edits gradle.properties.
+     */
+    private fun interpolatedNotation(
+        template: KtStringTemplateExpression,
+        isPlatform: Boolean,
+        properties: Map<String, String>,
+        propertiesPath: String?,
+    ): KtsDeclared? {
+        if (propertiesPath == null) return null
+        val entries = template.entries
+        if (entries.size != 2) return null
+        val prefix = (entries[0] as? KtLiteralStringTemplateEntry)?.text ?: return null
+        val name = when (val entry = entries[1]) {
+            is org.jetbrains.kotlin.psi.KtSimpleNameStringTemplateEntry ->
+                (entry.expression as? KtNameReferenceExpression)?.getReferencedName()
+            is org.jetbrains.kotlin.psi.KtBlockStringTemplateEntry ->
+                (entry.expression as? KtNameReferenceExpression)?.getReferencedName()
+            else -> null
+        } ?: return null
+        if (!prefix.endsWith(":")) return null
+        val parts = prefix.dropLast(1).split(':')
+        if (parts.size != 2 || parts.any { it.isEmpty() }) return null
+        val version = properties[name] ?: return null
+        return KtsDeclared(parts[0], parts[1], version, template, isPlatform) { newVersion ->
+            UpdateGradlePropertyQuickFix(name, newVersion, propertiesPath)
+        }
     }
 
     /**

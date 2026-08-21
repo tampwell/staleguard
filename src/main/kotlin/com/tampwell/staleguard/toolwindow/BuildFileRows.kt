@@ -69,8 +69,11 @@ internal object BuildFileRows {
                     val catalog = KtsDependencyCollector.findCatalogFile(buildFile)
                         ?.let { file -> readText(file)?.let(::parseCatalog) }
                         ?: VersionCatalog.EMPTY
+                    val gradleProperties = com.tampwell.staleguard.gradle.GradleProperties.findFile(buildFile)
+                        ?.let { file -> readText(file)?.let(com.tampwell.staleguard.gradle.GradleProperties::parse) }
+                        .orEmpty()
                     val moduleName = buildFile.parent?.name ?: buildFile.name
-                    for (dep in GradleTextScanner.scan(text, catalog)) {
+                    for (dep in GradleTextScanner.scan(text, catalog, gradleProperties)) {
                         entries += Entry(
                             input = PlannerInput(
                                 moduleName = moduleName,

@@ -88,4 +88,18 @@ class GradleTextScannerTest {
         """.trimIndent()
         assertEquals(3, GradleTextScanner.scan(text, catalog).size)
     }
+
+    @Test
+    fun `interpolated versions resolve only when properties are supplied`() {
+        val text = """
+            implementation("com.example:lib:${'$'}{libVersion}")
+            implementation "com.example:groovy:${'$'}gv"
+        """.trimIndent()
+        assertEquals(0, GradleTextScanner.scan(text, catalog).size)
+        val resolved = GradleTextScanner.scan(text, catalog, mapOf("libVersion" to "2.0", "gv" to "1.5"))
+        assertEquals(2, resolved.size)
+        assertEquals("2.0", resolved.first { it.name == "lib" }.version)
+        assertEquals("libVersion", resolved.first { it.name == "lib" }.propertyKey)
+        assertEquals("1.5", resolved.first { it.name == "groovy" }.version)
+    }
 }

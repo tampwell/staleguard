@@ -55,8 +55,12 @@ class GradleKotlinDslFreshnessInspection : LocalInspectionTool() {
         val catalog = catalogFile
             ?.let { runCatching { VersionCatalog.parse(String(it.contentsToByteArray())) }.getOrNull() }
             ?: VersionCatalog.EMPTY
+        val propertiesFile = GradleProperties.findFile(file.virtualFile)
+        val gradleProperties = propertiesFile
+            ?.let { runCatching { GradleProperties.parse(String(it.contentsToByteArray())) }.getOrNull() }
+            .orEmpty()
 
-        for (declared in KtsDependencyCollector.collect(file, catalog, catalogFile)) {
+        for (declared in KtsDependencyCollector.collect(file, catalog, catalogFile, gradleProperties, propertiesFile?.path)) {
             if (com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project).isIgnored(declared.group, declared.name)) continue
             val coordinates = Coordinates(declared.group, declared.name)
 
