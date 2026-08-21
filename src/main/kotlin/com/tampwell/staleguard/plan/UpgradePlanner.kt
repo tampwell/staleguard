@@ -93,7 +93,9 @@ object UpgradePlanner {
             if (target == FixTarget.None) return@mapNotNull null
 
             val releaseAge = known.newestReleaseAtMillis?.let { nowMillis - it }
-            val abandoned = releaseAge != null && releaseAge > abandonmentThresholdMillis
+            // Build plugins are exempt from abandonment (release cadence is not health there).
+            val abandoned = declared.origin != com.tampwell.staleguard.model.DeclaredDependency.Origin.BUILD_PLUGIN &&
+                releaseAge != null && releaseAge > abandonmentThresholdMillis
             val vulnerable = advisoryCount(groupId, artifactId, current.value) > 0
             UpgradeCandidate(
                 moduleName = input.moduleName,
@@ -102,7 +104,10 @@ object UpgradePlanner {
                 suggestedVersion = suggested,
                 severity = severity,
                 target = target,
-                recommendation = Recommendation.of(severity, releaseAge, abandoned, vulnerable),
+                recommendation = Recommendation.of(
+                    severity, releaseAge, abandoned, vulnerable,
+                    ageDrivenStale = declared.origin != com.tampwell.staleguard.model.DeclaredDependency.Origin.BUILD_PLUGIN,
+                ),
                 moduleId = input.moduleId,
                 confidence = ConfidenceScorer.score(severity, releaseAge, abandoned, vulnerable),
             )

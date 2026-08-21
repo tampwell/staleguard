@@ -56,7 +56,20 @@ object PomDependencyCollector {
         val parent = model.mavenParent.takeIf { it.artifactId.stringValue != null }
             ?.let { DomDeclaredDependency(it, it.toDeclared(properties, DeclaredDependency.Origin.PARENT)) }
 
-        return listOfNotNull(parent) + direct + managed
+        // Build plugins age and carry CVEs like any artifact. A missing
+        // groupId means org.apache.maven.plugins by Maven convention.
+        val plugins = (model.build.plugins.plugins + model.build.pluginManagement.plugins.plugins)
+            .map { plugin ->
+                val declared = plugin.toDeclared(properties, DeclaredDependency.Origin.BUILD_PLUGIN)
+                val withDefault = if (declared.groupId == null && declared.artifactId != null) {
+                    declared.copy(groupId = "org.apache.maven.plugins")
+                } else {
+                    declared
+                }
+                DomDeclaredDependency(plugin, withDefault)
+            }
+
+        return listOfNotNull(parent) + direct + managed + plugins
     }
 
     /**

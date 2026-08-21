@@ -93,4 +93,26 @@ class StatsCalculatorTest {
         assertEquals(0, stats.size)
         assertEquals(0, StatsCalculator.summary(stats).totalDependencies)
     }
+
+    @Test
+    fun `old build plugins do not count as abandoned`() {
+        val plugin = PlannerInput(
+            moduleName = "app",
+            declared = DeclaredDependency(
+                "org.apache.maven.plugins", "maven-clean-plugin", "3.1.0", "3.1.0",
+                DeclaredDependency.Origin.BUILD_PLUGIN,
+            ),
+            known = ArtifactVersions(
+                Coordinates("org.apache.maven.plugins", "maven-clean-plugin"),
+                listOf(MavenVersion("3.1.0")),
+                now - TimeUnit.DAYS.toMillis(4 * 365),
+                stale = false,
+            ),
+            moduleId = "app",
+        )
+        val inputs = listOf(plugin)
+        val plan = UpgradePlanner.plan(inputs, false, twoYears, { _, _ -> false }, now)
+        val stats = StatsCalculator.compute(inputs, plan, twoYears, now)
+        assertEquals(0, stats.single().abandoned)
+    }
 }

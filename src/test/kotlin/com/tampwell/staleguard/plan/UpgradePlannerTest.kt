@@ -136,6 +136,19 @@ class UpgradePlannerTest {
     }
 
     @Test
+    fun `build plugins never get the abandonment-driven STALE recommendation`() {
+        val plugin = DeclaredDependency(
+            "org.apache.maven.plugins", "maven-clean-plugin", "3.1.0", "3.1.0",
+            DeclaredDependency.Origin.BUILD_PLUGIN,
+        )
+        val result = plan(
+            PlannerInput("app", plugin, known(listOf("3.1.0", "3.2.0"), releasedDaysAgo = 4 * 365, artifact = "maven-clean-plugin")),
+        )
+        val candidate = result.candidates.single()
+        assertTrue(candidate.recommendation != Recommendation.STALE)
+    }
+
+    @Test
     fun `version pin caps the candidate inside the ceiling`() {
         val pin = com.tampwell.staleguard.policy.VersionPin(
             "com.example:lib", com.tampwell.staleguard.version.VersionConstraint.parse("2.*")!!,

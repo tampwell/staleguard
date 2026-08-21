@@ -166,6 +166,7 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                             releaseAge,
                             abandoned = releaseAge != null && releaseAge > abandonmentThresholdMs,
                             vulnerable = !advisories.isNullOrEmpty(),
+                            ageDrivenStale = declared.origin != com.tampwell.staleguard.model.DeclaredDependency.Origin.BUILD_PLUGIN,
                         )
                         val message = when (declared.origin) {
                             com.tampwell.staleguard.model.DeclaredDependency.Origin.PARENT ->
@@ -182,9 +183,14 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                 }
             }
 
-            // --- Abandonment: independent of freshness, per product decision ---
+            // --- Abandonment: independent of freshness, per product decision.
+            // Build plugins are exempt: core Maven plugins routinely go years
+            // between releases while being perfectly healthy — flagging
+            // maven-clean-plugin as abandoned would just teach users to
+            // ignore the warning.
             val newestReleaseAt = data.newestReleaseAtMillis
             if (settings.state.abandonmentEnabled &&
+                declared.origin != com.tampwell.staleguard.model.DeclaredDependency.Origin.BUILD_PLUGIN &&
                 newestReleaseAt != null && now - newestReleaseAt > abandonmentThresholdMs
             ) {
                 val anchor = dom.artifactId.xmlTag ?: dom.xmlTag
