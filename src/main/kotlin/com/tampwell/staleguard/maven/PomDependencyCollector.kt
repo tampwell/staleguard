@@ -31,7 +31,10 @@ object PomDependencyCollector {
 
     /** Same walk, but keeps the DOM handle so callers can highlight/edit. */
     fun collectWithDom(model: MavenDomProjectModel): List<DomDeclaredDependency> {
-        val properties = effectiveProperties(model)
+        // Imported effective properties fill what this file doesn't declare —
+        // parent-inherited versions, profile properties, ${revision}-style CI
+        // versions. Local DOM values win: they're fresher than the last import.
+        val properties = importedProperties(model) + effectiveProperties(model)
 
         val direct = model.dependencies.dependencies
             .map { DomDeclaredDependency(it, it.toDeclared(properties, DeclaredDependency.Origin.DEPENDENCIES)) }
@@ -57,9 +60,30 @@ object PomDependencyCollector {
     }
 
     /**
+     * Properties from IntelliJ's imported Maven model — the resolved
+     * effective set, parents and profiles included. Empty when the file isn't
+     * part of an imported project (unlinked pom, import still running).
+     */
+    private fun importedProperties(model: MavenDomProjectModel): Map<String, String> = try {
+        val xml = model.xmlElement
+        val file = xml?.containingFile?.originalFile?.virtualFile
+        if (file == null) {
+            emptyMap()
+        } else {
+            org.jetbrains.idea.maven.project.MavenProjectsManager.getInstance(xml.project)
+                .findProject(file)
+                ?.properties
+                ?.entries
+                ?.associate { it.key.toString() to it.value.toString() }
+                .orEmpty()
+        }
+    } catch (_: Exception) {
+        emptyMap()
+    }
+
+    /**
      * The `<properties>` block plus the `project.*` built-ins that version
-     * declarations most commonly reference. Parent-inherited properties come
-     * in a later milestone.
+     * declarations most commonly reference.
      */
     private fun effectiveProperties(model: MavenDomProjectModel): Map<String, String> {
         val result = mutableMapOf<String, String>()
