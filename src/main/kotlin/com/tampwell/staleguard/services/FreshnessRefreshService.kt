@@ -88,15 +88,56 @@ class FreshnessRefreshService(private val project: Project, private val scope: C
             pendingVulns.removeAll(batch.toSet())
             if (batch.isEmpty()) return@launch
 
-            val changed = VulnerabilityService.getInstance().lookupBatch(batch)
-            log.info("Staleguard: resolved advisory batch of ${batch.size} (changed=$changed)")
-            if (changed) {
+            val result = VulnerabilityService.getInstance().lookupBatch(batch)
+            log.info(
+                "Staleguard: resolved advisory batch of ${batch.size} " +
+                    "(changed=${result.changed}, new=${result.newlyVulnerable.size})",
+            )
+            if (result.newlyVulnerable.isNotEmpty()) notifyNewAdvisories(result.newlyVulnerable)
+            if (result.changed) {
                 scheduleRestart()
                 if (!project.isDisposed) {
                     project.messageBus.syncPublisher(FreshnessListener.TOPIC).freshnessChanged()
                 }
             }
         }
+    }
+
+    /**
+     * A dependency that was clean at the last check has an advisory now —
+     * the one security event worth interrupting for. At most one notification
+     * per batch; the editor highlights carry the rest.
+     */
+    private fun notifyNewAdvisories(
+        newly: List<Pair<com.tampwell.staleguard.security.VulnKey, List<com.tampwell.staleguard.security.OsvAdvisory>>>,
+    ) {
+        if (project.isDisposed) return
+        val (firstKey, firstAdvisories) = newly.first()
+        val worst = com.tampwell.staleguard.inspection.VulnerabilityProblems.worst(firstAdvisories)
+        val severity = worst.severity?.lowercase()
+            ?: com.tampwell.staleguard.StaleguardBundle.message("severity.vuln.unknown")
+        var message = com.tampwell.staleguard.StaleguardBundle.message(
+            "advisory.new.notice",
+            "${firstKey.coordinates}:${firstKey.version}",
+            worst.displayId,
+            severity,
+        )
+        if (newly.size > 1) {
+            message += com.tampwell.staleguard.StaleguardBundle.message("advisory.new.notice.more", newly.size - 1)
+        }
+        val notification = com.intellij.notification.NotificationGroupManager.getInstance()
+            .getNotificationGroup("Staleguard")
+            .createNotification(
+                com.tampwell.staleguard.StaleguardBundle.message("notification.title"),
+                message,
+                com.intellij.notification.NotificationType.WARNING,
+            )
+        notification.addAction(
+            com.intellij.notification.NotificationAction.createSimpleExpiring(
+                com.tampwell.staleguard.StaleguardBundle.message("advisory.view", worst.displayId),
+            ) { com.intellij.ide.BrowserUtil.browse(worst.url) },
+        )
+        notification.notify(project)
     }
 
     /** True while any lookup requested through this service is still in flight. */
