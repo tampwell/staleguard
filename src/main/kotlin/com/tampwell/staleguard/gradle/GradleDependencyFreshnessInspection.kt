@@ -117,8 +117,13 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
                         abandoned = releaseAge != null && releaseAge > abandonmentThresholdMs,
                         vulnerable = !advisories.isNullOrEmpty(),
                     )
-                    val message = com.tampwell.staleguard.inspection.FreshnessProblems
-                        .message(severity, current.value, suggested.value, recommendation, releaseAge)
+                    val message = if (declared.isPlatform) {
+                        com.tampwell.staleguard.inspection.FreshnessProblems
+                            .bomMessage(declared.name, current.value, suggested.value, recommendation)
+                    } else {
+                        com.tampwell.staleguard.inspection.FreshnessProblems
+                            .message(severity, current.value, suggested.value, recommendation, releaseAge)
+                    }
                     problems += manager.createProblemDescriptor(
                         declared.anchor,
                         message,
@@ -171,6 +176,8 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
         val version: String,
         val anchor: GrLiteral,
         val fixMode: GradleBumpVersionQuickFix.Mode,
+        /** True when this literal sits inside platform()/enforcedPlatform(). */
+        val isPlatform: Boolean = false,
     )
 
     /** External dependencies declared inside any `dependencies { }` closure. */
@@ -197,12 +204,15 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
 
             // String notation: first expression argument that is a plain literal.
             // project(...), files(...), libs.* references etc. are not literals
-            // and fall through naturally.
+            // and fall through naturally. Nested platform('g:a:v') calls are
+            // iterated on their own here, which is exactly how they get found —
+            // the invoked name is what marks them as a BOM import.
             val literal = call.expressionArguments.firstOrNull() as? GrLiteral ?: continue
             val notation = plainString(literal) ?: continue
             val parsed = GradleNotationParser.parse(notation) ?: continue
+            val isPlatform = call.invokedExpression.text in setOf("platform", "enforcedPlatform")
             result.add(
-                GradleDeclared(parsed.group, parsed.name, parsed.version, literal, GradleBumpVersionQuickFix.Mode.NOTATION),
+                GradleDeclared(parsed.group, parsed.name, parsed.version, literal, GradleBumpVersionQuickFix.Mode.NOTATION, isPlatform),
             )
         }
         return result

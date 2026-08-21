@@ -22,12 +22,16 @@ internal class KtsDeclared(
     val name: String,
     val version: String,
     val anchor: PsiElement,
+    /** True for platform()/enforcedPlatform() BOM imports — they get the "one edit" message. */
+    val isPlatform: Boolean = false,
     private val fixFactory: (String) -> LocalQuickFix?,
 ) {
     fun fix(newVersion: String): LocalQuickFix? = fixFactory(newVersion)
 }
 
 internal object KtsDependencyCollector {
+
+    private val WRAPPER_CALLS = setOf("platform", "enforcedPlatform", "kotlin")
 
     fun collect(
         file: KtFile,
@@ -37,6 +41,10 @@ internal object KtsDependencyCollector {
         val result = mutableListOf<KtsDeclared>()
         for (call in PsiTreeUtil.findChildrenOfType(file, KtCallExpression::class.java)) {
             if (!isInsideDependenciesBlock(call)) continue
+            // Wrapper invocations are reached through their configuration call
+            // below; visiting them directly would double-report the notation.
+            val calleeName = (call.calleeExpression as? KtNameReferenceExpression)?.getReferencedName()
+            if (calleeName in WRAPPER_CALLS) continue
 
             val arguments = call.valueArguments
             if (arguments.isEmpty()) continue
@@ -58,26 +66,25 @@ internal object KtsDependencyCollector {
                 continue
             }
 
-            when (val argument = arguments.first().getArgumentExpression()) {
+            fun declaredFrom(argument: PsiElement?, isPlatform: Boolean): KtsDeclared? = when (argument) {
                 // String notation: implementation("g:a:v")
                 is KtStringTemplateExpression -> {
-                    val notation = plainString(argument) ?: continue
-                    val parsed = GradleNotationParser.parse(notation) ?: continue
-                    result.add(
-                        KtsDeclared(parsed.group, parsed.name, parsed.version, argument) { newVersion ->
+                    val notation = plainString(argument)
+                    val parsed = notation?.let(GradleNotationParser::parse)
+                    parsed?.let {
+                        KtsDeclared(it.group, it.name, it.version, argument, isPlatform) { newVersion ->
                             BumpKtsVersionQuickFix(newVersion, BumpKtsVersionQuickFix.Mode.NOTATION)
-                        },
-                    )
+                        }
+                    }
                 }
 
                 // Catalog reference: implementation(libs.gson)
                 is KtDotQualifiedExpression -> {
                     val text = argument.text
-                    if (!text.startsWith("libs.")) continue
-                    val resolved = catalog.resolve(text.removePrefix("libs.")) ?: continue
-                    result.add(
-                        KtsDeclared(resolved.group, resolved.name, resolved.version, argument) { newVersion ->
-                            val versionKey = resolved.versionKey
+                    val resolved = if (text.startsWith("libs.")) catalog.resolve(text.removePrefix("libs.")) else null
+                    resolved?.let {
+                        KtsDeclared(it.group, it.name, it.version, argument, isPlatform) { newVersion ->
+                            val versionKey = it.versionKey
                             if (versionKey != null && catalogFile != null) {
                                 UpdateCatalogVersionQuickFix(
                                     versionKey, newVersion, catalog.referenceCount(versionKey), catalogFile.path,
@@ -85,14 +92,52 @@ internal object KtsDependencyCollector {
                             } else {
                                 null // inline catalog version: report-only in v1
                             }
-                        },
-                    )
+                        }
+                    }
                 }
 
-                else -> Unit // project(...), platform(...), files(...): not external literals
+                else -> null // project(...), files(...): not external literals
+            }
+
+            when (val argument = arguments.first().getArgumentExpression()) {
+                // Wrapper calls: platform("g:a:v"), enforcedPlatform(libs.bom),
+                // kotlin("reflect", "1.9.24") — unwrap to the real declaration.
+                is KtCallExpression -> {
+                    val callee = (argument.calleeExpression as? KtNameReferenceExpression)?.getReferencedName()
+                    when (callee) {
+                        "platform", "enforcedPlatform" -> {
+                            declaredFrom(argument.valueArguments.firstOrNull()?.getArgumentExpression(), isPlatform = true)
+                                ?.let(result::add)
+                        }
+                        "kotlin" -> kotlinNotation(argument)?.let(result::add)
+                        else -> Unit
+                    }
+                }
+
+                else -> declaredFrom(argument, isPlatform = false)?.let(result::add)
             }
         }
         return result
+    }
+
+    /**
+     * kotlin("reflect", "1.9.24") → org.jetbrains.kotlin:kotlin-reflect:1.9.24.
+     * The far more common versionless form takes its version from the Kotlin
+     * plugin, so there is nothing declared to check — skipped on purpose.
+     */
+    private fun kotlinNotation(call: KtCallExpression): KtsDeclared? {
+        val arguments = call.valueArguments
+        val module = plainString(arguments.firstOrNull()?.getArgumentExpression()) ?: return null
+        if (":" in module) return null
+        val versionArgument = arguments.drop(1).firstOrNull { arg ->
+            val name = arg.getArgumentName()?.asName?.asString()
+            name == null || name == "version"
+        } ?: return null
+        val versionExpr = versionArgument.getArgumentExpression() as? KtStringTemplateExpression ?: return null
+        val version = plainString(versionExpr) ?: return null
+        return KtsDeclared("org.jetbrains.kotlin", "kotlin-$module", version, versionExpr) { newVersion ->
+            BumpKtsVersionQuickFix(newVersion, BumpKtsVersionQuickFix.Mode.WHOLE_LITERAL)
+        }
     }
 
     /** Literal string with zero interpolation, or null. */

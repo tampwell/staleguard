@@ -36,7 +36,16 @@ object PomDependencyCollector {
         val direct = model.dependencies.dependencies
             .map { DomDeclaredDependency(it, it.toDeclared(properties, DeclaredDependency.Origin.DEPENDENCIES)) }
         val managed = model.dependencyManagement.dependencies.dependencies
-            .map { DomDeclaredDependency(it, it.toDeclared(properties, DeclaredDependency.Origin.DEPENDENCY_MANAGEMENT)) }
+            .map { dep ->
+                // scope=import pulls in a whole BOM — same platform role as a
+                // parent pom, and it gets the same "one edit" message.
+                val origin = if (dep.scope.stringValue == "import") {
+                    DeclaredDependency.Origin.BOM_IMPORT
+                } else {
+                    DeclaredDependency.Origin.DEPENDENCY_MANAGEMENT
+                }
+                DomDeclaredDependency(dep, dep.toDeclared(properties, origin))
+            }
 
         // The <parent> IS a dependency — for Spring Boot projects it is THE
         // dependency, the platform BOM every managed version flows from.

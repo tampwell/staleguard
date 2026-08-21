@@ -119,8 +119,13 @@ class GradleKotlinDslFreshnessInspection : LocalInspectionTool() {
                         abandoned = releaseAge != null && releaseAge > abandonmentThresholdMs,
                         vulnerable = !advisories.isNullOrEmpty(),
                     )
-                    val message = com.tampwell.staleguard.inspection.FreshnessProblems
-                        .message(severity, current.value, suggested.value, recommendation, releaseAge)
+                    val message = if (declared.isPlatform) {
+                        com.tampwell.staleguard.inspection.FreshnessProblems
+                            .bomMessage(declared.name, current.value, suggested.value, recommendation)
+                    } else {
+                        com.tampwell.staleguard.inspection.FreshnessProblems
+                            .message(severity, current.value, suggested.value, recommendation, releaseAge)
+                    }
                     problems += manager.createProblemDescriptor(
                         declared.anchor,
                         message,

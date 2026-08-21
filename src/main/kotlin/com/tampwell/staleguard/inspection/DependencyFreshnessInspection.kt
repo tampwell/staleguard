@@ -160,19 +160,13 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                             abandoned = releaseAge != null && releaseAge > abandonmentThresholdMs,
                             vulnerable = !advisories.isNullOrEmpty(),
                         )
-                        val message = if (declared.origin == com.tampwell.staleguard.model.DeclaredDependency.Origin.PARENT) {
-                            // The parent version controls every managed
-                            // dependency below it — say so instead of the
-                            // generic per-artifact line.
-                            StaleguardBundle.message(
-                                "inspection.parent.message",
-                                artifactId,
-                                current.value,
-                                suggested.value,
-                                StaleguardBundle.message(recommendation.bundleKey),
-                            )
-                        } else {
-                            FreshnessProblems.message(severity, current.value, suggested.value, recommendation, releaseAge)
+                        val message = when (declared.origin) {
+                            com.tampwell.staleguard.model.DeclaredDependency.Origin.PARENT ->
+                                FreshnessProblems.parentMessage(artifactId, current.value, suggested.value, recommendation)
+                            com.tampwell.staleguard.model.DeclaredDependency.Origin.BOM_IMPORT ->
+                                FreshnessProblems.bomMessage(artifactId, current.value, suggested.value, recommendation)
+                            else ->
+                                FreshnessProblems.message(severity, current.value, suggested.value, recommendation, releaseAge)
                         }
                         problems += manager.createProblemDescriptor(
                             anchor, message, isOnTheFly, fixes, highlightTypeFor(severity),
