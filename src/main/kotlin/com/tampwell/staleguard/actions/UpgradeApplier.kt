@@ -49,7 +49,9 @@ object UpgradeApplier {
         }
         // Gradle rows share the tool window's collector; their moduleId is the
         // build file path, which is how applyCandidates tells them apart.
-        inputs += BuildFileRows.collect(project).map { it.input }
+        // buildSrc-resolved versions stay out: a dialog row that cannot be
+        // applied would be a lie with a checkbox.
+        inputs += BuildFileRows.collect(project).filterNot { it.readOnlySource }.map { it.input }
         return inputs
     }
 
@@ -112,9 +114,18 @@ object UpgradeApplier {
             val catalogDocument = catalogFile?.let { FileDocumentManager.getInstance().getDocument(it) }
             val catalog = catalogDocument?.let { VersionCatalog.parse(it.text) } ?: VersionCatalog.EMPTY
 
-            val scanned = GradleTextScanner.scan(document.text, catalog)
+            val propertiesFile = com.tampwell.staleguard.gradle.GradleProperties.findFile(buildFile)
+            val propertiesDocument = propertiesFile?.let { FileDocumentManager.getInstance().getDocument(it) }
+            val gradleProperties = propertiesDocument
+                ?.let { com.tampwell.staleguard.gradle.GradleProperties.parse(it.text) }
+                .orEmpty()
+
+            // Same scan configuration as the dialog's row collection — whatever
+            // the user could tick must be something this method can apply.
+            val scanned = GradleTextScanner.scan(document.text, catalog, gradleProperties, includePluginBlocks = true)
 
             val catalogEdits = mutableMapOf<String, String>() // versionKey -> new version
+            val propertyEdits = mutableMapOf<String, String>() // gradle.properties key -> new version
             val notationEdits = mutableListOf<Triple<Int, Int, String>>() // start, end, replacement
 
             for (candidate in wanted) {
@@ -125,19 +136,37 @@ object UpgradeApplier {
                 } ?: continue
 
                 val accessor = hit.catalogAccessor
-                if (accessor != null) {
-                    val versionKey = catalog.resolve(accessor)?.versionKey ?: continue
-                    val newVersion = candidate.suggestedVersion.value
-                    catalogEdits.merge(versionKey, newVersion) { a, b ->
-                        maxOf(MavenVersion(a), MavenVersion(b)).value
-                    }
-                    applied++
-                } else {
-                    val notation = "${hit.group}:${hit.name}:${hit.version}"
-                    val start = hit.offset + 1 // past the opening quote
-                    if (document.text.regionMatches(start, notation, 0, notation.length)) {
-                        notationEdits += Triple(start, start + notation.length, "${hit.group}:${hit.name}:${candidate.suggestedVersion.value}")
+                val propertyKey = hit.propertyKey
+                when {
+                    accessor != null -> {
+                        val versionKey = catalog.resolve(accessor)?.versionKey ?: continue
+                        catalogEdits.merge(versionKey, candidate.suggestedVersion.value) { a, b ->
+                            maxOf(MavenVersion(a), MavenVersion(b)).value
+                        }
                         applied++
+                    }
+                    // buildSrc constants are read-only everywhere, batch included.
+                    propertyKey != null -> {
+                        if (propertyKey.startsWith("Versions.")) continue
+                        propertyEdits.merge(propertyKey, candidate.suggestedVersion.value) { a, b ->
+                            maxOf(MavenVersion(a), MavenVersion(b)).value
+                        }
+                        applied++
+                    }
+                    hit.versionRange != null -> {
+                        val range = hit.versionRange
+                        if (document.text.regionMatches(range.first, hit.version, 0, hit.version.length)) {
+                            notationEdits += Triple(range.first, range.last + 1, candidate.suggestedVersion.value)
+                            applied++
+                        }
+                    }
+                    else -> {
+                        val notation = "${hit.group}:${hit.name}:${hit.version}"
+                        val start = hit.offset + 1 // past the opening quote
+                        if (document.text.regionMatches(start, notation, 0, notation.length)) {
+                            notationEdits += Triple(start, start + notation.length, "${hit.group}:${hit.name}:${candidate.suggestedVersion.value}")
+                            applied++
+                        }
                     }
                 }
             }
@@ -149,6 +178,12 @@ object UpgradeApplier {
                 for ((versionKey, newVersion) in catalogEdits) {
                     val range = VersionCatalog.versionValueRange(catalogDocument.text, versionKey) ?: continue
                     catalogDocument.replaceString(range.first, range.last + 1, newVersion)
+                }
+            }
+            if (propertiesDocument != null) {
+                for ((key, newVersion) in propertyEdits) {
+                    val range = com.tampwell.staleguard.gradle.GradleProperties.valueRange(propertiesDocument.text, key) ?: continue
+                    propertiesDocument.replaceString(range.first, range.last + 1, newVersion)
                 }
             }
         }

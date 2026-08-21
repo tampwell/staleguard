@@ -162,8 +162,13 @@ class StaleguardStatsPanel(private val project: Project) :
                 .filter { it.moduleName == moduleStats.moduleName }
                 .associateBy { it.coordinates.toString() }
             for (row in moduleRows) {
-                val coordinate = row.input.declared.coordinate
-                val candidate = candidatesByCoords[coordinate]
+                val coordinateKey = row.input.declared.coordinate
+                val candidate = candidatesByCoords[coordinateKey]
+                // Display form only — plan lookups stay keyed on the raw coordinate.
+                val coordinate = row.input.declared.artifactId
+                    ?.takeIf { it == "${row.input.declared.groupId}.gradle.plugin" }
+                    ?.let { "${row.input.declared.groupId} (plugin)" }
+                    ?: coordinateKey
                 val licenseSuffix = row.input.known?.licenses?.firstOrNull()?.let { license ->
                     val warn = if (PomInfo.isCopyleft(license)) {
                         " " + StaleguardBundle.message("license.copyleft.marker")
@@ -183,18 +188,36 @@ class StaleguardStatsPanel(private val project: Project) :
                         }
                     }
                 } ?: ""
+                val declaredVersion = row.input.declared.resolvedVersion
+                val advisories = row.input.declared.groupId?.let { g ->
+                    row.input.declared.artifactId?.let { a ->
+                        declaredVersion?.let { v ->
+                            com.tampwell.staleguard.services.VulnerabilityService.getInstance()
+                                .peek(Coordinates(g, a), v)?.advisories
+                        }
+                    }
+                }.orEmpty()
+                val advisorySuffix = if (advisories.isNotEmpty()) {
+                    "  ⚠ " + com.tampwell.staleguard.inspection.VulnerabilityProblems.worst(advisories).displayId
+                } else {
+                    ""
+                }
                 val label = when {
                     candidate != null ->
                         "$coordinate  ${candidate.currentVersion.value} → ${candidate.suggestedVersion.value}" +
                             " (" + StaleguardBundle.message("severity.${candidate.severity.name.lowercase()}") + ")" +
-                            pinSuffix + licenseSuffix
+                            advisorySuffix + pinSuffix + licenseSuffix
                     row.input.known == null -> {
                         row.input.declared.groupId?.let { g ->
                             row.input.declared.artifactId?.let { a -> unresolvedCoordinates.add(Coordinates(g, a)) }
                         }
                         "$coordinate  " + StaleguardBundle.message("toolwindow.checking.item")
                     }
-                    else -> null // up to date: keep the tree focused on actionable rows
+                    // Up to date but carrying a known advisory: the module tally
+                    // counts it, so hiding the row made the count unexplainable.
+                    advisories.isNotEmpty() ->
+                        "$coordinate  $declaredVersion$advisorySuffix$licenseSuffix"
+                    else -> null // up to date and clean: keep the tree focused on actionable rows
                 }
                 if (label != null) {
                     moduleNode.add(DefaultMutableTreeNode(NavTarget(row.file, row.offset, label)))

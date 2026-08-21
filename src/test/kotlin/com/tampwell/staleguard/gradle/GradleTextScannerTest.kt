@@ -118,5 +118,7 @@ class GradleTextScannerTest {
         assertEquals("com.diffplug.spotless.gradle.plugin", scanned[0].name)
         assertEquals("10.0.0", scanned.first { it.group == "org.flywaydb.flyway" }.version)
         assertEquals("org.jetbrains.kotlin.jvm.gradle.plugin", scanned.last().name)
+        val spotless = scanned[0]
+        assertEquals("6.25.0", text.substring(spotless.versionRange!!))
     }
 }

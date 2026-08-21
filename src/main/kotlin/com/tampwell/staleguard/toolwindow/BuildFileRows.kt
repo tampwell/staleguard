@@ -28,7 +28,13 @@ internal object BuildFileRows {
 
     private val LOG = logger<BuildFileRows>()
 
-    class Entry(val input: PlannerInput, val file: VirtualFile, val offset: Int)
+    class Entry(
+        val input: PlannerInput,
+        val file: VirtualFile,
+        val offset: Int,
+        /** buildSrc-resolved versions: visible in stats, excluded from batch apply. */
+        val readOnlySource: Boolean = false,
+    )
 
     fun collect(project: Project): List<Entry> {
         val lookup = VersionLookupService.getInstance()
@@ -90,6 +96,7 @@ internal object BuildFileRows {
                             ),
                             file = buildFile,
                             offset = dep.offset,
+                            readOnlySource = dep.propertyKey?.startsWith("Versions.") == true,
                         )
                     }
                 }

@@ -262,6 +262,32 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
                 )
             }
         }
+        result += pluginsBlockDeclarations(file)
+        return result
+    }
+
+    /**
+     * `plugins { id 'x' version '1.2' }` — Groovy command-expression chains
+     * parse into shapes not worth hand-walking when the version literal can
+     * be located by text offset and anchored back to its PSI literal. Same
+     * marker-artifact convention as the kts collector.
+     */
+    private fun pluginsBlockDeclarations(file: GroovyFile): List<GradleDeclared> {
+        val result = mutableListOf<GradleDeclared>()
+        val text = file.text
+        val matches = GradleTextScanner.PLUGIN_ID.findAll(text).map { it to it.groupValues[1] } +
+            GradleTextScanner.PLUGIN_KOTLIN.findAll(text).map { it to "org.jetbrains.kotlin.${it.groupValues[1]}" }
+        for ((match, pluginId) in matches) {
+            val versionRange = match.groups[2]?.range ?: continue
+            val element = file.findElementAt(versionRange.first) ?: continue
+            val literal = PsiTreeUtil.getParentOfType(element, GrLiteral::class.java, false) ?: continue
+            result.add(
+                GradleDeclared(
+                    pluginId, "$pluginId.gradle.plugin", match.groupValues[2], literal,
+                    GradleBumpVersionQuickFix.Mode.MAP_VERSION,
+                ),
+            )
+        }
         return result
     }
 

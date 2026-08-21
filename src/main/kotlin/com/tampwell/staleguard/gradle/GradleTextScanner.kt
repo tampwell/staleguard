@@ -16,15 +16,19 @@ object GradleTextScanner {
         val offset: Int,
         /** Catalog accessor (`gson`, `kotlin.stdlib`) when this hit is a libs reference. */
         val catalogAccessor: String? = null,
-        /** gradle.properties key the version came from — batch apply must skip these. */
+        /** gradle.properties key the version came from — batch apply edits that file. */
         val propertyKey: String? = null,
+        /** Exact range of the version literal for plugins-block hits — batch apply edits in place. */
+        val versionRange: IntRange? = null,
     )
 
     private val NOTATION = Regex("""["']([A-Za-z0-9_.\-]+:[A-Za-z0-9_.\-]+:[A-Za-z0-9_.\-+]+)["']""")
     private val INTERPOLATED = Regex("""["']([A-Za-z0-9_.\-]+:[A-Za-z0-9_.\-]+):\$(?:\{([A-Za-z0-9_.]+)}|([A-Za-z0-9_.]+))["']""")
     private val LIBS_REF = Regex("""\blibs((?:\.[A-Za-z0-9_]+)+)\b""")
-    private val PLUGIN_ID = Regex("""\bid\s*[( ]\s*["']([A-Za-z0-9_.\-]+)["']\s*\)?\s+version\s+["']([A-Za-z0-9_.\-+]+)["']""")
-    private val PLUGIN_KOTLIN = Regex("""\bkotlin\s*\(\s*["']([A-Za-z0-9_\-]+)["']\s*\)\s+version\s+["']([A-Za-z0-9_.\-+]+)["']""")
+    // Shared with the Groovy inspection, which anchors matches back to PSI by
+    // the version group's offset. Group 1 = id / kotlin module, group 2 = version.
+    internal val PLUGIN_ID = Regex("""\bid\s*[( ]\s*["']([A-Za-z0-9_.\-]+)["']\s*\)?\s+version\s+["']([A-Za-z0-9_.\-+]+)["']""")
+    internal val PLUGIN_KOTLIN = Regex("""\bkotlin\s*\(\s*["']([A-Za-z0-9_\-]+)["']\s*\)\s+version\s+["']([A-Za-z0-9_.\-+]+)["']""")
 
     fun scan(
         text: String,
@@ -50,11 +54,17 @@ object GradleTextScanner {
         if (includePluginBlocks) {
             for (match in PLUGIN_ID.findAll(text)) {
                 val id = match.groupValues[1]
-                out += Scanned(id, "$id.gradle.plugin", match.groupValues[2], match.range.first)
+                out += Scanned(
+                    id, "$id.gradle.plugin", match.groupValues[2], match.range.first,
+                    versionRange = match.groups[2]?.range,
+                )
             }
             for (match in PLUGIN_KOTLIN.findAll(text)) {
                 val id = "org.jetbrains.kotlin.${match.groupValues[1]}"
-                out += Scanned(id, "$id.gradle.plugin", match.groupValues[2], match.range.first)
+                out += Scanned(
+                    id, "$id.gradle.plugin", match.groupValues[2], match.range.first,
+                    versionRange = match.groups[2]?.range,
+                )
             }
         }
         for (match in LIBS_REF.findAll(text)) {
