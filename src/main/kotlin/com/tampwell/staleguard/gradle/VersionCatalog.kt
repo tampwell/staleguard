@@ -175,7 +175,12 @@ object VersionCatalog {
             group = group,
             name = name,
             versionRef = pairs["version.ref"],
-            versionLiteral = pairs["version"],
+            // Nested rich versions ({ module = "...", version = { strictly = "2.10" } })
+            // surface through the flat KV scan — same pick order as the
+            // [versions] table, ranges resolve to nothing.
+            versionLiteral = pairs["version"]
+                ?: (pairs["prefer"] ?: pairs["require"] ?: pairs["strictly"])
+                    ?.takeUnless { it.any { c -> c in "[]()," } },
         )
     }
 

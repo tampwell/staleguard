@@ -175,6 +175,21 @@ class VersionCatalogTest {
     }
 
     @Test
+    fun `library with nested rich version resolves through the same pick order`() {
+        val catalog = VersionCatalog.parse(
+            """
+            [libraries]
+            strict = { module = "com.example:strict", version = { strictly = "2.10" } }
+            preferred = { module = "com.example:pref", version = { require = "1.0", prefer = "1.2" } }
+            ranged = { module = "com.example:ranged", version = { strictly = "[1.0, 2.0)" } }
+            """.trimIndent(),
+        )
+        assertEquals("2.10", catalog.libraries["strict"]?.versionLiteral)
+        assertEquals("1.2", catalog.libraries["preferred"]?.versionLiteral)
+        assertNull(catalog.libraries["ranged"]?.versionLiteral)
+    }
+
+    @Test
     fun `plugin version refs count toward blast radius`() {
         // fixture: 2 libraries + 1 plugin share the "kotlin" version key
         assertEquals(3, parsed.referenceCount("kotlin"))
