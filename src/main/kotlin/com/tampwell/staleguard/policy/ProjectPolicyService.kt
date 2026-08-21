@@ -20,7 +20,11 @@ class ProjectPolicyService(private val project: Project) {
 
     private data class CacheKey(val paths: List<String>, val stamps: List<Long>)
 
-    private data class Parsed(val ignorePatterns: List<String>, val licensePolicy: LicensePolicy)
+    private data class Parsed(
+        val ignorePatterns: List<String>,
+        val licensePolicy: LicensePolicy,
+        val pins: List<VersionPin>,
+    )
 
     @Volatile
     private var cached: Pair<CacheKey, Parsed>? = null
@@ -33,8 +37,16 @@ class ProjectPolicyService(private val project: Project) {
     /** Committed [licenses] rules; EMPTY when the project has none. */
     fun licensePolicy(): LicensePolicy = parsed().licensePolicy
 
+    /**
+     * True when [version] is inside every pin that matches the coordinate —
+     * the suggestion filter for "stay on 2.x" teams. Multiple matching pins
+     * AND together: the most restrictive one wins.
+     */
+    fun versionAllowed(groupId: String, artifactId: String, version: com.tampwell.staleguard.version.MavenVersion): Boolean =
+        parsed().pins.all { !it.appliesTo(groupId, artifactId) || it.allows(version) }
+
     private fun parsed(): Parsed {
-        val base = project.baseDir() ?: return Parsed(emptyList(), LicensePolicy.EMPTY)
+        val base = project.baseDir() ?: return Parsed(emptyList(), LicensePolicy.EMPTY, emptyList())
         val staleguardToml = base.findChild(".staleguard.toml")
         val sources = listOfNotNull(
             staleguardToml?.let { it to IgnoreRules::parseStaleguardToml },
@@ -45,9 +57,11 @@ class ProjectPolicyService(private val project: Project) {
         val key = CacheKey(sources.map { it.first.path }, sources.map { it.first.modificationStamp })
         cached?.takeIf { it.first == key }?.let { return it.second }
 
+        val staleguardTomlText = staleguardToml?.let(::readText)
         val parsed = Parsed(
             ignorePatterns = sources.flatMap { (file, parse) -> parse(readText(file)) },
-            licensePolicy = staleguardToml?.let { LicensePolicy.parse(readText(it)) } ?: LicensePolicy.EMPTY,
+            licensePolicy = staleguardTomlText?.let(LicensePolicy::parse) ?: LicensePolicy.EMPTY,
+            pins = staleguardTomlText?.let(IgnoreRules::parsePins).orEmpty(),
         )
         cached = key to parsed
         return parsed

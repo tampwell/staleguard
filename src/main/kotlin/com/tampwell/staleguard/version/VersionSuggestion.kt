@@ -21,12 +21,15 @@ object VersionSuggestion {
         current: MavenVersion?,
         available: List<MavenVersion>,
         includePrereleases: Boolean,
+        /** Project pin filter — versions outside a committed ceiling are never suggested. */
+        allowed: (MavenVersion) -> Boolean = { true },
     ): MavenVersion? {
         val excludeDateSchema = current != null && !isDateSchema(current)
         return available
             .asSequence()
             .filter { includePrereleases || it.isStable }
             .filterNot { excludeDateSchema && isDateSchema(it) }
+            .filter(allowed)
             .maxOrNull()
     }
 }

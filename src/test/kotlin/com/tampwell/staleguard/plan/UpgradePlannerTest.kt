@@ -134,4 +134,36 @@ class UpgradePlannerTest {
         )
         assertEquals(Recommendation.REVIEW, result.candidates.single().recommendation)
     }
+
+    @Test
+    fun `version pin caps the candidate inside the ceiling`() {
+        val pin = com.tampwell.staleguard.policy.VersionPin(
+            "com.example:lib", com.tampwell.staleguard.version.VersionConstraint.parse("2.*")!!,
+        )
+        val result = UpgradePlanner.plan(
+            listOf(PlannerInput("app", declared(raw = "2.0.0"), known(listOf("2.0.0", "2.5.0", "3.0.0")))),
+            suggestPrereleases = false,
+            abandonmentThresholdMillis = twoYears,
+            ignored = { _, _ -> false },
+            nowMillis = now,
+            versionAllowed = { g, a, v -> !pin.appliesTo(g, a) || pin.allows(v) },
+        )
+        assertEquals("2.5.0", result.candidates.single().suggestedVersion.value)
+    }
+
+    @Test
+    fun `pin with nothing newer in range removes the candidate entirely`() {
+        val pin = com.tampwell.staleguard.policy.VersionPin(
+            "com.example:lib", com.tampwell.staleguard.version.VersionConstraint.parse("<3")!!,
+        )
+        val result = UpgradePlanner.plan(
+            listOf(PlannerInput("app", declared(raw = "2.9.0"), known(listOf("2.9.0", "3.0.0", "3.5.0")))),
+            suggestPrereleases = false,
+            abandonmentThresholdMillis = twoYears,
+            ignored = { _, _ -> false },
+            nowMillis = now,
+            versionAllowed = { g, a, v -> !pin.appliesTo(g, a) || pin.allows(v) },
+        )
+        assertTrue(result.candidates.isEmpty())
+    }
 }

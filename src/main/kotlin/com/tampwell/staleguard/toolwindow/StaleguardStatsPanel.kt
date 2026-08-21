@@ -101,8 +101,10 @@ class StaleguardStatsPanel(private val project: Project) :
 
         val rows = BuildFileRows.collect(project)
         val inputs = rows.map { it.input }
+        val policy = com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project)
         val plan = UpgradePlanner.plan(
-            inputs, settings.state.suggestPrereleases, thresholdMs, com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project)::isIgnored, now,
+            inputs, settings.state.suggestPrereleases, thresholdMs, policy::isIgnored, now,
+            versionAllowed = policy::versionAllowed,
         )
         val stats = StatsCalculator.compute(
             inputs, plan, thresholdMs, now,

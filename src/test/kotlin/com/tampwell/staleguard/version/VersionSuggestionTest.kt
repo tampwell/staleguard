@@ -39,6 +39,30 @@ class VersionSuggestionTest {
     }
 
     @Test
+    fun `pin ceiling caps the suggestion to the newest allowed version`() {
+        val ceiling = VersionConstraint.parse("2.*")!!
+        val suggested = VersionSuggestion.suggest(
+            current = MavenVersion("2.7.0"),
+            available = versions("2.7.0", "2.7.18", "3.0.0", "3.2.5"),
+            includePrereleases = false,
+            allowed = ceiling::allows,
+        )
+        assertEquals("2.7.18", suggested?.value)
+    }
+
+    @Test
+    fun `nothing allowed above current means no suggestion at all`() {
+        val ceiling = VersionConstraint.parse("<3")!!
+        val suggested = VersionSuggestion.suggest(
+            current = MavenVersion("2.7.18"),
+            available = versions("2.7.18", "3.0.0", "3.2.5"),
+            includePrereleases = false,
+            allowed = ceiling::allows,
+        )
+        assertEquals("2.7.18", suggested?.value)
+    }
+
+    @Test
     fun `prereleases included on request`() {
         val suggested = VersionSuggestion.suggest(
             current = MavenVersion("1.0"),

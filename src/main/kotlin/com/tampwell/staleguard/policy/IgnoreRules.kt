@@ -37,6 +37,27 @@ object IgnoreRules {
     fun parseStaleguardToml(text: String): List<String> = tomlStringArray(text, "ignore", "dependencies")
 
     /**
+     * `.staleguard.toml` version ceilings — "stay on 2.x" without losing
+     * in-range updates:
+     * ```
+     * [pins]
+     * dependencies = ["org.springframework.boot:*:2.*", "com.google.guava:guava:<33"]
+     * ```
+     * Last segment is the allowed-version constraint (`2.*`, `<33`, `>=2, <3`,
+     * `[2.0,3.0)`, exact). Entries without three segments or with a constraint
+     * that does not parse are skipped — a broken pin that silently froze a
+     * dependency would be worse than one that visibly does nothing.
+     */
+    fun parsePins(text: String): List<VersionPin> =
+        tomlStringArray(text, "pins", "dependencies").mapNotNull { entry ->
+            val coordinate = entry.substringBeforeLast(':')
+            if (':' !in coordinate) return@mapNotNull null
+            val constraint = com.tampwell.staleguard.version.VersionConstraint.parse(entry.substringAfterLast(':'))
+                ?: return@mapNotNull null
+            VersionPin(coordinate, constraint)
+        }
+
+    /**
      * All string entries of `key = [ ... ]` inside `[table]`. Deliberately a
      * line scan, not a TOML parser: the config surface is flat string arrays
      * by design, and a scan can never fail on someone's creative TOML.

@@ -131,7 +131,9 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
 
             // --- Freshness ---
             val current = declared.resolvedVersion?.let(::MavenVersion)
-            val suggested = VersionSuggestion.suggest(current, data.versions, settings.state.suggestPrereleases)
+            val suggested = VersionSuggestion.suggest(current, data.versions, settings.state.suggestPrereleases) { v ->
+                com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project).versionAllowed(groupId, artifactId, v)
+            }
             if (current != null && suggested != null) {
                 val severity = UpgradeSeverity.classify(current, suggested)
                 if (severity != null) {

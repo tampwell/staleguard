@@ -209,7 +209,10 @@ class TomlCatalogFreshnessInspection : LocalInspectionTool() {
             }
 
         val current = MavenVersion(checkable.version)
-        val suggested = VersionSuggestion.suggest(current, data.versions, settings.state.suggestPrereleases)
+        val suggested = VersionSuggestion.suggest(current, data.versions, settings.state.suggestPrereleases) { v ->
+            com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(manager.project)
+                .versionAllowed(coordinates.groupId, coordinates.artifactId, v)
+        }
 
         if (suggested != null) {
             val severity = UpgradeSeverity.classify(current, suggested)

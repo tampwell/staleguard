@@ -73,6 +73,32 @@ class IgnoreRulesTest {
     }
 
     @Test
+    fun `pins parse coordinate pattern plus constraint`() {
+        val toml = """
+            [pins]
+            dependencies = [
+              "org.springframework.boot:*:2.*",
+              "com.google.guava:guava:<33",
+              "com.example:ranged:[2.0,3.0)",
+              "not-three-segments",
+              "com.example:broken:^1.0",
+            ]
+        """.trimIndent()
+        val pins = IgnoreRules.parsePins(toml)
+        assertEquals(3, pins.size)
+        assertTrue(pins[0].appliesTo("org.springframework.boot", "spring-boot-starter-parent"))
+        assertFalse(pins[0].appliesTo("org.springframework", "spring-core"))
+        assertTrue(pins[0].allows(com.tampwell.staleguard.version.MavenVersion("2.7.18")))
+        assertFalse(pins[0].allows(com.tampwell.staleguard.version.MavenVersion("3.2.0")))
+        assertFalse(pins[1].allows(com.tampwell.staleguard.version.MavenVersion("33.0.0-jre")))
+    }
+
+    @Test
+    fun `pins table absent means no pins`() {
+        assertTrue(IgnoreRules.parsePins("[ignore]\ndependencies = [\"a:b\"]").isEmpty())
+    }
+
+    @Test
     fun `dependabot ignore entries are extracted`() {
         val yaml = """
             version: 2

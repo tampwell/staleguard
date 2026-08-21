@@ -105,7 +105,9 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
                 }
 
             val current = MavenVersion(declared.version)
-            val suggested = VersionSuggestion.suggest(current, data.versions, settings.state.suggestPrereleases)
+            val suggested = VersionSuggestion.suggest(current, data.versions, settings.state.suggestPrereleases) { v ->
+                com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project).versionAllowed(declared.group, declared.name, v)
+            }
 
             if (suggested != null) {
                 val severity = UpgradeSeverity.classify(current, suggested)
