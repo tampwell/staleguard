@@ -66,6 +66,34 @@ class DeclaredRepositoriesTest {
     }
 
     @Test
+    fun `pom repository id-url pairs survive reversed tag order`() {
+        val pom = """
+            <project>
+              <repositories>
+                <repository>
+                  <id>corp</id>
+                  <url>https://nexus.corp.example/repo/</url>
+                </repository>
+                <repository>
+                  <url>https://reversed.example.com/m2</url>
+                  <id>reversed</id>
+                </repository>
+                <repository>
+                  <id>no-url</id>
+                </repository>
+              </repositories>
+            </project>
+        """.trimIndent()
+        assertEquals(
+            listOf(
+                "corp" to "https://nexus.corp.example/repo",
+                "reversed" to "https://reversed.example.com/m2",
+            ),
+            DeclaredRepositories.pomRepositoriesWithIds(pom),
+        )
+    }
+
+    @Test
     fun `extras come last in every router chain`() {
         val central = MavenLayoutSource(MavenRepositoryUrls.MAVEN_CENTRAL)
         val google = GoogleMavenSource()
