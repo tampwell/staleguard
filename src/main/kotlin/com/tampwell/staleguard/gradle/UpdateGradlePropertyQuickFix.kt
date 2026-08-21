@@ -58,8 +58,10 @@ class UpdateGradlePropertyQuickFix(
 
     /** `${'$'}{key}` / `${'$'}key` occurrences across the project's Gradle build files. */
     private fun usageCount(project: Project): Int = try {
-        // runReadAction, not ReadAction.compute — the latter is deprecated on the 26x line.
-        com.intellij.openapi.application.runReadAction {
+        // Application.runReadAction(Computable) — the one read-action entry
+        // point the 26x line does NOT deprecate (ReadAction.compute and the
+        // ActionsKt.runReadAction wrapper both are).
+        com.intellij.openapi.application.ApplicationManager.getApplication().runReadAction(com.intellij.openapi.util.Computable {
             val scope = com.intellij.psi.search.GlobalSearchScope.projectScope(project)
             val files = com.intellij.psi.search.FilenameIndex.getVirtualFilesByName("build.gradle", scope) +
                 com.intellij.psi.search.FilenameIndex.getVirtualFilesByName("build.gradle.kts", scope)
@@ -67,7 +69,7 @@ class UpdateGradlePropertyQuickFix(
                 val text = String(file.contentsToByteArray())
                 Regex("""\$\{?${Regex.escape(propertyKey)}\b}?""").findAll(text).count()
             }
-        }
+        })
     } catch (_: Exception) {
         1
     }
