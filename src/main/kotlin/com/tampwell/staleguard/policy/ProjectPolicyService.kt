@@ -38,12 +38,17 @@ class ProjectPolicyService(private val project: Project) {
     fun licensePolicy(): LicensePolicy = parsed().licensePolicy
 
     /**
-     * True when [version] is inside every pin that matches the coordinate —
+     * True when [candidate] is inside every pin that matches the coordinate —
      * the suggestion filter for "stay on 2.x" teams. Multiple matching pins
-     * AND together: the most restrictive one wins.
+     * AND together: the most restrictive one wins. [current] feeds the
+     * no-major-upgrades pins read from renovate/dependabot configs.
      */
-    fun versionAllowed(groupId: String, artifactId: String, version: com.tampwell.staleguard.version.MavenVersion): Boolean =
-        parsed().pins.all { !it.appliesTo(groupId, artifactId) || it.allows(version) }
+    fun versionAllowed(
+        groupId: String,
+        artifactId: String,
+        current: com.tampwell.staleguard.version.MavenVersion?,
+        candidate: com.tampwell.staleguard.version.MavenVersion,
+    ): Boolean = parsed().pins.all { !it.appliesTo(groupId, artifactId) || it.allows(current, candidate) }
 
     private fun parsed(): Parsed {
         val base = project.baseDir() ?: return Parsed(emptyList(), LicensePolicy.EMPTY, emptyList())
@@ -58,10 +63,21 @@ class ProjectPolicyService(private val project: Project) {
         cached?.takeIf { it.first == key }?.let { return it.second }
 
         val staleguardTomlText = staleguardToml?.let(::readText)
+        val renovateTexts = listOfNotNull(
+            base.findChild("renovate.json"),
+            base.findChild(".github")?.findChild("renovate.json"),
+        ).map(::readText)
+        val dependabotText = base.findChild(".github")?.findChild("dependabot.yml")?.let(::readText)
+
+        val renovateParity = renovateTexts.map(IgnoreRules::parseRenovatePins)
+        val dependabotParity = dependabotText?.let(IgnoreRules::parseDependabotPins)
+
         val parsed = Parsed(
-            ignorePatterns = sources.flatMap { (file, parse) -> parse(readText(file)) },
+            ignorePatterns = sources.flatMap { (file, parse) -> parse(readText(file)) } +
+                renovateParity.flatMap { it.second } + dependabotParity?.second.orEmpty(),
             licensePolicy = staleguardTomlText?.let(LicensePolicy::parse) ?: LicensePolicy.EMPTY,
-            pins = staleguardTomlText?.let(IgnoreRules::parsePins).orEmpty(),
+            pins = staleguardTomlText?.let(IgnoreRules::parsePins).orEmpty() +
+                renovateParity.flatMap { it.first } + dependabotParity?.first.orEmpty(),
         )
         cached = key to parsed
         return parsed

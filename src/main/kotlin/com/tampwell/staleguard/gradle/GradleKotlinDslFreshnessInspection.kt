@@ -108,7 +108,7 @@ class GradleKotlinDslFreshnessInspection : LocalInspectionTool() {
 
             val current = MavenVersion(declared.version)
             val suggested = VersionSuggestion.suggest(current, data.versions, settings.state.suggestPrereleases) { v ->
-                com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project).versionAllowed(declared.group, declared.name, v)
+                com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project).versionAllowed(declared.group, declared.name, current, v)
             }
 
             if (suggested != null) {

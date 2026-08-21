@@ -146,7 +146,7 @@ class UpgradePlannerTest {
             abandonmentThresholdMillis = twoYears,
             ignored = { _, _ -> false },
             nowMillis = now,
-            versionAllowed = { g, a, v -> !pin.appliesTo(g, a) || pin.allows(v) },
+            versionAllowed = { g, a, current, v -> !pin.appliesTo(g, a) || pin.allows(current, v) },
         )
         assertEquals("2.5.0", result.candidates.single().suggestedVersion.value)
     }
@@ -162,7 +162,7 @@ class UpgradePlannerTest {
             abandonmentThresholdMillis = twoYears,
             ignored = { _, _ -> false },
             nowMillis = now,
-            versionAllowed = { g, a, v -> !pin.appliesTo(g, a) || pin.allows(v) },
+            versionAllowed = { g, a, current, v -> !pin.appliesTo(g, a) || pin.allows(current, v) },
         )
         assertTrue(result.candidates.isEmpty())
     }

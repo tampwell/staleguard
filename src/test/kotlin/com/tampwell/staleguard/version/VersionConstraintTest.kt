@@ -72,6 +72,28 @@ class VersionConstraintTest {
     }
 
     @Test
+    fun `npm style space-separated AND parses`() {
+        assertTrue(allows(">=2 <3", "2.7.18"))
+        assertFalse(allows(">=2 <3", "3.0.0"))
+        assertTrue(allows("<=2.5", "2.5"))
+    }
+
+    @Test
+    fun `Not inverts and Matching tests the version string`() {
+        val not = VersionConstraint.Not(VersionConstraint.parse("[3.0,)")!!)
+        assertTrue(not.allows(MavenVersion("2.9")))
+        assertFalse(not.allows(MavenVersion("3.0")))
+
+        val matching = VersionConstraint.Matching(Regex("""^2\."""), negated = false)
+        assertTrue(matching.allows(MavenVersion("2.11.0")))
+        assertFalse(matching.allows(MavenVersion("3.0")))
+
+        val negated = VersionConstraint.Matching(Regex("""-(alpha|beta)"""), negated = true)
+        assertTrue(negated.allows(MavenVersion("2.0")))
+        assertFalse(negated.allows(MavenVersion("2.0-alpha1")))
+    }
+
+    @Test
     fun `garbage does not parse`() {
         assertNull(VersionConstraint.parse(""))
         assertNull(VersionConstraint.parse("*"))

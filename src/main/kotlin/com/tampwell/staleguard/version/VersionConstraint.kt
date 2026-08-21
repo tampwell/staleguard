@@ -68,9 +68,25 @@ sealed class VersionConstraint {
         override fun allows(version: MavenVersion): Boolean = terms.any { it.allows(version) }
     }
 
+    /** Complement — how an "ignore these versions" list becomes an allowed-set. */
+    data class Not(val term: VersionConstraint) : VersionConstraint() {
+        override fun allows(version: MavenVersion): Boolean = !term.allows(version)
+    }
+
+    /** Renovate `/regex/` and `!/regex/` allowedVersions — tested against the version string. */
+    class Matching(val regex: Regex, val negated: Boolean) : VersionConstraint() {
+        override fun allows(version: MavenVersion): Boolean =
+            regex.containsMatchIn(version.value) != negated
+
+        override fun equals(other: Any?): Boolean =
+            other is Matching && other.regex.pattern == regex.pattern && other.negated == negated
+
+        override fun hashCode(): Int = regex.pattern.hashCode() * 31 + negated.hashCode()
+    }
+
     companion object {
 
-        private val OPERATOR = Regex("""^(<=|>=|!=|=|<|>)\s*(\S+)$""")
+        private val OPERATOR_TERM = Regex("""(<=|>=|!=|=|<|>)\s*([^\s,<>=!]+)""")
         private val PREFIX_WILDCARD = Regex("""^([0-9A-Za-z]+(?:\.[0-9A-Za-z]+)*)\.[*x]$""")
         private val RANGE_SPLIT = Regex("""(?<=[\])]),\s*""")
         private val RANGE = Regex("""^([\[(])\s*([^,\[\]()]*?)\s*(?:,\s*([^,\[\]()]*?)\s*)?([])])$""")
@@ -84,9 +100,15 @@ sealed class VersionConstraint {
                 return ranges.singleOrNull() ?: AnyOf(ranges)
             }
 
-            if (OPERATOR.containsMatchIn(trimmed) || "," in trimmed) {
-                val terms = trimmed.split(',').map { term ->
-                    val match = OPERATOR.matchEntire(term.trim()) ?: return null
+            if (OPERATOR_TERM.containsMatchIn(trimmed) || "," in trimmed) {
+                // Comma AND (gem style ">= 2, < 3") and space AND (npm style
+                // ">=2 <3") both appear in the wild; tokenizing handles both,
+                // and anything left over besides separators fails the parse.
+                val matches = OPERATOR_TERM.findAll(trimmed).toList()
+                if (matches.isEmpty()) return null
+                val leftover = OPERATOR_TERM.replace(trimmed, "").replace(Regex("""[,\s]"""), "")
+                if (leftover.isNotEmpty()) return null
+                val terms = matches.map { match ->
                     val op = when (match.groupValues[1]) {
                         "<" -> Comparison.Op.LT; "<=" -> Comparison.Op.LE
                         ">" -> Comparison.Op.GT; ">=" -> Comparison.Op.GE

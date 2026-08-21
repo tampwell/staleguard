@@ -64,7 +64,7 @@ object UpgradePlanner {
         /** Warm-cache advisory count for the CURRENT version — escalates the recommendation to URGENT. */
         advisoryCount: (groupId: String, artifactId: String, version: String) -> Int = { _, _, _ -> 0 },
         /** Project pin filter — same predicate the inspections use, so the batch dialog can't out-suggest them. */
-        versionAllowed: (groupId: String, artifactId: String, version: MavenVersion) -> Boolean = { _, _, _ -> true },
+        versionAllowed: (groupId: String, artifactId: String, current: MavenVersion?, candidate: MavenVersion) -> Boolean = { _, _, _, _ -> true },
     ): UpgradePlan {
         val propertyUsage = mutableMapOf<String, Int>()
         for (input in inputs) {
@@ -83,7 +83,7 @@ object UpgradePlanner {
             val known = input.known ?: return@mapNotNull null
             val current = declared.resolvedVersion?.let(::MavenVersion) ?: return@mapNotNull null
             val suggested = VersionSuggestion.suggest(current, known.versions, suggestPrereleases) { version ->
-                versionAllowed(groupId, artifactId, version)
+                versionAllowed(groupId, artifactId, current, version)
             } ?: return@mapNotNull null
             val severity = UpgradeSeverity.classify(current, suggested) ?: return@mapNotNull null
             val target = FixTarget.of(declared.rawVersion)
