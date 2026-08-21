@@ -107,10 +107,17 @@ class GradleKotlinDslFreshnessInspection : LocalInspectionTool() {
                 }
 
             val current = MavenVersion(declared.version)
-            val suggested = VersionSuggestion.suggest(current, data.versions, settings.state.suggestPrereleases) { v ->
+            val allowedByPins = { v: MavenVersion ->
                 com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project).versionAllowed(declared.group, declared.name, current, v)
             }
+            val rawSuggested = VersionSuggestion.suggest(current, data.versions, settings.state.suggestPrereleases, allowedByPins)
 
+            val steered = rawSuggested?.let {
+                com.tampwell.staleguard.version.SuggestionSafety.steerClear(
+                    current, it, data.versions, settings.state.suggestPrereleases, allowedByPins,
+                ) { v -> !com.tampwell.staleguard.inspection.VulnerabilityProblems.advisoriesFor(project, coordinates, v.value).isNullOrEmpty() }
+            }
+            val suggested = steered?.version
             if (suggested != null) {
                 val severity = UpgradeSeverity.classify(current, suggested)
                 if (severity != null) {
@@ -127,7 +134,7 @@ class GradleKotlinDslFreshnessInspection : LocalInspectionTool() {
                     } else {
                         com.tampwell.staleguard.inspection.FreshnessProblems
                             .message(severity, current.value, suggested.value, recommendation, releaseAge)
-                    }
+                    } + com.tampwell.staleguard.inspection.FreshnessProblems.vulnerableTargetNote(steered?.knownVulnerable == true)
                     problems += manager.createProblemDescriptor(
                         declared.anchor,
                         message,

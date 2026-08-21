@@ -82,9 +82,12 @@ object UpgradePlanner {
             if (ignored(groupId, artifactId)) return@mapNotNull null
             val known = input.known ?: return@mapNotNull null
             val current = declared.resolvedVersion?.let(::MavenVersion) ?: return@mapNotNull null
-            val suggested = VersionSuggestion.suggest(current, known.versions, suggestPrereleases) { version ->
-                versionAllowed(groupId, artifactId, current, version)
-            } ?: return@mapNotNull null
+            val allowedByPins = { version: MavenVersion -> versionAllowed(groupId, artifactId, current, version) }
+            val rawSuggested = VersionSuggestion.suggest(current, known.versions, suggestPrereleases, allowedByPins)
+                ?: return@mapNotNull null
+            val suggested = com.tampwell.staleguard.version.SuggestionSafety.steerClear(
+                current, rawSuggested, known.versions, suggestPrereleases, allowedByPins,
+            ) { v -> advisoryCount(groupId, artifactId, v.value) > 0 }.version
             val severity = UpgradeSeverity.classify(current, suggested) ?: return@mapNotNull null
             val target = FixTarget.of(declared.rawVersion)
             if (target == FixTarget.None) return@mapNotNull null

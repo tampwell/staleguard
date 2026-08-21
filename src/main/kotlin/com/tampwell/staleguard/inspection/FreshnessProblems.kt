@@ -49,6 +49,10 @@ object FreshnessProblems {
     fun bomMessage(artifactId: String, current: String, suggested: String, recommendation: Recommendation): String =
         managedSetMessage("inspection.bom.message", artifactId, current, suggested, recommendation)
 
+    /** Appended when steering could not find a clean target — empty otherwise. */
+    fun vulnerableTargetNote(stillVulnerable: Boolean): String =
+        if (stillVulnerable) StaleguardBundle.message("inspection.suggested.vulnerable") else ""
+
     private fun managedSetMessage(
         key: String,
         artifactId: String,
