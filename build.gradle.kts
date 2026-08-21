@@ -77,6 +77,14 @@ kotlin {
         // Raise these only when since-build moves past 243.
         languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
         apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
+
+        // Without this, kotlinc emits delegating overrides for EVERY default
+        // method of the platform's Kotlin interfaces (ToolWindowFactory,
+        // StatusBarWidget) — phantom "overrides deprecated/experimental API"
+        // the marketplace verifier pins on us for methods this source never
+        // touches. With =all the Java default methods dispatch directly and
+        // the bridges disappear. Verified by javap before/after 2026-08-21.
+        freeCompilerArgs.add("-Xjvm-default=all")
     }
 }
 
