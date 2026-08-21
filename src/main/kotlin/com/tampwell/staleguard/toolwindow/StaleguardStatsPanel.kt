@@ -172,11 +172,22 @@ class StaleguardStatsPanel(private val project: Project) :
                     }
                     "  [$license$warn]"
                 } ?: ""
+                // A working pin silently capping suggestions reads as a bug —
+                // label it so "why no 3.x hint?" answers itself.
+                val pinSuffix = row.input.declared.groupId?.let { g ->
+                    row.input.declared.artifactId?.let { a ->
+                        if (com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project).hasPin(g, a)) {
+                            "  " + StaleguardBundle.message("toolwindow.pinned")
+                        } else {
+                            ""
+                        }
+                    }
+                } ?: ""
                 val label = when {
                     candidate != null ->
                         "$coordinate  ${candidate.currentVersion.value} → ${candidate.suggestedVersion.value}" +
                             " (" + StaleguardBundle.message("severity.${candidate.severity.name.lowercase()}") + ")" +
-                            licenseSuffix
+                            pinSuffix + licenseSuffix
                     row.input.known == null -> {
                         row.input.declared.groupId?.let { g ->
                             row.input.declared.artifactId?.let { a -> unresolvedCoordinates.add(Coordinates(g, a)) }

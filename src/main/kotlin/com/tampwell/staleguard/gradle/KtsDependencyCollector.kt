@@ -41,6 +41,7 @@ internal object KtsDependencyCollector {
         gradlePropertiesPath: String? = null,
     ): List<KtsDeclared> {
         val result = mutableListOf<KtsDeclared>()
+        result += pluginsBlockDeclarations(file)
         for (call in PsiTreeUtil.findChildrenOfType(file, KtCallExpression::class.java)) {
             if (!isInsideDependenciesBlock(call)) continue
             // Wrapper invocations are reached through their configuration call
@@ -188,12 +189,46 @@ internal object KtsDependencyCollector {
         return template.entries.joinToString("") { it.text }
     }
 
-    private fun isInsideDependenciesBlock(call: KtCallExpression): Boolean {
+    private fun isInsideDependenciesBlock(call: KtCallExpression): Boolean = isInsideBlock(call, "dependencies")
+
+    private fun isInsideBlock(call: KtCallExpression, ownerName: String): Boolean {
         val callee = (call.calleeExpression as? KtNameReferenceExpression)?.getReferencedName() ?: return false
-        if (callee == "dependencies") return false
+        if (callee == ownerName) return false
         val lambda = PsiTreeUtil.getParentOfType(call, KtLambdaExpression::class.java) ?: return false
         val owner = PsiTreeUtil.getParentOfType(lambda, KtCallExpression::class.java) ?: return false
-        return (owner.calleeExpression as? KtNameReferenceExpression)?.getReferencedName() == "dependencies"
+        return (owner.calleeExpression as? KtNameReferenceExpression)?.getReferencedName() == ownerName
+    }
+
+    /**
+     * `plugins { id("com.example.plugin") version "1.2.0" }` — the version
+     * checks against the Plugin Portal marker artifact
+     * (`id:id.gradle.plugin`), which the source router already knows how to
+     * route. `kotlin("jvm")` shorthand maps to org.jetbrains.kotlin.<module>.
+     * Entries without a version literal declare nothing checkable (their
+     * version comes from settings pluginManagement) and are skipped.
+     */
+    private fun pluginsBlockDeclarations(file: KtFile): List<KtsDeclared> {
+        val result = mutableListOf<KtsDeclared>()
+        for (call in PsiTreeUtil.findChildrenOfType(file, KtCallExpression::class.java)) {
+            if (!isInsideBlock(call, "plugins")) continue
+            val callee = (call.calleeExpression as? KtNameReferenceExpression)?.getReferencedName() ?: continue
+            val firstArg = plainString(call.valueArguments.firstOrNull()?.getArgumentExpression()) ?: continue
+            val pluginId = when (callee) {
+                "id" -> firstArg
+                "kotlin" -> firstArg.takeIf { ":" !in it }?.let { "org.jetbrains.kotlin.$it" }
+                else -> null
+            } ?: continue
+            val versionInfix = call.parent as? org.jetbrains.kotlin.psi.KtBinaryExpression ?: continue
+            if (versionInfix.operationReference.text != "version") continue
+            val versionExpr = versionInfix.right as? KtStringTemplateExpression ?: continue
+            val version = plainString(versionExpr) ?: continue
+            result.add(
+                KtsDeclared(pluginId, "$pluginId.gradle.plugin", version, versionExpr) { newVersion ->
+                    BumpKtsVersionQuickFix(newVersion, BumpKtsVersionQuickFix.Mode.WHOLE_LITERAL)
+                },
+            )
+        }
+        return result
     }
 
     /** Walks up from the build file looking for gradle/libs.versions.toml. */

@@ -74,7 +74,7 @@ internal object BuildFileRows {
                         .orEmpty() +
                         runCatching { com.tampwell.staleguard.gradle.BuildSrcVersions.find(buildFile) }.getOrDefault(emptyMap())
                     val moduleName = buildFile.parent?.name ?: buildFile.name
-                    for (dep in GradleTextScanner.scan(text, catalog, gradleProperties)) {
+                    for (dep in GradleTextScanner.scan(text, catalog, gradleProperties, includePluginBlocks = true)) {
                         entries += Entry(
                             input = PlannerInput(
                                 moduleName = moduleName,

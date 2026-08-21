@@ -102,4 +102,21 @@ class GradleTextScannerTest {
         assertEquals("libVersion", resolved.first { it.name == "lib" }.propertyKey)
         assertEquals("1.5", resolved.first { it.name == "groovy" }.version)
     }
+
+    @Test
+    fun `plugin blocks scan only when opted in`() {
+        val text = """
+            plugins {
+                id("com.diffplug.spotless") version "6.25.0"
+                id 'org.flywaydb.flyway' version '10.0.0'
+                kotlin("jvm") version "1.9.24"
+            }
+        """.trimIndent()
+        assertEquals(0, GradleTextScanner.scan(text, catalog).size)
+        val scanned = GradleTextScanner.scan(text, catalog, includePluginBlocks = true)
+        assertEquals(3, scanned.size)
+        assertEquals("com.diffplug.spotless.gradle.plugin", scanned[0].name)
+        assertEquals("10.0.0", scanned.first { it.group == "org.flywaydb.flyway" }.version)
+        assertEquals("org.jetbrains.kotlin.jvm.gradle.plugin", scanned.last().name)
+    }
 }

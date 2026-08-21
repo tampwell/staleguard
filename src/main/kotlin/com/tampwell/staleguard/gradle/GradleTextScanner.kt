@@ -23,12 +23,16 @@ object GradleTextScanner {
     private val NOTATION = Regex("""["']([A-Za-z0-9_.\-]+:[A-Za-z0-9_.\-]+:[A-Za-z0-9_.\-+]+)["']""")
     private val INTERPOLATED = Regex("""["']([A-Za-z0-9_.\-]+:[A-Za-z0-9_.\-]+):\$(?:\{([A-Za-z0-9_.]+)}|([A-Za-z0-9_.]+))["']""")
     private val LIBS_REF = Regex("""\blibs((?:\.[A-Za-z0-9_]+)+)\b""")
+    private val PLUGIN_ID = Regex("""\bid\s*[( ]\s*["']([A-Za-z0-9_.\-]+)["']\s*\)?\s+version\s+["']([A-Za-z0-9_.\-+]+)["']""")
+    private val PLUGIN_KOTLIN = Regex("""\bkotlin\s*\(\s*["']([A-Za-z0-9_\-]+)["']\s*\)\s+version\s+["']([A-Za-z0-9_.\-+]+)["']""")
 
     fun scan(
         text: String,
         catalog: VersionCatalog.Parsed,
         /** Opt-in: resolve `"g:a:${'$'}{prop}"` hits from gradle.properties for the stats views. */
         gradleProperties: Map<String, String> = emptyMap(),
+        /** Opt-in: plugins-block markers. OFF for the batch applier, which cannot edit them. */
+        includePluginBlocks: Boolean = false,
     ): List<Scanned> {
         val out = mutableListOf<Scanned>()
         for (match in NOTATION.findAll(text)) {
@@ -41,6 +45,16 @@ object GradleTextScanner {
                 val version = gradleProperties[key] ?: continue
                 val coordinate = match.groupValues[1].split(':')
                 out += Scanned(coordinate[0], coordinate[1], version, match.range.first, propertyKey = key)
+            }
+        }
+        if (includePluginBlocks) {
+            for (match in PLUGIN_ID.findAll(text)) {
+                val id = match.groupValues[1]
+                out += Scanned(id, "$id.gradle.plugin", match.groupValues[2], match.range.first)
+            }
+            for (match in PLUGIN_KOTLIN.findAll(text)) {
+                val id = "org.jetbrains.kotlin.${match.groupValues[1]}"
+                out += Scanned(id, "$id.gradle.plugin", match.groupValues[2], match.range.first)
             }
         }
         for (match in LIBS_REF.findAll(text)) {

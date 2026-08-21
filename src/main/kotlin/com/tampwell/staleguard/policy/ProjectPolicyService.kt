@@ -50,6 +50,10 @@ class ProjectPolicyService(private val project: Project) {
         candidate: com.tampwell.staleguard.version.MavenVersion,
     ): Boolean = parsed().pins.all { !it.appliesTo(groupId, artifactId) || it.allows(current, candidate) }
 
+    /** For display: a silent pin looks like a bug, so surfaces can label it. */
+    fun hasPin(groupId: String, artifactId: String): Boolean =
+        parsed().pins.any { it.appliesTo(groupId, artifactId) }
+
     private fun parsed(): Parsed {
         val base = project.baseDir() ?: return Parsed(emptyList(), LicensePolicy.EMPTY, emptyList())
         val staleguardToml = base.findChild(".staleguard.toml")

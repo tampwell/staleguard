@@ -58,7 +58,8 @@ class UpdateGradlePropertyQuickFix(
 
     /** `${'$'}{key}` / `${'$'}key` occurrences across the project's Gradle build files. */
     private fun usageCount(project: Project): Int = try {
-        com.intellij.openapi.application.ReadAction.compute<Int, RuntimeException> {
+        // runReadAction, not ReadAction.compute — the latter is deprecated on the 26x line.
+        com.intellij.openapi.application.runReadAction {
             val scope = com.intellij.psi.search.GlobalSearchScope.projectScope(project)
             val files = com.intellij.psi.search.FilenameIndex.getVirtualFilesByName("build.gradle", scope) +
                 com.intellij.psi.search.FilenameIndex.getVirtualFilesByName("build.gradle.kts", scope)

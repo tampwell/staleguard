@@ -14,11 +14,12 @@ class KtsDependencyCollectorPlatformTest : BasePlatformTestCase() {
     private fun collect(
         body: String,
         properties: Map<String, String> = emptyMap(),
+        block: String = "dependencies",
     ): List<KtsDeclared> {
         val file = KtPsiFactory(project).createFile(
             "build.gradle.kts",
             """
-            dependencies {
+            $block {
             $body
             }
             """.trimIndent(),
@@ -125,6 +126,35 @@ class KtsDependencyCollectorPlatformTest : BasePlatformTestCase() {
                 properties = mapOf("v" to "1"),
             ),
         )
+    }
+
+    fun `test plugins block id version is collected as a marker artifact`() {
+        val declared = collect(
+            """id("com.github.ben-manes.versions") version "0.51.0"""",
+            block = "plugins",
+        ).single()
+        assertEquals("com.github.ben-manes.versions", declared.group)
+        assertEquals("com.github.ben-manes.versions.gradle.plugin", declared.name)
+        assertEquals("0.51.0", declared.version)
+    }
+
+    fun `test plugins block kotlin shorthand maps to the kotlin plugin id`() {
+        val declared = collect("""kotlin("jvm") version "1.9.24"""", block = "plugins").single()
+        assertEquals("org.jetbrains.kotlin.jvm", declared.group)
+        assertEquals("1.9.24", declared.version)
+    }
+
+    fun `test plugins block entries without a version are skipped`() {
+        assertEmpty(collect("""id("java-library")""", block = "plugins"))
+        assertEmpty(collect("""id("com.example.p") version someVal""", block = "plugins"))
+    }
+
+    fun `test apply false chain still collects the version`() {
+        val declared = collect(
+            """id("org.springframework.boot") version "3.2.0" apply false""",
+            block = "plugins",
+        ).single()
+        assertEquals("3.2.0", declared.version)
     }
 
     fun `test buildSrc Versions constant resolves read-only`() {
