@@ -71,7 +71,8 @@ internal object BuildFileRows {
                         ?: VersionCatalog.EMPTY
                     val gradleProperties = com.tampwell.staleguard.gradle.GradleProperties.findFile(buildFile)
                         ?.let { file -> readText(file)?.let(com.tampwell.staleguard.gradle.GradleProperties::parse) }
-                        .orEmpty()
+                        .orEmpty() +
+                        runCatching { com.tampwell.staleguard.gradle.BuildSrcVersions.find(buildFile) }.getOrDefault(emptyMap())
                     val moduleName = buildFile.parent?.name ?: buildFile.name
                     for (dep in GradleTextScanner.scan(text, catalog, gradleProperties)) {
                         entries += Entry(

@@ -191,12 +191,12 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
         val propertyKey: String? = null,
         val propertiesPath: String? = null,
     ) {
-        fun bumpFix(newVersion: String): com.intellij.codeInspection.LocalQuickFix =
-            if (propertyKey != null && propertiesPath != null) {
+        fun bumpFix(newVersion: String): com.intellij.codeInspection.LocalQuickFix? = when {
+            propertyKey != null && propertiesPath != null ->
                 UpdateGradlePropertyQuickFix(propertyKey, newVersion, propertiesPath)
-            } else {
-                GradleBumpVersionQuickFix(newVersion, fixMode)
-            }
+            propertyKey != null -> null // buildSrc constant: resolved read-only
+            else -> GradleBumpVersionQuickFix(newVersion, fixMode)
+        }
     }
 
     /** `"g:a:${'$'}{prop}"` / `"g:a:${'$'}prop"` — one simple property in version position. */
@@ -208,7 +208,7 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
         val propertiesFile = GradleProperties.findFile(file.virtualFile)
         val gradleProperties = propertiesFile
             ?.let { runCatching { GradleProperties.parse(String(it.contentsToByteArray())) }.getOrNull() }
-            .orEmpty()
+            .orEmpty() + runCatching { BuildSrcVersions.find(file.virtualFile) }.getOrDefault(emptyMap())
         val result = mutableListOf<GradleDeclared>()
         for (call in PsiTreeUtil.findChildrenOfType(file, GrMethodCall::class.java)) {
             if (!isInsideDependenciesBlock(call)) continue
@@ -245,17 +245,19 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
                 continue
             }
             // GStrings with one simple property in version position resolve
-            // from gradle.properties; anything more expressive stays skipped.
-            if (literal is GrString && propertiesFile != null) {
+            // from gradle.properties (editable) or a buildSrc Versions
+            // constant (read-only); anything more expressive stays skipped.
+            if (literal is GrString) {
                 val match = INTERPOLATED_NOTATION.matchEntire(literal.text) ?: continue
                 val key = match.groupValues[2].ifEmpty { match.groupValues[3] }
                 val version = gradleProperties[key] ?: continue
                 val coordinate = match.groupValues[1].split(':')
+                val editablePath = propertiesFile?.path.takeUnless { key.startsWith("Versions.") }
                 result.add(
                     GradleDeclared(
                         coordinate[0], coordinate[1], version, literal,
                         GradleBumpVersionQuickFix.Mode.NOTATION, isPlatform,
-                        propertyKey = key, propertiesPath = propertiesFile.path,
+                        propertyKey = key, propertiesPath = editablePath,
                     ),
                 )
             }

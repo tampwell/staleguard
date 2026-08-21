@@ -58,7 +58,7 @@ class GradleKotlinDslFreshnessInspection : LocalInspectionTool() {
         val propertiesFile = GradleProperties.findFile(file.virtualFile)
         val gradleProperties = propertiesFile
             ?.let { runCatching { GradleProperties.parse(String(it.contentsToByteArray())) }.getOrNull() }
-            .orEmpty()
+            .orEmpty() + runCatching { BuildSrcVersions.find(file.virtualFile) }.getOrDefault(emptyMap())
 
         for (declared in KtsDependencyCollector.collect(file, catalog, catalogFile, gradleProperties, propertiesFile?.path)) {
             if (com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project).isIgnored(declared.group, declared.name)) continue

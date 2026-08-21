@@ -127,6 +127,15 @@ class KtsDependencyCollectorPlatformTest : BasePlatformTestCase() {
         )
     }
 
+    fun `test buildSrc Versions constant resolves read-only`() {
+        val declared = collect(
+            """implementation("com.example:lib:${'$'}{Versions.gson}")""",
+            properties = mapOf("Versions.gson" to "2.10.1"),
+        ).single()
+        assertEquals("2.10.1", declared.version)
+        assertNull(declared.fix("3.0.0"))
+    }
+
     fun `test interpolated platform version resolves and keeps the flag`() {
         val declared = collect(
             """implementation(platform("org.example:bom:${'$'}{bomVersion}"))""",

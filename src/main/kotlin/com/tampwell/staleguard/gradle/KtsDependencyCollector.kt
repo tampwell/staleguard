@@ -135,23 +135,29 @@ internal object KtsDependencyCollector {
         properties: Map<String, String>,
         propertiesPath: String?,
     ): KtsDeclared? {
-        if (propertiesPath == null) return null
         val entries = template.entries
         if (entries.size != 2) return null
         val prefix = (entries[0] as? KtLiteralStringTemplateEntry)?.text ?: return null
-        val name = when (val entry = entries[1]) {
-            is org.jetbrains.kotlin.psi.KtSimpleNameStringTemplateEntry ->
-                (entry.expression as? KtNameReferenceExpression)?.getReferencedName()
-            is org.jetbrains.kotlin.psi.KtBlockStringTemplateEntry ->
-                (entry.expression as? KtNameReferenceExpression)?.getReferencedName()
+        val expression = when (val entry = entries[1]) {
+            is org.jetbrains.kotlin.psi.KtSimpleNameStringTemplateEntry -> entry.expression
+            is org.jetbrains.kotlin.psi.KtBlockStringTemplateEntry -> entry.expression
+            else -> null
+        }
+        val name = when (expression) {
+            is KtNameReferenceExpression -> expression.getReferencedName()
+            // buildSrc constants come through as Versions.x — resolved
+            // read-only, so the fix stays null below.
+            is KtDotQualifiedExpression ->
+                expression.text.takeIf { Regex("""^Versions\.[A-Za-z0-9_]+$""").matches(it) }
             else -> null
         } ?: return null
         if (!prefix.endsWith(":")) return null
         val parts = prefix.dropLast(1).split(':')
         if (parts.size != 2 || parts.any { it.isEmpty() }) return null
         val version = properties[name] ?: return null
+        val editablePath = propertiesPath.takeUnless { name.startsWith("Versions.") }
         return KtsDeclared(parts[0], parts[1], version, template, isPlatform) { newVersion ->
-            UpdateGradlePropertyQuickFix(name, newVersion, propertiesPath)
+            editablePath?.let { UpdateGradlePropertyQuickFix(name, newVersion, it) }
         }
     }
 
