@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-08-21
+
 ### Added
 - Known-vulnerability alerts: dependencies are checked against the OSV database (osv.dev), and a version with a published CVE gets an editor warning naming the advisory, its severity, and the first fixed version, with a one-click update to that version and a link to the full advisory. The upgrade recommendation escalates to "Update now" while the current version is vulnerable. Cached 24 hours, honors offline mode, and can be turned off in Settings.
 - License policy rules in the committed .staleguard.toml: a [licenses] table with deny and warn pattern arrays flags dependencies by their published license, so a team can keep copyleft or source-available licenses out of the build. Off unless the project commits rules.
