@@ -236,7 +236,7 @@ class StaleguardStatsPanel(private val project: Project) :
 
     private fun buildToolbar(): JComponent {
         val toolbar = ActionManager.getInstance()
-            .createActionToolbar("StaleguardStats", DefaultActionGroup(RefreshAllAction(), ExportAction()), true)
+            .createActionToolbar("StaleguardStats", DefaultActionGroup(RefreshAllAction(), ExportAction(), ReportIssueAction()), true)
         toolbar.targetComponent = this
         return toolbar.component
     }

@@ -1,49 +1,49 @@
 name: Bug report
-description: Something in Staleguard is not working
+description: Something Staleguard got wrong in the editor
 labels: ["bug"]
 body:
-
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. The build file snippet is the single most useful thing you can include: most bugs here come from a build setup I have not seen yet.
   - type: textarea
-    id: issue
+    id: what-happened
     attributes:
-      label: What happened?
-      description: What did you expect, and what did you see instead?
+      label: What happened
+      description: What did Staleguard show, or fail to show?
+      placeholder: The version on line 34 was flagged as a major update, but 2.10 is not newer than 2.9.
     validations:
       required: true
-
-  - type: dropdown
-    id: buildfile
-    attributes:
-      label: Which build file is involved?
-      options:
-        - pom.xml (Maven)
-        - build.gradle (Gradle, Groovy DSL)
-        - build.gradle.kts (Gradle, Kotlin DSL)
-        - gradle/libs.versions.toml (version catalog)
-        - Not specific to one build file
-    validations:
-      required: true
-
-  - type: input
-    id: dependency
-    attributes:
-      label: Dependency involved
-      description: The coordinates and the version exactly as written in your build file.
-      placeholder: com.google.code.gson:gson:2.8.9
-
   - type: textarea
-    id: logs
+    id: expected
     attributes:
-      label: Staleguard log lines
-      description: >
-        Help → Show Log in Explorer, open idea.log, and paste any lines containing
-        "Staleguard". These usually identify the cause immediately.
-      render: text
-
-  - type: input
-    id: versions
-    attributes:
-      label: IDE and Staleguard version
-      placeholder: IntelliJ IDEA 2025.3, Staleguard 1.0.0
+      label: What you expected instead
     validations:
       required: true
+  - type: textarea
+    id: build-file
+    attributes:
+      label: The relevant part of your build file
+      description: The dependency declaration and, if the version comes from somewhere else, that too (a property, gradle.properties, a version catalog entry, buildSrc).
+      render: xml
+    validations:
+      required: true
+  - type: input
+    id: ide
+    attributes:
+      label: IDE and version
+      description: Help, About, then copy the first line. For example IntelliJ IDEA 2025.2.1 Community or Android Studio Ladybug.
+    validations:
+      required: true
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Staleguard version
+      placeholder: "1.5.0"
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: Corporate mirror or private repository in play, offline mode, .staleguard.toml rules, Renovate or Dependabot config. Screenshots are welcome.

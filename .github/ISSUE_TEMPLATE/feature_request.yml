@@ -1,32 +1,25 @@
 name: Feature request
-description: Suggest an idea for this project
+description: A build setup or check Staleguard should handle
 labels: ["enhancement"]
 body:
-
-  - type: textarea
-    id: cause
+  - type: markdown
     attributes:
-      label: Describe the need of your request
-      description: A clear and concise description of what the need or problem is.
+      value: |
+        If this is more of an open question or you want to talk it through first, Discussions is the better place.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: The situation in your project, not the solution you have in mind.
     validations:
       required: true
-
   - type: textarea
-    id: solution
+    id: setup
     attributes:
-      label: Proposed solution
-      description: A clear and concise description of what you want to happen.
-    validations:
-      required: true
-
+      label: What your build looks like
+      description: A snippet helps here too, especially for anything involving version catalogs, BOMs, properties, or a corporate repository.
+      render: kotlin
   - type: textarea
-    id: alternatives
+    id: idea
     attributes:
-      label: Alternatives you've considered
-      description: What did you try so far to accomplish the goal?
-
-  - type: textarea
-    id: context
-    attributes:
-      label: Additional context
-      description: Add any other context or screenshots about the feature request here.
+      label: What you think Staleguard should do

@@ -1,8 +1,5 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
-  - name: Documentation
-    url: https://github.com/tampwell/staleguard#readme
-    about: Features, requirements, and build instructions.
-  - name: Marketplace listing
-    url: https://plugins.jetbrains.com/vendor/tampwell
-    about: Install Staleguard or leave a review.
+  - name: Question or idea
+    url: https://github.com/tampwell/staleguard/discussions
+    about: Questions, feature ideas, and anything that is not a confirmed bug belong in Discussions.
