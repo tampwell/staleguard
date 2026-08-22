@@ -6,8 +6,8 @@ import com.intellij.openapi.actionSystem.AnAction
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.application.ApplicationInfo
 import com.intellij.openapi.application.ApplicationNamesInfo
-import com.intellij.openapi.extensions.PluginId
 import com.tampwell.staleguard.StaleguardBundle
+import com.tampwell.staleguard.StaleguardVersion
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
@@ -38,11 +38,9 @@ internal class ReportIssueAction : AnAction(
         return "$name ${info.fullVersion} (build ${info.build.asString()})"
     }
 
-    private fun pluginVersion(): String =
-        com.intellij.ide.plugins.PluginManagerCore.getPlugin(PluginId.getId(PLUGIN_ID))?.version ?: "unknown"
+    private fun pluginVersion(): String = StaleguardVersion.current()
 
     companion object {
-        private const val PLUGIN_ID = "com.tampwell.staleguard"
         private const val FORM = "https://github.com/tampwell/staleguard/issues/new"
 
         /** GitHub issue forms prefill by field id; ours are `ide` and `plugin-version`. */
