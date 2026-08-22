@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-08-22
+
+### Added
+- Private repository credentials: hosts you list under Settings get HTTP Basic authentication for version lookups, so dependencies from a company Nexus or Artifactory resolve like any other. Secrets are stored in the IDE password safe (your OS keychain) and are never written to settings files, logs, or exported reports, and they are only ever sent to hosts you explicitly configure. Artifactory API keys and Nexus user tokens work in the password field.
+- Import from Maven settings.xml: one click lists the server entries in ~/.m2/settings.xml and lets you pick which credentials to bring into the password safe. Server ids resolve to hosts through your mirrors, profile repositories, and the repositories declared in open projects. Entries encrypted with the Maven master password are listed but never decrypted; those are entered manually.
+- Authentication failures are reported honestly: a rejected credential names the host and offers to open Settings, instead of a generic connectivity warning.
+
 ## [1.5.0] - 2026-08-21
 
 ### Added
