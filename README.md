@@ -51,3 +51,9 @@ Apache License 2.0, see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 `MavenVersion.kt` is a Kotlin port of Apache Maven's `ComparableVersion`, so that version
 ordering matches Maven exactly; attribution is in the NOTICE file.
+
+## Community
+
+Questions, ideas, and anything that isn't a clear bug: [GitHub Discussions](https://github.com/tampwell/staleguard/discussions). Confirmed bugs belong in [Issues](https://github.com/tampwell/staleguard/issues) so they get tracked.
+
+If Staleguard is useful to you, [a short review on the marketplace](https://plugins.jetbrains.com/plugin/33571-staleguard/reviews) genuinely helps other people find it.
