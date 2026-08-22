@@ -62,21 +62,7 @@ class StaleguardStatusBarWidget(private val project: Project) :
 
     private fun recompute() {
         ReadAction.nonBlocking<Triple<Int, Int, Int>> {
-                val settings = StaleguardSettings.getInstance()
-                val thresholdMs = TimeUnit.DAYS.toMillis(365L * settings.state.abandonmentYears)
-                val now = System.currentTimeMillis()
-                val inputs = BuildFileRows.collect(project).map { it.input }
-                val policy = com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project)
-                val plan = UpgradePlanner.plan(
-                    inputs, settings.state.suggestPrereleases, thresholdMs, policy::isIgnored, now,
-                    versionAllowed = policy::versionAllowed,
-                )
-                val summary = StatsCalculator.summary(
-                    StatsCalculator.compute(
-                        inputs, plan, thresholdMs, now,
-                        com.tampwell.staleguard.services.VulnerabilityService.getInstance().advisoryCounter(),
-                    ),
-                )
+                val summary = com.tampwell.staleguard.toolwindow.ProjectSummary.compute(project)
                 Triple(summary.totalUpdates, summary.abandoned, summary.vulnerable)
             }
             .expireWith(this)
