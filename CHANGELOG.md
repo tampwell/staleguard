@@ -19,6 +19,9 @@
 - New-advisory alerts: when a dependency that was clean at the last check gains a published advisory, one notification says so.
 - Tool window rows name the worst advisory inline, and an up-to-date dependency with a known CVE now gets a row.
 
+- A first-scan confirmation: a project where everything is current used to show nothing at all, since the warnings only appear when something is wrong and the status bar hides itself when there is nothing to act on. Staleguard now says so once per project, and never while lookups are still running.
+- Report an Issue button in the tool window, which opens the GitHub bug form with your IDE and plugin version already filled in.
+
 ### Fixed
 - A Dependabot ignore entry with version ranges silenced the whole dependency instead of only those ranges; the same for Renovate rules scoped to major updates.
 - Versions defined by parent POM properties (and ${revision}-style CI versions) now resolve in child modules.
