@@ -40,6 +40,12 @@
     </extensions>
 
     <extensions defaultExtensionNs="com.intellij">
+        <!-- Plugin recommendations: declared only where Staleguard has
+             artifact-specific behavior (parent-POM and BOM-import freshness),
+             so the IDE can suggest it to Spring Boot projects. Listing
+             coordinates merely to get recommended would be gaming the feature. -->
+        <dependencySupport kind="java" coordinate="org.springframework.boot:spring-boot-starter-parent" displayName="Spring Boot parent POM freshness"/>
+        <dependencySupport kind="java" coordinate="org.springframework.boot:spring-boot-dependencies" displayName="Spring Boot BOM freshness"/>
         <notificationGroup id="Staleguard" displayType="BALLOON"/>
         <statusBarWidgetFactory id="StaleguardStatus"
                                 implementation="com.tampwell.staleguard.statusbar.StaleguardStatusBarFactory"/>
