@@ -105,7 +105,10 @@ class RepositoryCredentialsDialog(private val project: Project?) : DialogWrapper
     /** (id, url) pairs from every pom.xml in currently open projects; empty when unavailable. */
     private fun openProjectPomRepoIds(): List<Pair<String, String>> = runCatching {
         ProjectManager.getInstance().openProjects.flatMap { openProject ->
-            ReadAction.compute<List<Pair<String, String>>, RuntimeException> {
+            // Application.runReadAction(Computable) — the read-action entry
+            // point that stays non-deprecated across the whole 243-262 range.
+            com.intellij.openapi.application.ApplicationManager.getApplication()
+                .runReadAction(com.intellij.openapi.util.Computable<List<Pair<String, String>>> {
                 FilenameIndex
                     .getVirtualFilesByName("pom.xml", GlobalSearchScope.projectScope(openProject))
                     .flatMap { file ->
@@ -113,7 +116,7 @@ class RepositoryCredentialsDialog(private val project: Project?) : DialogWrapper
                             DeclaredRepositories.pomRepositoriesWithIds(String(file.contentsToByteArray()))
                         }.getOrDefault(emptyList())
                     }
-            }
+            })
         }
     }.getOrDefault(emptyList())
 
