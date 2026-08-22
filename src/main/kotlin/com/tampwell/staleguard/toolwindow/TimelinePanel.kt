@@ -74,7 +74,11 @@ class TimelinePanel(private val project: Project) : SimpleToolWindowPanel(true, 
             .nonBlocking<List<PlannerInput>> { BuildFileRows.collect(project).map { it.input } }
             .expireWith(this)
             .finishOnUiThread(com.intellij.openapi.application.ModalityState.any()) { inputs ->
-                val plan = UpgradePlanner.plan(inputs, settings.state.suggestPrereleases, thresholdMs, com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project)::isIgnored, now)
+                val policy = com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project)
+                val plan = UpgradePlanner.plan(
+                    inputs, settings.state.suggestPrereleases, thresholdMs, policy::isIgnored, now,
+                    versionAllowed = policy::versionAllowed,
+                )
                 chart.update(
                     TimelineModel.build(
                         inputs, plan, now,

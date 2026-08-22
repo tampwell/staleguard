@@ -35,6 +35,12 @@ enum class Recommendation(val bundleKey: String) {
             releaseAgeMillis: Long?,
             abandoned: Boolean,
             vulnerable: Boolean = false,
+            /**
+             * False for build plugins: core Maven plugins go years between
+             * releases while being perfectly healthy, so age must not read
+             * as "project looks inactive" there.
+             */
+            ageDrivenStale: Boolean = true,
         ): Recommendation = when {
             vulnerable -> URGENT
             // "Breaking" is a claim about the version distance; age-driven
@@ -42,7 +48,7 @@ enum class Recommendation(val bundleKey: String) {
             // "breaking changes likely", it's "check the project still fits".
             severity == UpgradeSeverity.MAJOR -> BREAKING
             abandoned -> STALE
-            releaseAgeMillis != null && releaseAgeMillis > TWO_YEARS -> STALE
+            ageDrivenStale && releaseAgeMillis != null && releaseAgeMillis > TWO_YEARS -> STALE
             severity == UpgradeSeverity.PATCH && releaseAgeMillis != null && releaseAgeMillis < SIX_MONTHS -> SAFE
             severity == UpgradeSeverity.MINOR && releaseAgeMillis != null && releaseAgeMillis < ONE_YEAR -> REVIEW
             else -> REVIEW

@@ -16,7 +16,7 @@ data class DeclaredDependency(
     val resolvedVersion: String?,
     val origin: Origin,
 ) {
-    enum class Origin { DEPENDENCIES, DEPENDENCY_MANAGEMENT, PARENT }
+    enum class Origin { DEPENDENCIES, DEPENDENCY_MANAGEMENT, PARENT, BOM_IMPORT, BUILD_PLUGIN }
 
     val coordinate: String
         get() = "${groupId ?: "?"}:${artifactId ?: "?"}"

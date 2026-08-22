@@ -44,6 +44,37 @@ intellijPlatform {
             // Every release must verify green on 243/251 before this holds.
             sinceBuild = "243"
         }
+        // The marketplace What's New tab renders <change-notes> from the
+        // packaged plugin.xml; without this wiring every upload shipped
+        // blank notes and relied on pasting text into the web form.
+        // Reads CHANGELOG.md through a file provider so the configuration
+        // cache both serializes it and invalidates when the file changes,
+        // then renders the section for the version being built.
+        changeNotes = providers.fileContents(layout.projectDirectory.file("CHANGELOG.md")).asText
+            .zip(providers.gradleProperty("version")) { text, v ->
+                val section = Regex("""(?s)## \[${Regex.escape(v)}][^\n]*\n(.*?)(?=\n## |\z)""")
+                    .find(text)?.groupValues?.get(1)?.trim()
+                    ?: error("CHANGELOG.md has no [$v] section — section it before building a release")
+                buildString {
+                    var listOpen = false
+                    for (line in section.lines()) {
+                        val escaped = line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+                        when {
+                            escaped.startsWith("### ") -> {
+                                if (listOpen) { append("</ul>\n"); listOpen = false }
+                                append("<p><b>${escaped.removePrefix("### ")}</b></p>\n")
+                            }
+                            escaped.startsWith("- ") -> {
+                                if (!listOpen) { append("<ul>\n"); listOpen = true }
+                                append("<li>${escaped.removePrefix("- ")}</li>\n")
+                            }
+                            escaped.isBlank() -> Unit
+                            else -> append("$escaped\n")
+                        }
+                    }
+                    if (listOpen) append("</ul>\n")
+                }.trim()
+            }
     }
     pluginVerification {
         // INTERNAL_API_USAGES is deliberately absent from the failure gate:
@@ -77,6 +108,14 @@ kotlin {
         // Raise these only when since-build moves past 243.
         languageVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
         apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_0)
+
+        // Without this, kotlinc emits delegating overrides for EVERY default
+        // method of the platform's Kotlin interfaces (ToolWindowFactory,
+        // StatusBarWidget) — phantom "overrides deprecated/experimental API"
+        // the marketplace verifier pins on us for methods this source never
+        // touches. With =all the Java default methods dispatch directly and
+        // the bridges disappear. Verified by javap before/after 2026-08-21.
+        freeCompilerArgs.add("-Xjvm-default=all")
     }
 }
 

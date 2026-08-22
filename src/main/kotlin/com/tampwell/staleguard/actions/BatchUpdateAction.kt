@@ -39,6 +39,7 @@ class BatchUpdateAction : AnAction() {
             ignored = com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project)::isIgnored,
             nowMillis = System.currentTimeMillis(),
             advisoryCount = com.tampwell.staleguard.services.VulnerabilityService.getInstance().advisoryCounter(),
+            versionAllowed = com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project)::versionAllowed,
         )
 
         if (plan.candidates.isEmpty()) {

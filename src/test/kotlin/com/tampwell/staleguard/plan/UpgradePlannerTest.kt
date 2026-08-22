@@ -134,4 +134,49 @@ class UpgradePlannerTest {
         )
         assertEquals(Recommendation.REVIEW, result.candidates.single().recommendation)
     }
+
+    @Test
+    fun `build plugins never get the abandonment-driven STALE recommendation`() {
+        val plugin = DeclaredDependency(
+            "org.apache.maven.plugins", "maven-clean-plugin", "3.1.0", "3.1.0",
+            DeclaredDependency.Origin.BUILD_PLUGIN,
+        )
+        val result = plan(
+            PlannerInput("app", plugin, known(listOf("3.1.0", "3.2.0"), releasedDaysAgo = 4 * 365, artifact = "maven-clean-plugin")),
+        )
+        val candidate = result.candidates.single()
+        assertTrue(candidate.recommendation != Recommendation.STALE)
+    }
+
+    @Test
+    fun `version pin caps the candidate inside the ceiling`() {
+        val pin = com.tampwell.staleguard.policy.VersionPin(
+            "com.example:lib", com.tampwell.staleguard.version.VersionConstraint.parse("2.*")!!,
+        )
+        val result = UpgradePlanner.plan(
+            listOf(PlannerInput("app", declared(raw = "2.0.0"), known(listOf("2.0.0", "2.5.0", "3.0.0")))),
+            suggestPrereleases = false,
+            abandonmentThresholdMillis = twoYears,
+            ignored = { _, _ -> false },
+            nowMillis = now,
+            versionAllowed = { g, a, current, v -> !pin.appliesTo(g, a) || pin.allows(current, v) },
+        )
+        assertEquals("2.5.0", result.candidates.single().suggestedVersion.value)
+    }
+
+    @Test
+    fun `pin with nothing newer in range removes the candidate entirely`() {
+        val pin = com.tampwell.staleguard.policy.VersionPin(
+            "com.example:lib", com.tampwell.staleguard.version.VersionConstraint.parse("<3")!!,
+        )
+        val result = UpgradePlanner.plan(
+            listOf(PlannerInput("app", declared(raw = "2.9.0"), known(listOf("2.9.0", "3.0.0", "3.5.0")))),
+            suggestPrereleases = false,
+            abandonmentThresholdMillis = twoYears,
+            ignored = { _, _ -> false },
+            nowMillis = now,
+            versionAllowed = { g, a, current, v -> !pin.appliesTo(g, a) || pin.allows(current, v) },
+        )
+        assertTrue(result.candidates.isEmpty())
+    }
 }

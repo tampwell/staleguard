@@ -63,6 +63,8 @@ object UpgradePlanner {
         nowMillis: Long,
         /** Warm-cache advisory count for the CURRENT version — escalates the recommendation to URGENT. */
         advisoryCount: (groupId: String, artifactId: String, version: String) -> Int = { _, _, _ -> 0 },
+        /** Project pin filter — same predicate the inspections use, so the batch dialog can't out-suggest them. */
+        versionAllowed: (groupId: String, artifactId: String, current: MavenVersion?, candidate: MavenVersion) -> Boolean = { _, _, _, _ -> true },
     ): UpgradePlan {
         val propertyUsage = mutableMapOf<String, Int>()
         for (input in inputs) {
@@ -80,14 +82,20 @@ object UpgradePlanner {
             if (ignored(groupId, artifactId)) return@mapNotNull null
             val known = input.known ?: return@mapNotNull null
             val current = declared.resolvedVersion?.let(::MavenVersion) ?: return@mapNotNull null
-            val suggested = VersionSuggestion.suggest(current, known.versions, suggestPrereleases)
+            val allowedByPins = { version: MavenVersion -> versionAllowed(groupId, artifactId, current, version) }
+            val rawSuggested = VersionSuggestion.suggest(current, known.versions, suggestPrereleases, allowedByPins)
                 ?: return@mapNotNull null
+            val suggested = com.tampwell.staleguard.version.SuggestionSafety.steerClear(
+                current, rawSuggested, known.versions, suggestPrereleases, allowedByPins,
+            ) { v -> advisoryCount(groupId, artifactId, v.value) > 0 }.version
             val severity = UpgradeSeverity.classify(current, suggested) ?: return@mapNotNull null
             val target = FixTarget.of(declared.rawVersion)
             if (target == FixTarget.None) return@mapNotNull null
 
             val releaseAge = known.newestReleaseAtMillis?.let { nowMillis - it }
-            val abandoned = releaseAge != null && releaseAge > abandonmentThresholdMillis
+            // Build plugins are exempt from abandonment (release cadence is not health there).
+            val abandoned = declared.origin != com.tampwell.staleguard.model.DeclaredDependency.Origin.BUILD_PLUGIN &&
+                releaseAge != null && releaseAge > abandonmentThresholdMillis
             val vulnerable = advisoryCount(groupId, artifactId, current.value) > 0
             UpgradeCandidate(
                 moduleName = input.moduleName,
@@ -96,7 +104,10 @@ object UpgradePlanner {
                 suggestedVersion = suggested,
                 severity = severity,
                 target = target,
-                recommendation = Recommendation.of(severity, releaseAge, abandoned, vulnerable),
+                recommendation = Recommendation.of(
+                    severity, releaseAge, abandoned, vulnerable,
+                    ageDrivenStale = declared.origin != com.tampwell.staleguard.model.DeclaredDependency.Origin.BUILD_PLUGIN,
+                ),
                 moduleId = input.moduleId,
                 confidence = ConfidenceScorer.score(severity, releaseAge, abandoned, vulnerable),
             )

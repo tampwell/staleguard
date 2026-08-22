@@ -76,7 +76,7 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
                     com.tampwell.staleguard.inspection.VulnerabilityProblems.message(advisories),
                     isOnTheFly,
                     listOfNotNull(
-                        worst.fixedVersion?.let { GradleBumpVersionQuickFix(it, declared.fixMode) },
+                        worst.fixedVersion?.let { declared.bumpFix(it) },
                         com.tampwell.staleguard.inspection.OpenAdvisoryQuickFix(worst.url, worst.displayId),
                         com.tampwell.staleguard.inspection.IgnoreDependencyQuickFix(declared.group, declared.name),
                     ).toTypedArray<com.intellij.codeInspection.LocalQuickFix>(),
@@ -105,8 +105,17 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
                 }
 
             val current = MavenVersion(declared.version)
-            val suggested = VersionSuggestion.suggest(current, data.versions, settings.state.suggestPrereleases)
+            val allowedByPins = { v: MavenVersion ->
+                com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project).versionAllowed(declared.group, declared.name, current, v)
+            }
+            val rawSuggested = VersionSuggestion.suggest(current, data.versions, settings.state.suggestPrereleases, allowedByPins)
 
+            val steered = rawSuggested?.let {
+                com.tampwell.staleguard.version.SuggestionSafety.steerClear(
+                    current, it, data.versions, settings.state.suggestPrereleases, allowedByPins,
+                ) { v -> !com.tampwell.staleguard.inspection.VulnerabilityProblems.advisoriesFor(project, coordinates, v.value).isNullOrEmpty() }
+            }
+            val suggested = steered?.version
             if (suggested != null) {
                 val severity = UpgradeSeverity.classify(current, suggested)
                 if (severity != null) {
@@ -117,14 +126,19 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
                         abandoned = releaseAge != null && releaseAge > abandonmentThresholdMs,
                         vulnerable = !advisories.isNullOrEmpty(),
                     )
-                    val message = com.tampwell.staleguard.inspection.FreshnessProblems
-                        .message(severity, current.value, suggested.value, recommendation, releaseAge)
+                    val message = if (declared.isPlatform) {
+                        com.tampwell.staleguard.inspection.FreshnessProblems
+                            .bomMessage(declared.name, current.value, suggested.value, recommendation)
+                    } else {
+                        com.tampwell.staleguard.inspection.FreshnessProblems
+                            .message(severity, current.value, suggested.value, recommendation, releaseAge)
+                    } + com.tampwell.staleguard.inspection.FreshnessProblems.vulnerableTargetNote(steered?.knownVulnerable == true)
                     problems += manager.createProblemDescriptor(
                         declared.anchor,
                         message,
                         isOnTheFly,
                         listOfNotNull(
-                            GradleBumpVersionQuickFix(suggested.value, declared.fixMode),
+                            declared.bumpFix(suggested.value),
                             data.scmUrl?.let {
                                 com.tampwell.staleguard.inspection.ShowChangelogQuickFix(
                                     coordinates.toString(), it, declared.name,
@@ -171,10 +185,30 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
         val version: String,
         val anchor: GrLiteral,
         val fixMode: GradleBumpVersionQuickFix.Mode,
-    )
+        /** True when this literal sits inside platform()/enforcedPlatform(). */
+        val isPlatform: Boolean = false,
+        /** Set when the version comes from gradle.properties — fixes edit there. */
+        val propertyKey: String? = null,
+        val propertiesPath: String? = null,
+    ) {
+        fun bumpFix(newVersion: String): com.intellij.codeInspection.LocalQuickFix? = when {
+            propertyKey != null && propertiesPath != null ->
+                UpdateGradlePropertyQuickFix(propertyKey, newVersion, propertiesPath)
+            propertyKey != null -> null // buildSrc constant: resolved read-only
+            else -> GradleBumpVersionQuickFix(newVersion, fixMode)
+        }
+    }
+
+    /** `"g:a:${'$'}{prop}"` / `"g:a:${'$'}prop"` — one simple property in version position. */
+    private val INTERPOLATED_NOTATION =
+        Regex("""^"([A-Za-z0-9_.\-]+:[A-Za-z0-9_.\-]+):\$(?:\{([A-Za-z0-9_.]+)}|([A-Za-z0-9_.]+))"$""")
 
     /** External dependencies declared inside any `dependencies { }` closure. */
     private fun collect(file: GroovyFile): List<GradleDeclared> {
+        val propertiesFile = GradleProperties.findFile(file.virtualFile)
+        val gradleProperties = propertiesFile
+            ?.let { runCatching { GradleProperties.parse(String(it.contentsToByteArray())) }.getOrNull() }
+            .orEmpty() + runCatching { BuildSrcVersions.find(file.virtualFile) }.getOrDefault(emptyMap())
         val result = mutableListOf<GradleDeclared>()
         for (call in PsiTreeUtil.findChildrenOfType(file, GrMethodCall::class.java)) {
             if (!isInsideDependenciesBlock(call)) continue
@@ -197,12 +231,61 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
 
             // String notation: first expression argument that is a plain literal.
             // project(...), files(...), libs.* references etc. are not literals
-            // and fall through naturally.
+            // and fall through naturally. Nested platform('g:a:v') calls are
+            // iterated on their own here, which is exactly how they get found —
+            // the invoked name is what marks them as a BOM import.
             val literal = call.expressionArguments.firstOrNull() as? GrLiteral ?: continue
-            val notation = plainString(literal) ?: continue
-            val parsed = GradleNotationParser.parse(notation) ?: continue
+            val isPlatform = call.invokedExpression.text in setOf("platform", "enforcedPlatform")
+            val notation = plainString(literal)
+            if (notation != null) {
+                val parsed = GradleNotationParser.parse(notation) ?: continue
+                result.add(
+                    GradleDeclared(parsed.group, parsed.name, parsed.version, literal, GradleBumpVersionQuickFix.Mode.NOTATION, isPlatform),
+                )
+                continue
+            }
+            // GStrings with one simple property in version position resolve
+            // from gradle.properties (editable) or a buildSrc Versions
+            // constant (read-only); anything more expressive stays skipped.
+            if (literal is GrString) {
+                val match = INTERPOLATED_NOTATION.matchEntire(literal.text) ?: continue
+                val key = match.groupValues[2].ifEmpty { match.groupValues[3] }
+                val version = gradleProperties[key] ?: continue
+                val coordinate = match.groupValues[1].split(':')
+                val editablePath = propertiesFile?.path.takeUnless { key.startsWith("Versions.") }
+                result.add(
+                    GradleDeclared(
+                        coordinate[0], coordinate[1], version, literal,
+                        GradleBumpVersionQuickFix.Mode.NOTATION, isPlatform,
+                        propertyKey = key, propertiesPath = editablePath,
+                    ),
+                )
+            }
+        }
+        result += pluginsBlockDeclarations(file)
+        return result
+    }
+
+    /**
+     * `plugins { id 'x' version '1.2' }` — Groovy command-expression chains
+     * parse into shapes not worth hand-walking when the version literal can
+     * be located by text offset and anchored back to its PSI literal. Same
+     * marker-artifact convention as the kts collector.
+     */
+    private fun pluginsBlockDeclarations(file: GroovyFile): List<GradleDeclared> {
+        val result = mutableListOf<GradleDeclared>()
+        val text = file.text
+        val matches = GradleTextScanner.PLUGIN_ID.findAll(text).map { it to it.groupValues[1] } +
+            GradleTextScanner.PLUGIN_KOTLIN.findAll(text).map { it to "org.jetbrains.kotlin.${it.groupValues[1]}" }
+        for ((match, pluginId) in matches) {
+            val versionRange = match.groups[2]?.range ?: continue
+            val element = file.findElementAt(versionRange.first) ?: continue
+            val literal = PsiTreeUtil.getParentOfType(element, GrLiteral::class.java, false) ?: continue
             result.add(
-                GradleDeclared(parsed.group, parsed.name, parsed.version, literal, GradleBumpVersionQuickFix.Mode.NOTATION),
+                GradleDeclared(
+                    pluginId, "$pluginId.gradle.plugin", match.groupValues[2], literal,
+                    GradleBumpVersionQuickFix.Mode.MAP_VERSION,
+                ),
             )
         }
         return result

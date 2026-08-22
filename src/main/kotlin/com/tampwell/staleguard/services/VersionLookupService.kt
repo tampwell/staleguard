@@ -42,6 +42,7 @@ class VersionLookupService(scope: CoroutineScope) {
             router = SourceRouter.default(
                 client,
                 extras = com.tampwell.staleguard.repository.ExtraRepositories.getInstance()::sources,
+                centralRoute = { MavenMirrorService.getInstance().route() },
             ),
         )
     }

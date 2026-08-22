@@ -76,7 +76,7 @@ class BatchUpdateDialog(project: Project, private val plan: UpgradePlan) : Dialo
         } else {
             ""
         }
-        val base = "${c.moduleName}: ${c.coordinates}  ${c.currentVersion.value} → ${c.suggestedVersion.value}" +
+        val base = "${c.moduleName}: ${c.coordinates.displayName}  ${c.currentVersion.value} → ${c.suggestedVersion.value}" +
             "  [" + StaleguardBundle.message("confidence.label", c.confidence.score) + "]" +
             " — " + StaleguardBundle.message(c.recommendation.bundleKey) + advisory
         val property = c.propertyName ?: return base

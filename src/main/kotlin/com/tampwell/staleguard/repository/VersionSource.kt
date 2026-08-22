@@ -142,15 +142,27 @@ class SourceRouter(
     private val googleGroups: () -> Set<String>?,
     /** Project-declared repositories — always last, so public artifacts never touch them. */
     private val extras: () -> List<VersionSource> = { emptyList() },
+    /**
+     * Where Central lookups actually go — the user's Maven mirrors, evaluated
+     * per lookup so a settings.xml edit applies without a restart. A Blocked
+     * route drops Central from every chain: Maven would fail those downloads,
+     * so probing directly would leak coordinates the mirror exists to contain.
+     */
+    private val centralRoute: () -> MavenMirrorSelector.CentralRoute = { MavenMirrorSelector.CentralRoute.Direct },
 ) {
 
     fun sourcesFor(coordinates: Coordinates): List<VersionSource> {
+        val effectiveCentral = when (val route = centralRoute()) {
+            MavenMirrorSelector.CentralRoute.Direct -> central
+            is MavenMirrorSelector.CentralRoute.Via -> MavenLayoutSource(route.url)
+            is MavenMirrorSelector.CentralRoute.Blocked -> null
+        }
         val group = coordinates.groupId
         val defaults = when {
-            coordinates.artifactId.endsWith(".gradle.plugin") -> listOf(pluginPortal, central)
-            GOOGLE_ONLY_PREFIXES.any { group == it || group.startsWith("$it.") } -> listOf(google, central)
-            googleGroups()?.contains(group) == true -> listOf(central, google)
-            else -> listOf(central)
+            coordinates.artifactId.endsWith(".gradle.plugin") -> listOfNotNull(pluginPortal, effectiveCentral)
+            GOOGLE_ONLY_PREFIXES.any { group == it || group.startsWith("$it.") } -> listOfNotNull(google, effectiveCentral)
+            googleGroups()?.contains(group) == true -> listOfNotNull(effectiveCentral, google)
+            else -> listOfNotNull(effectiveCentral)
         }
         return defaults + extras()
     }
@@ -164,6 +176,7 @@ class SourceRouter(
             client: MavenRepositoryClient,
             clock: () -> Long = System::currentTimeMillis,
             extras: () -> List<VersionSource> = { emptyList() },
+            centralRoute: () -> MavenMirrorSelector.CentralRoute = { MavenMirrorSelector.CentralRoute.Direct },
         ): SourceRouter {
             val index = GoogleMasterIndex(client, clock)
             return SourceRouter(
@@ -172,6 +185,7 @@ class SourceRouter(
                 pluginPortal = MavenLayoutSource(PLUGIN_PORTAL_URL),
                 googleGroups = index::groups,
                 extras = extras,
+                centralRoute = centralRoute,
             )
         }
 
