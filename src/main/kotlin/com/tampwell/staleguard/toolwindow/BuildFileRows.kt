@@ -28,7 +28,13 @@ internal object BuildFileRows {
 
     private val LOG = logger<BuildFileRows>()
 
-    class Entry(val input: PlannerInput, val file: VirtualFile, val offset: Int)
+    class Entry(
+        val input: PlannerInput,
+        val file: VirtualFile,
+        val offset: Int,
+        /** buildSrc-resolved versions: visible in stats, excluded from batch apply. */
+        val readOnlySource: Boolean = false,
+    )
 
     fun collect(project: Project): List<Entry> {
         val lookup = VersionLookupService.getInstance()
@@ -69,8 +75,12 @@ internal object BuildFileRows {
                     val catalog = KtsDependencyCollector.findCatalogFile(buildFile)
                         ?.let { file -> readText(file)?.let(::parseCatalog) }
                         ?: VersionCatalog.EMPTY
+                    val gradleProperties = com.tampwell.staleguard.gradle.GradleProperties.findFile(buildFile)
+                        ?.let { file -> readText(file)?.let(com.tampwell.staleguard.gradle.GradleProperties::parse) }
+                        .orEmpty() +
+                        runCatching { com.tampwell.staleguard.gradle.BuildSrcVersions.find(buildFile) }.getOrDefault(emptyMap())
                     val moduleName = buildFile.parent?.name ?: buildFile.name
-                    for (dep in GradleTextScanner.scan(text, catalog)) {
+                    for (dep in GradleTextScanner.scan(text, catalog, gradleProperties, includePluginBlocks = true)) {
                         entries += Entry(
                             input = PlannerInput(
                                 moduleName = moduleName,
@@ -86,6 +96,7 @@ internal object BuildFileRows {
                             ),
                             file = buildFile,
                             offset = dep.offset,
+                            readOnlySource = dep.propertyKey?.startsWith("Versions.") == true,
                         )
                     }
                 }

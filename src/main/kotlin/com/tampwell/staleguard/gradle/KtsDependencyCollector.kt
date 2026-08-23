@@ -22,6 +22,8 @@ internal class KtsDeclared(
     val name: String,
     val version: String,
     val anchor: PsiElement,
+    /** True for platform()/enforcedPlatform() BOM imports — they get the "one edit" message. */
+    val isPlatform: Boolean = false,
     private val fixFactory: (String) -> LocalQuickFix?,
 ) {
     fun fix(newVersion: String): LocalQuickFix? = fixFactory(newVersion)
@@ -29,14 +31,23 @@ internal class KtsDeclared(
 
 internal object KtsDependencyCollector {
 
+    private val WRAPPER_CALLS = setOf("platform", "enforcedPlatform", "kotlin")
+
     fun collect(
         file: KtFile,
         catalog: VersionCatalog.Parsed,
         catalogFile: VirtualFile?,
+        gradleProperties: Map<String, String> = emptyMap(),
+        gradlePropertiesPath: String? = null,
     ): List<KtsDeclared> {
         val result = mutableListOf<KtsDeclared>()
+        result += pluginsBlockDeclarations(file)
         for (call in PsiTreeUtil.findChildrenOfType(file, KtCallExpression::class.java)) {
             if (!isInsideDependenciesBlock(call)) continue
+            // Wrapper invocations are reached through their configuration call
+            // below; visiting them directly would double-report the notation.
+            val calleeName = (call.calleeExpression as? KtNameReferenceExpression)?.getReferencedName()
+            if (calleeName in WRAPPER_CALLS) continue
 
             val arguments = call.valueArguments
             if (arguments.isEmpty()) continue
@@ -58,26 +69,26 @@ internal object KtsDependencyCollector {
                 continue
             }
 
-            when (val argument = arguments.first().getArgumentExpression()) {
-                // String notation: implementation("g:a:v")
+            fun declaredFrom(argument: PsiElement?, isPlatform: Boolean): KtsDeclared? = when (argument) {
+                // String notation: implementation("g:a:v"), or "g:a:${'$'}{prop}"
+                // with prop resolved from gradle.properties.
                 is KtStringTemplateExpression -> {
-                    val notation = plainString(argument) ?: continue
-                    val parsed = GradleNotationParser.parse(notation) ?: continue
-                    result.add(
-                        KtsDeclared(parsed.group, parsed.name, parsed.version, argument) { newVersion ->
+                    val notation = plainString(argument)
+                    val parsed = notation?.let(GradleNotationParser::parse)
+                    parsed?.let {
+                        KtsDeclared(it.group, it.name, it.version, argument, isPlatform) { newVersion ->
                             BumpKtsVersionQuickFix(newVersion, BumpKtsVersionQuickFix.Mode.NOTATION)
-                        },
-                    )
+                        }
+                    } ?: interpolatedNotation(argument, isPlatform, gradleProperties, gradlePropertiesPath)
                 }
 
                 // Catalog reference: implementation(libs.gson)
                 is KtDotQualifiedExpression -> {
                     val text = argument.text
-                    if (!text.startsWith("libs.")) continue
-                    val resolved = catalog.resolve(text.removePrefix("libs.")) ?: continue
-                    result.add(
-                        KtsDeclared(resolved.group, resolved.name, resolved.version, argument) { newVersion ->
-                            val versionKey = resolved.versionKey
+                    val resolved = if (text.startsWith("libs.")) catalog.resolve(text.removePrefix("libs.")) else null
+                    resolved?.let {
+                        KtsDeclared(it.group, it.name, it.version, argument, isPlatform) { newVersion ->
+                            val versionKey = it.versionKey
                             if (versionKey != null && catalogFile != null) {
                                 UpdateCatalogVersionQuickFix(
                                     versionKey, newVersion, catalog.referenceCount(versionKey), catalogFile.path,
@@ -85,14 +96,90 @@ internal object KtsDependencyCollector {
                             } else {
                                 null // inline catalog version: report-only in v1
                             }
-                        },
-                    )
+                        }
+                    }
                 }
 
-                else -> Unit // project(...), platform(...), files(...): not external literals
+                else -> null // project(...), files(...): not external literals
+            }
+
+            when (val argument = arguments.first().getArgumentExpression()) {
+                // Wrapper calls: platform("g:a:v"), enforcedPlatform(libs.bom),
+                // kotlin("reflect", "1.9.24") — unwrap to the real declaration.
+                is KtCallExpression -> {
+                    val callee = (argument.calleeExpression as? KtNameReferenceExpression)?.getReferencedName()
+                    when (callee) {
+                        "platform", "enforcedPlatform" -> {
+                            declaredFrom(argument.valueArguments.firstOrNull()?.getArgumentExpression(), isPlatform = true)
+                                ?.let(result::add)
+                        }
+                        "kotlin" -> kotlinNotation(argument)?.let(result::add)
+                        else -> Unit
+                    }
+                }
+
+                else -> declaredFrom(argument, isPlatform = false)?.let(result::add)
             }
         }
         return result
+    }
+
+    /**
+     * "g:a:${'$'}{libVersion}" with exactly one simple-name template entry after a
+     * literal "g:a:" prefix, resolved from gradle.properties. Anything more
+     * expressive (rootProject.extra, string math) stays skipped — resolving
+     * it wrong is worse than staying quiet. The fix edits gradle.properties.
+     */
+    private fun interpolatedNotation(
+        template: KtStringTemplateExpression,
+        isPlatform: Boolean,
+        properties: Map<String, String>,
+        propertiesPath: String?,
+    ): KtsDeclared? {
+        val entries = template.entries
+        if (entries.size != 2) return null
+        val prefix = (entries[0] as? KtLiteralStringTemplateEntry)?.text ?: return null
+        val expression = when (val entry = entries[1]) {
+            is org.jetbrains.kotlin.psi.KtSimpleNameStringTemplateEntry -> entry.expression
+            is org.jetbrains.kotlin.psi.KtBlockStringTemplateEntry -> entry.expression
+            else -> null
+        }
+        val name = when (expression) {
+            is KtNameReferenceExpression -> expression.getReferencedName()
+            // buildSrc constants come through as Versions.x — resolved
+            // read-only, so the fix stays null below.
+            is KtDotQualifiedExpression ->
+                expression.text.takeIf { Regex("""^Versions\.[A-Za-z0-9_]+$""").matches(it) }
+            else -> null
+        } ?: return null
+        if (!prefix.endsWith(":")) return null
+        val parts = prefix.dropLast(1).split(':')
+        if (parts.size != 2 || parts.any { it.isEmpty() }) return null
+        val version = properties[name] ?: return null
+        val editablePath = propertiesPath.takeUnless { name.startsWith("Versions.") }
+        return KtsDeclared(parts[0], parts[1], version, template, isPlatform) { newVersion ->
+            editablePath?.let { UpdateGradlePropertyQuickFix(name, newVersion, it) }
+        }
+    }
+
+    /**
+     * kotlin("reflect", "1.9.24") → org.jetbrains.kotlin:kotlin-reflect:1.9.24.
+     * The far more common versionless form takes its version from the Kotlin
+     * plugin, so there is nothing declared to check — skipped on purpose.
+     */
+    private fun kotlinNotation(call: KtCallExpression): KtsDeclared? {
+        val arguments = call.valueArguments
+        val module = plainString(arguments.firstOrNull()?.getArgumentExpression()) ?: return null
+        if (":" in module) return null
+        val versionArgument = arguments.drop(1).firstOrNull { arg ->
+            val name = arg.getArgumentName()?.asName?.asString()
+            name == null || name == "version"
+        } ?: return null
+        val versionExpr = versionArgument.getArgumentExpression() as? KtStringTemplateExpression ?: return null
+        val version = plainString(versionExpr) ?: return null
+        return KtsDeclared("org.jetbrains.kotlin", "kotlin-$module", version, versionExpr) { newVersion ->
+            BumpKtsVersionQuickFix(newVersion, BumpKtsVersionQuickFix.Mode.WHOLE_LITERAL)
+        }
     }
 
     /** Literal string with zero interpolation, or null. */
@@ -102,12 +189,46 @@ internal object KtsDependencyCollector {
         return template.entries.joinToString("") { it.text }
     }
 
-    private fun isInsideDependenciesBlock(call: KtCallExpression): Boolean {
+    private fun isInsideDependenciesBlock(call: KtCallExpression): Boolean = isInsideBlock(call, "dependencies")
+
+    private fun isInsideBlock(call: KtCallExpression, ownerName: String): Boolean {
         val callee = (call.calleeExpression as? KtNameReferenceExpression)?.getReferencedName() ?: return false
-        if (callee == "dependencies") return false
+        if (callee == ownerName) return false
         val lambda = PsiTreeUtil.getParentOfType(call, KtLambdaExpression::class.java) ?: return false
         val owner = PsiTreeUtil.getParentOfType(lambda, KtCallExpression::class.java) ?: return false
-        return (owner.calleeExpression as? KtNameReferenceExpression)?.getReferencedName() == "dependencies"
+        return (owner.calleeExpression as? KtNameReferenceExpression)?.getReferencedName() == ownerName
+    }
+
+    /**
+     * `plugins { id("com.example.plugin") version "1.2.0" }` — the version
+     * checks against the Plugin Portal marker artifact
+     * (`id:id.gradle.plugin`), which the source router already knows how to
+     * route. `kotlin("jvm")` shorthand maps to org.jetbrains.kotlin.<module>.
+     * Entries without a version literal declare nothing checkable (their
+     * version comes from settings pluginManagement) and are skipped.
+     */
+    private fun pluginsBlockDeclarations(file: KtFile): List<KtsDeclared> {
+        val result = mutableListOf<KtsDeclared>()
+        for (call in PsiTreeUtil.findChildrenOfType(file, KtCallExpression::class.java)) {
+            if (!isInsideBlock(call, "plugins")) continue
+            val callee = (call.calleeExpression as? KtNameReferenceExpression)?.getReferencedName() ?: continue
+            val firstArg = plainString(call.valueArguments.firstOrNull()?.getArgumentExpression()) ?: continue
+            val pluginId = when (callee) {
+                "id" -> firstArg
+                "kotlin" -> firstArg.takeIf { ":" !in it }?.let { "org.jetbrains.kotlin.$it" }
+                else -> null
+            } ?: continue
+            val versionInfix = call.parent as? org.jetbrains.kotlin.psi.KtBinaryExpression ?: continue
+            if (versionInfix.operationReference.text != "version") continue
+            val versionExpr = versionInfix.right as? KtStringTemplateExpression ?: continue
+            val version = plainString(versionExpr) ?: continue
+            result.add(
+                KtsDeclared(pluginId, "$pluginId.gradle.plugin", version, versionExpr) { newVersion ->
+                    BumpKtsVersionQuickFix(newVersion, BumpKtsVersionQuickFix.Mode.WHOLE_LITERAL)
+                },
+            )
+        }
+        return result
     }
 
     /** Walks up from the build file looking for gradle/libs.versions.toml. */

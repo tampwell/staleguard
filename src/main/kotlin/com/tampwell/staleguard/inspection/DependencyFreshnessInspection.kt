@@ -131,9 +131,16 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
 
             // --- Freshness ---
             val current = declared.resolvedVersion?.let(::MavenVersion)
-            val suggested = VersionSuggestion.suggest(current, data.versions, settings.state.suggestPrereleases)
+            val allowedByPins = { v: MavenVersion ->
+                com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project).versionAllowed(groupId, artifactId, current, v)
+            }
+            val suggested = VersionSuggestion.suggest(current, data.versions, settings.state.suggestPrereleases, allowedByPins)
             if (current != null && suggested != null) {
-                val severity = UpgradeSeverity.classify(current, suggested)
+                val steered = com.tampwell.staleguard.version.SuggestionSafety.steerClear(
+                    current, suggested, data.versions, settings.state.suggestPrereleases, allowedByPins,
+                ) { v -> !VulnerabilityProblems.advisoriesFor(project, coordinates, v.value).isNullOrEmpty() }
+                val bumpTo = steered.version
+                val severity = UpgradeSeverity.classify(current, bumpTo)
                 if (severity != null) {
                     val anchor = dom.version.xmlTag ?: dom.xmlTag
                     if (anchor != null) {
@@ -141,12 +148,12 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                         val fixes = listOfNotNull(
                             when (target) {
                                 FixTarget.None -> null
-                                else -> BumpVersionQuickFix(suggested.value, target)
+                                else -> BumpVersionQuickFix(bumpTo.value, target)
                             },
                             data.scmUrl?.let {
                                 ShowChangelogQuickFix(
                                     coordinates.toString(), it, artifactId,
-                                    current.value, suggested.value, data.versions.map { v -> v.value },
+                                    current.value, bumpTo.value, data.versions.map { v -> v.value },
                                 )
                             },
                             com.tampwell.staleguard.repository.ScmUrls.changelogUrl(data.scmUrl)
@@ -159,21 +166,16 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                             releaseAge,
                             abandoned = releaseAge != null && releaseAge > abandonmentThresholdMs,
                             vulnerable = !advisories.isNullOrEmpty(),
+                            ageDrivenStale = declared.origin != com.tampwell.staleguard.model.DeclaredDependency.Origin.BUILD_PLUGIN,
                         )
-                        val message = if (declared.origin == com.tampwell.staleguard.model.DeclaredDependency.Origin.PARENT) {
-                            // The parent version controls every managed
-                            // dependency below it — say so instead of the
-                            // generic per-artifact line.
-                            StaleguardBundle.message(
-                                "inspection.parent.message",
-                                artifactId,
-                                current.value,
-                                suggested.value,
-                                StaleguardBundle.message(recommendation.bundleKey),
-                            )
-                        } else {
-                            FreshnessProblems.message(severity, current.value, suggested.value, recommendation, releaseAge)
-                        }
+                        val message = when (declared.origin) {
+                            com.tampwell.staleguard.model.DeclaredDependency.Origin.PARENT ->
+                                FreshnessProblems.parentMessage(artifactId, current.value, bumpTo.value, recommendation)
+                            com.tampwell.staleguard.model.DeclaredDependency.Origin.BOM_IMPORT ->
+                                FreshnessProblems.bomMessage(artifactId, current.value, bumpTo.value, recommendation)
+                            else ->
+                                FreshnessProblems.message(severity, current.value, bumpTo.value, recommendation, releaseAge)
+                        } + FreshnessProblems.vulnerableTargetNote(steered.knownVulnerable)
                         problems += manager.createProblemDescriptor(
                             anchor, message, isOnTheFly, fixes, highlightTypeFor(severity),
                         )
@@ -181,9 +183,14 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                 }
             }
 
-            // --- Abandonment: independent of freshness, per product decision ---
+            // --- Abandonment: independent of freshness, per product decision.
+            // Build plugins are exempt: core Maven plugins routinely go years
+            // between releases while being perfectly healthy — flagging
+            // maven-clean-plugin as abandoned would just teach users to
+            // ignore the warning.
             val newestReleaseAt = data.newestReleaseAtMillis
             if (settings.state.abandonmentEnabled &&
+                declared.origin != com.tampwell.staleguard.model.DeclaredDependency.Origin.BUILD_PLUGIN &&
                 newestReleaseAt != null && now - newestReleaseAt > abandonmentThresholdMs
             ) {
                 val anchor = dom.artifactId.xmlTag ?: dom.xmlTag

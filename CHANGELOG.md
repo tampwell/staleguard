@@ -4,6 +4,39 @@
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-08-22
+
+### Added
+- Private repository credentials: hosts you list under Settings get HTTP Basic authentication for version lookups, so dependencies from a company Nexus or Artifactory resolve like any other. Secrets are stored in the IDE password safe (your OS keychain) and are never written to settings files, logs, or exported reports, and they are only ever sent to hosts you explicitly configure. Artifactory API keys and Nexus user tokens work in the password field.
+- Import from Maven settings.xml: one click lists the server entries in ~/.m2/settings.xml and lets you pick which credentials to bring into the password safe. Server ids resolve to hosts through your mirrors, profile repositories, and the repositories declared in open projects. Entries encrypted with the Maven master password are listed but never decrypted; those are entered manually.
+- Authentication failures are reported honestly: a rejected credential names the host and offers to open Settings, instead of a generic connectivity warning.
+- A first-scan confirmation: a project where everything is current used to show nothing at all, since warnings only appear when something is wrong and the status bar hides itself when there is nothing to act on. Staleguard now says so once per project, and never while lookups are still running or any coordinate is unresolved.
+- Report an Issue button in the tool window, which opens the GitHub bug form with your IDE and plugin version already filled in.
+
+## [1.5.0] - 2026-08-21
+
+### Added
+- Gradle plugins block versions are checked in both DSLs: id("...") version "..." and the kotlin("jvm") shorthand compare against the Plugin Portal, with quick fixes and batch updates.
+- Gradle platform() and enforcedPlatform() BOMs are inspected in build.gradle.kts, and scope=import BOMs in Maven dependencyManagement get the same one-edit-updates-everything message as a parent POM.
+- Versions defined in gradle.properties resolve ("g:a:${libVersion}"), with a quick fix that edits gradle.properties and warns when the property feeds several declarations. buildSrc object Versions constants resolve read-only.
+- kotlin("reflect", "1.9.24") style dependencies resolve and update.
+- Maven build plugins (build/plugins and pluginManagement) get freshness and vulnerability checks; abandonment deliberately does not apply to them.
+- Version pins: a [pins] table in .staleguard.toml caps suggestions for teams staying on an older major on purpose, for example "org.springframework.boot:*:2.*". Prefix wildcards, Maven ranges, and comparison operators all work; pinned rows are labeled in the tool window.
+- Renovate and Dependabot version conditions now count: allowedVersions, ignore version ranges, and no-major-updates rules cap suggestions the same way they cap the bot.
+- Staleguard never suggests upgrading into a known vulnerability: when the newest version has advisories and a lower clean version exists, that one is suggested instead.
+- Maven mirrors from ~/.m2/settings.xml are respected for Central lookups, with Maven's own mirrorOf matching rules. A blocked central is never probed directly. Toggle in Settings.
+- New-advisory alerts: when a dependency that was clean at the last check gains a published advisory, one notification says so.
+- Tool window rows name the worst advisory inline, and an up-to-date dependency with a known CVE now gets a row.
+
+### Fixed
+- A Dependabot ignore entry with version ranges silenced the whole dependency instead of only those ranges; the same for Renovate rules scoped to major updates.
+- Versions defined by parent POM properties (and ${revision}-style CI versions) now resolve in child modules.
+- Catalog libraries with nested rich versions ({ strictly = "..." }) now resolve instead of being skipped.
+- Batch updates now apply everything the dialog shows, including gradle.properties-backed and plugins-block versions.
+- Marketplace compatibility warnings drop to the honest minimum: the compiler no longer emits phantom overrides of deprecated platform methods this code never touches.
+
+## [1.4.0] - 2026-08-21
+
 ### Added
 - Known-vulnerability alerts: dependencies are checked against the OSV database (osv.dev), and a version with a published CVE gets an editor warning naming the advisory, its severity, and the first fixed version, with a one-click update to that version and a link to the full advisory. The upgrade recommendation escalates to "Update now" while the current version is vulnerable. Cached 24 hours, honors offline mode, and can be turned off in Settings.
 - License policy rules in the committed .staleguard.toml: a [licenses] table with deny and warn pattern arrays flags dependencies by their published license, so a team can keep copyleft or source-available licenses out of the build. Off unless the project commits rules.

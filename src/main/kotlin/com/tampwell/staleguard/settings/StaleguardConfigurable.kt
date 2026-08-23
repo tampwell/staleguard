@@ -35,6 +35,11 @@ class StaleguardConfigurable : BoundConfigurable(StaleguardBundle.message("setti
                 .comment(StaleguardBundle.message("settings.vulns.comment"))
                 .bindSelected(settings::vulnerabilityChecksEnabled)
         }
+        row {
+            checkBox(StaleguardBundle.message("settings.mirrors"))
+                .comment(StaleguardBundle.message("settings.mirrors.comment"))
+                .bindSelected(settings::useMavenMirrors)
+        }
         lateinit var abandonmentBox: com.intellij.ui.dsl.builder.Cell<javax.swing.JCheckBox>
         row {
             abandonmentBox = checkBox(StaleguardBundle.message("settings.abandonment"))
@@ -58,6 +63,14 @@ class StaleguardConfigurable : BoundConfigurable(StaleguardBundle.message("setti
                                 text.lines().map(String::trim).filter(String::isNotEmpty).toMutableList()
                         },
                     )
+            }
+        }
+        group(StaleguardBundle.message("credentials.settings.title")) {
+            row {
+                button(StaleguardBundle.message("credentials.settings.manage")) {
+                    RepositoryCredentialsDialog(null).show()
+                }
+                comment(StaleguardBundle.message("credentials.settings.comment"))
             }
         }
         group(StaleguardBundle.message("settings.cache.title")) {

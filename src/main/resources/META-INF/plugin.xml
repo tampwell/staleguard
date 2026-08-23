@@ -4,7 +4,7 @@
     <name>Staleguard</name>
     <vendor>Tampwell</vendor>
     <description><![CDATA[
-        <p>Staleguard shows outdated, abandoned, and vulnerable Maven and Gradle dependencies right in the editor: severity-labeled warnings, one-click version bumps, and plain-language advice on which updates matter.</p>
+        <p>Outdated dependency updates and CVE vulnerability alerts for Maven and Gradle, right in the editor. Staleguard checks pom.xml, build.gradle, build.gradle.kts, and version catalogs, labels every available update as patch, minor, or major, flags versions with published vulnerabilities, and fixes them with one click. Free, no account, no telemetry. Works in IntelliJ IDEA Community Edition and Android Studio, where the built-in Package Checker is not available.</p>
         <ul>
             <li><b>Known-vulnerability alerts</b>: versions with published CVEs are flagged with the advisory, its severity, and the first fixed version, checked against the OSV database</li>
             <li><b>Inline upgrade hints</b> with major/minor/patch severity and release-age context</li>
@@ -14,9 +14,11 @@
             <li><b>Team rules</b>: a committed .staleguard.toml shares ignore rules and license policy with the whole team, and Renovate/Dependabot ignores are honored automatically</li>
             <li><b>Batch updates</b> with confidence scores, security fixes preselected, plus one-click "apply all patch"</li>
             <li><b>Statistics and timeline</b> tool window with license visibility, vulnerability counts, and Markdown/CSV/PNG export</li>
-            <li><b>Parent POM freshness</b> and a quiet status-bar counter that only appears when something needs attention</li>
+            <li><b>Parent POM, BOM, and build-plugin freshness</b>: Spring Boot parents, platform() and scope=import BOMs, Gradle plugins blocks, and Maven build plugins are all checked</li>
+            <li><b>Your policy, respected</b>: version pins in .staleguard.toml, Renovate allowedVersions, Dependabot ignore ranges, and Maven mirrors from settings.xml all steer what gets suggested</li>
+            <li><b>Never upgrade into a CVE</b>: when the newest version has advisories, the nearest clean one is suggested instead, and you get a notification when a dependency that was clean gains a new advisory</li>
         </ul>
-        <p>Supports pom.xml, build.gradle, build.gradle.kts, and libs.versions.toml, including androidx and other Google-hosted dependencies and Gradle plugin versions. Works in IntelliJ IDEA and Android Studio (2024.3 and newer). Stable-only suggestions by default. No telemetry, no accounts: data comes directly from Maven Central, Google's Maven repository, the Gradle Plugin Portal, and osv.dev, with a polite 24-hour cache.</p>
+        <p>Supports pom.xml, build.gradle, build.gradle.kts, libs.versions.toml, gradle.properties and buildSrc version constants, including androidx, Compose BOMs, and other Google-hosted dependencies. Works in IntelliJ IDEA and Android Studio (2024.3 and newer). Stable-only suggestions by default. No telemetry, no accounts: data comes directly from Maven Central, Google's Maven repository, the Gradle Plugin Portal, and osv.dev, with a polite 24-hour cache.</p>
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
@@ -38,6 +40,12 @@
     </extensions>
 
     <extensions defaultExtensionNs="com.intellij">
+        <!-- Plugin recommendations: declared only where Staleguard has
+             artifact-specific behavior (parent-POM and BOM-import freshness),
+             so the IDE can suggest it to Spring Boot projects. Listing
+             coordinates merely to get recommended would be gaming the feature. -->
+        <dependencySupport kind="java" coordinate="org.springframework.boot:spring-boot-starter-parent" displayName="Spring Boot parent POM freshness"/>
+        <dependencySupport kind="java" coordinate="org.springframework.boot:spring-boot-dependencies" displayName="Spring Boot BOM freshness"/>
         <notificationGroup id="Staleguard" displayType="BALLOON"/>
         <statusBarWidgetFactory id="StaleguardStatus"
                                 implementation="com.tampwell.staleguard.statusbar.StaleguardStatusBarFactory"/>

@@ -3,6 +3,10 @@ package com.tampwell.staleguard.repository
 /** Group + artifact, the cache key for everything in this package. */
 data class Coordinates(val groupId: String, val artifactId: String) {
     override fun toString(): String = "$groupId:$artifactId"
+
+    /** UI naming: plugin marker artifacts read as their plugin id, not the marker convention. */
+    val displayName: String
+        get() = if (artifactId == "$groupId.gradle.plugin") "$groupId (plugin)" else toString()
 }
 
 /**

@@ -31,12 +31,24 @@ object PomDependencyCollector {
 
     /** Same walk, but keeps the DOM handle so callers can highlight/edit. */
     fun collectWithDom(model: MavenDomProjectModel): List<DomDeclaredDependency> {
-        val properties = effectiveProperties(model)
+        // Imported effective properties fill what this file doesn't declare —
+        // parent-inherited versions, profile properties, ${revision}-style CI
+        // versions. Local DOM values win: they're fresher than the last import.
+        val properties = importedProperties(model) + effectiveProperties(model)
 
         val direct = model.dependencies.dependencies
             .map { DomDeclaredDependency(it, it.toDeclared(properties, DeclaredDependency.Origin.DEPENDENCIES)) }
         val managed = model.dependencyManagement.dependencies.dependencies
-            .map { DomDeclaredDependency(it, it.toDeclared(properties, DeclaredDependency.Origin.DEPENDENCY_MANAGEMENT)) }
+            .map { dep ->
+                // scope=import pulls in a whole BOM — same platform role as a
+                // parent pom, and it gets the same "one edit" message.
+                val origin = if (dep.scope.stringValue == "import") {
+                    DeclaredDependency.Origin.BOM_IMPORT
+                } else {
+                    DeclaredDependency.Origin.DEPENDENCY_MANAGEMENT
+                }
+                DomDeclaredDependency(dep, dep.toDeclared(properties, origin))
+            }
 
         // The <parent> IS a dependency — for Spring Boot projects it is THE
         // dependency, the platform BOM every managed version flows from.
@@ -44,13 +56,47 @@ object PomDependencyCollector {
         val parent = model.mavenParent.takeIf { it.artifactId.stringValue != null }
             ?.let { DomDeclaredDependency(it, it.toDeclared(properties, DeclaredDependency.Origin.PARENT)) }
 
-        return listOfNotNull(parent) + direct + managed
+        // Build plugins age and carry CVEs like any artifact. A missing
+        // groupId means org.apache.maven.plugins by Maven convention.
+        val plugins = (model.build.plugins.plugins + model.build.pluginManagement.plugins.plugins)
+            .map { plugin ->
+                val declared = plugin.toDeclared(properties, DeclaredDependency.Origin.BUILD_PLUGIN)
+                val withDefault = if (declared.groupId == null && declared.artifactId != null) {
+                    declared.copy(groupId = "org.apache.maven.plugins")
+                } else {
+                    declared
+                }
+                DomDeclaredDependency(plugin, withDefault)
+            }
+
+        return listOfNotNull(parent) + direct + managed + plugins
+    }
+
+    /**
+     * Properties from IntelliJ's imported Maven model — the resolved
+     * effective set, parents and profiles included. Empty when the file isn't
+     * part of an imported project (unlinked pom, import still running).
+     */
+    private fun importedProperties(model: MavenDomProjectModel): Map<String, String> = try {
+        val xml = model.xmlElement
+        val file = xml?.containingFile?.originalFile?.virtualFile
+        if (file == null) {
+            emptyMap()
+        } else {
+            org.jetbrains.idea.maven.project.MavenProjectsManager.getInstance(xml.project)
+                .findProject(file)
+                ?.properties
+                ?.entries
+                ?.associate { it.key.toString() to it.value.toString() }
+                .orEmpty()
+        }
+    } catch (_: Exception) {
+        emptyMap()
     }
 
     /**
      * The `<properties>` block plus the `project.*` built-ins that version
-     * declarations most commonly reference. Parent-inherited properties come
-     * in a later milestone.
+     * declarations most commonly reference.
      */
     private fun effectiveProperties(model: MavenDomProjectModel): Map<String, String> {
         val result = mutableMapOf<String, String>()

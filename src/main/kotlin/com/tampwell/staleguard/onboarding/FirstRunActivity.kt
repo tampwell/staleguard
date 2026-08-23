@@ -24,6 +24,10 @@ import kotlinx.coroutines.withContext
 class FirstRunActivity : ProjectActivity {
 
     override suspend fun execute(project: Project) {
+        // Every project gets the first-scan watcher; only the first project
+        // after install gets the welcome toast.
+        FirstScanNotice.getInstance(project).start()
+
         val properties = PropertiesComponent.getInstance()
         if (properties.getBoolean(FLAG, false)) return
         properties.setValue(FLAG, true)

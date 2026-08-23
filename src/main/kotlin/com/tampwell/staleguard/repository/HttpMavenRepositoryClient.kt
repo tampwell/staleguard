@@ -9,7 +9,15 @@ import java.net.HttpURLConnection
  * IDE's proxy configuration and custom certificates automatically. Blocking by
  * design — always called from Dispatchers.IO by the engine.
  */
-class HttpMavenRepositoryClient(pluginVersion: String) : MavenRepositoryClient {
+class HttpMavenRepositoryClient(
+    pluginVersion: String,
+    /**
+     * "Authorization" header value for this URL, or null for anonymous —
+     * injected so the client stays testable and never touches the credential
+     * store itself. The value must NEVER be logged.
+     */
+    private val authorizationFor: (url: String) -> String? = { null },
+) : MavenRepositoryClient {
 
     private val log = logger<HttpMavenRepositoryClient>()
 
@@ -26,6 +34,7 @@ class HttpMavenRepositoryClient(pluginVersion: String) : MavenRepositoryClient {
                 .throwStatusCodeException(false)
                 .tuner { connection ->
                     previousEtag?.let { connection.setRequestProperty("If-None-Match", it) }
+                    authorizationFor(url)?.let { connection.setRequestProperty("Authorization", it) }
                 }
                 .connect { request ->
                     val connection = request.connection as HttpURLConnection
@@ -34,7 +43,7 @@ class HttpMavenRepositoryClient(pluginVersion: String) : MavenRepositoryClient {
                             FetchResult.Fetched(request.readString(), connection.getHeaderField("ETag"))
                         HttpURLConnection.HTTP_NOT_MODIFIED -> FetchResult.NotModified
                         HttpURLConnection.HTTP_NOT_FOUND -> FetchResult.NotFound
-                        else -> FetchResult.Failed("HTTP $code for $url")
+                        else -> FetchResult.Failed("HTTP $code for $url", code)
                             .also { log.info("Staleguard: metadata fetch got HTTP $code for $url") }
                     }
                 }
@@ -51,6 +60,9 @@ class HttpMavenRepositoryClient(pluginVersion: String) : MavenRepositoryClient {
                 .connectTimeout(CONNECT_TIMEOUT_MS)
                 .readTimeout(READ_TIMEOUT_MS)
                 .throwStatusCodeException(false)
+                .tuner { connection ->
+                    authorizationFor(url)?.let { connection.setRequestProperty("Authorization", it) }
+                }
                 .connect { request ->
                     val connection = request.connection as HttpURLConnection
                     if (connection.responseCode == HttpURLConnection.HTTP_OK) {

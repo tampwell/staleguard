@@ -40,4 +40,26 @@ object FreshnessProblems {
 
     fun severityLabel(severity: UpgradeSeverity): String =
         StaleguardBundle.message("severity.${severity.name.lowercase()}")
+
+    /** Parent-pom entries: the version steers every managed dependency below it. */
+    fun parentMessage(artifactId: String, current: String, suggested: String, recommendation: Recommendation): String =
+        managedSetMessage("inspection.parent.message", artifactId, current, suggested, recommendation)
+
+    /** Imported BOMs (Maven scope=import, Gradle platform()/enforcedPlatform()). */
+    fun bomMessage(artifactId: String, current: String, suggested: String, recommendation: Recommendation): String =
+        managedSetMessage("inspection.bom.message", artifactId, current, suggested, recommendation)
+
+    /** Appended when steering could not find a clean target — empty otherwise. */
+    fun vulnerableTargetNote(stillVulnerable: Boolean): String =
+        if (stillVulnerable) StaleguardBundle.message("inspection.suggested.vulnerable") else ""
+
+    private fun managedSetMessage(
+        key: String,
+        artifactId: String,
+        current: String,
+        suggested: String,
+        recommendation: Recommendation,
+    ): String = StaleguardBundle.message(
+        key, artifactId, current, suggested, StaleguardBundle.message(recommendation.bundleKey),
+    )
 }

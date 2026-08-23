@@ -61,7 +61,8 @@ object StatsCalculator {
                 qualifierUpdates = count(UpgradeSeverity.QUALIFIER),
                 abandoned = moduleInputs.count { input ->
                     val releasedAt = input.known?.newestReleaseAtMillis
-                    releasedAt != null && nowMillis - releasedAt > abandonmentThresholdMillis
+                    input.declared.origin != com.tampwell.staleguard.model.DeclaredDependency.Origin.BUILD_PLUGIN &&
+                        releasedAt != null && nowMillis - releasedAt > abandonmentThresholdMillis
                 },
                 vulnerable = moduleInputs.count { input ->
                     val groupId = input.declared.groupId

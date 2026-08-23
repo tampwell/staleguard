@@ -29,10 +29,23 @@ class StaleguardSettings : PersistentStateComponent<StaleguardSettings.State> {
          * own switch. Honors offlineMode regardless.
          */
         var vulnerabilityChecksEnabled: Boolean = true
+
+        /**
+         * Route Central lookups through the mirrors in ~/.m2/settings.xml the
+         * way Maven would. On by default: in a mirrored environment, going
+         * direct is exactly what breaks.
+         */
+        var useMavenMirrors: Boolean = true
         var ignoredCoordinates: MutableList<String> = mutableListOf()
 
         /** Properties the user opted out of blast-radius confirmation for. */
         var suppressedPropertyWarnings: MutableList<String> = mutableListOf()
+
+        /**
+         * Hosts with repository credentials configured. HOSTS ONLY — the
+         * secrets live in the PasswordSafe, never in this roaming-safe XML.
+         */
+        var credentialHosts: MutableList<String> = mutableListOf()
     }
 
     private var state = State()
