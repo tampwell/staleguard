@@ -22,6 +22,9 @@
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>
+    <!-- Implied transitively by the Maven plugin, declared because the upgrade
+         impact analysis resolves call sites through Java PSI directly. -->
+    <depends>com.intellij.modules.java</depends>
     <depends>org.jetbrains.idea.maven</depends>
     <depends optional="true" config-file="staleguard-withGroovy.xml">org.intellij.groovy</depends>
     <depends optional="true" config-file="staleguard-withKotlin.xml">org.jetbrains.kotlin</depends>

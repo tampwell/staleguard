@@ -198,6 +198,15 @@ class VersionLookupEngine(
     fun authFailedHosts(): Set<String> = authFailedHosts.toSet()
 
     /**
+     * Repository-ordered .pom URLs for one concrete version. Callers that need
+     * the binary derive its URL from these, so jar fetches inherit mirror
+     * routing, Google's base, the Plugin Portal, and project-declared
+     * repositories instead of rebuilding that decision.
+     */
+    fun pomUrls(coordinates: Coordinates, version: String): List<String> =
+        router.sourcesFor(coordinates).map { it.pomUrl(coordinates, version) }
+
+    /**
      * Serve stale data after a failure, marked failed=true so peek() callers
      * know to keep asking, and timestamped with PROGRESSIVE backoff: retry
      * spacing doubles per consecutive failure (5min → 10min → … capped at

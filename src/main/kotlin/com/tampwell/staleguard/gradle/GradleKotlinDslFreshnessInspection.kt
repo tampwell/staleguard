@@ -151,6 +151,9 @@ class GradleKotlinDslFreshnessInspection : LocalInspectionTool() {
                                     current.value, suggested.value, data.versions.map { v -> v.value },
                                 )
                             },
+                            com.tampwell.staleguard.impact.CheckUpgradeImpactQuickFix(
+                                coordinates.toString(), current.value, suggested.value,
+                            ).takeUnless { coordinates.artifactId.endsWith(".gradle.plugin") },
                             ScmUrls.changelogUrl(data.scmUrl)?.let(::OpenChangelogQuickFix),
                             IgnoreDependencyQuickFix(declared.group, declared.name),
                         ).toTypedArray<LocalQuickFix>(),

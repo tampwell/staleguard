@@ -156,6 +156,15 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                                     current.value, bumpTo.value, data.versions.map { v -> v.value },
                                 )
                             },
+                            // A parent POM, an imported BOM and a build plugin have no
+                            // compile-classpath binary, so there is nothing to compare.
+                            if (declared.origin in IMPACT_ANALYSABLE) {
+                                com.tampwell.staleguard.impact.CheckUpgradeImpactQuickFix(
+                                    coordinates.toString(), current.value, bumpTo.value,
+                                )
+                            } else {
+                                null
+                            },
                             com.tampwell.staleguard.repository.ScmUrls.changelogUrl(data.scmUrl)
                                 ?.let(::OpenChangelogQuickFix),
                             IgnoreDependencyQuickFix(groupId, artifactId),
@@ -222,6 +231,13 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
     }
 
     companion object {
+
+        /** Origins that resolve to a jar on the compile classpath, the only ones a binary diff can speak about. */
+        private val IMPACT_ANALYSABLE = setOf(
+            com.tampwell.staleguard.model.DeclaredDependency.Origin.DEPENDENCIES,
+            com.tampwell.staleguard.model.DeclaredDependency.Origin.DEPENDENCY_MANAGEMENT,
+        )
+
         /**
          * MAJOR is deliberately the WEAKER highlight: a major bump is the
          * riskiest to apply, so it nudges rather than nags. MINOR/PATCH are

@@ -145,6 +145,9 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
                                     current.value, suggested.value, data.versions.map { v -> v.value },
                                 )
                             },
+                            com.tampwell.staleguard.impact.CheckUpgradeImpactQuickFix(
+                                coordinates.toString(), current.value, suggested.value,
+                            ).takeUnless { coordinates.artifactId.endsWith(".gradle.plugin") },
                             com.tampwell.staleguard.repository.ScmUrls.changelogUrl(data.scmUrl)
                                 ?.let { com.tampwell.staleguard.inspection.OpenChangelogQuickFix(it) },
                             com.tampwell.staleguard.inspection.IgnoreDependencyQuickFix(declared.group, declared.name),

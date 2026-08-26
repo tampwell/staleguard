@@ -59,6 +59,9 @@ class VersionLookupService(scope: CoroutineScope) {
      */
     fun peek(coordinates: Coordinates): PeekResult? = engine.peek(coordinates)
 
+    /** Where this artifact's binaries live, in repository preference order. */
+    fun pomUrls(coordinates: Coordinates, version: String): List<String> = engine.pomUrls(coordinates, version)
+
     fun cacheStats(): Pair<Int, Long> = engine.cacheStats()
 
     /** Hosts currently rejecting our credentials — drives the auth-specific notice. */
