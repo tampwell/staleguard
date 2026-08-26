@@ -13,16 +13,19 @@ import com.intellij.openapi.fileChooser.FileChooserFactory
 import com.intellij.openapi.fileChooser.FileSaverDescriptor
 import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.ui.Messages
 import com.intellij.openapi.ui.SimpleToolWindowPanel
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.ui.components.JBScrollPane
 import com.intellij.ui.treeStructure.Tree
 import com.intellij.util.concurrency.AppExecutorUtil
 import com.tampwell.staleguard.StaleguardBundle
+import com.tampwell.staleguard.StaleguardVersion
 import com.tampwell.staleguard.plan.ModuleStats
 import com.tampwell.staleguard.plan.StatsCalculator
 import com.tampwell.staleguard.plan.UpgradePlan
 import com.tampwell.staleguard.plan.UpgradePlanner
+import com.tampwell.staleguard.report.CycloneDxWriter
 import com.tampwell.staleguard.repository.Coordinates
 import com.tampwell.staleguard.repository.PomInfo
 import com.tampwell.staleguard.services.FreshnessListener
@@ -31,6 +34,7 @@ import com.tampwell.staleguard.settings.StaleguardSettings
 import java.awt.event.MouseAdapter
 import java.awt.event.MouseEvent
 import java.nio.file.Files
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.swing.JComponent
 import javax.swing.SwingUtilities
@@ -236,7 +240,11 @@ class StaleguardStatsPanel(private val project: Project) :
 
     private fun buildToolbar(): JComponent {
         val toolbar = ActionManager.getInstance()
-            .createActionToolbar("StaleguardStats", DefaultActionGroup(RefreshAllAction(), ExportAction(), ReportIssueAction()), true)
+            .createActionToolbar(
+                "StaleguardStats",
+                DefaultActionGroup(RefreshAllAction(), ExportAction(), SbomExportAction(), ReportIssueAction()),
+                true,
+            )
         toolbar.targetComponent = this
         return toolbar.component
     }
@@ -305,6 +313,58 @@ class StaleguardStatsPanel(private val project: Project) :
             } else {
                 ReportExporter.markdown(project.name, exportRows)
             }
+            Files.writeString(wrapper.file.toPath(), content)
+        }
+    }
+
+    private inner class SbomExportAction : AnAction(
+        StaleguardBundle.message("toolwindow.export.sbom"),
+        null,
+        AllIcons.Actions.Download,
+    ) {
+        override fun getActionUpdateThread(): ActionUpdateThread = ActionUpdateThread.BGT
+
+        override fun update(e: AnActionEvent) {
+            e.presentation.isEnabled = lastSnapshot != null
+        }
+
+        override fun actionPerformed(e: AnActionEvent) {
+            val snapshot = lastSnapshot ?: return
+            val vulnerabilities = com.tampwell.staleguard.services.VulnerabilityService.getInstance()
+            val components = snapshot.rows.mapNotNull { row ->
+                val declared = row.input.declared
+                val groupId = declared.groupId ?: return@mapNotNull null
+                val artifactId = declared.artifactId ?: return@mapNotNull null
+                val version = declared.resolvedVersion ?: return@mapNotNull null
+                CycloneDxWriter.Component(
+                    groupId = groupId,
+                    artifactId = artifactId,
+                    version = version,
+                    licenses = row.input.known?.licenses.orEmpty(),
+                    advisories = vulnerabilities.peek(Coordinates(groupId, artifactId), version)
+                        ?.advisories.orEmpty(),
+                )
+            }
+            if (components.isEmpty()) {
+                Messages.showInfoMessage(
+                    StaleguardBundle.message("sbom.nothing"),
+                    StaleguardBundle.message("toolwindow.export.sbom"),
+                )
+                return
+            }
+
+            val descriptor = FileSaverDescriptor(StaleguardBundle.message("toolwindow.export.sbom"), "", *arrayOf("json"))
+            val wrapper = FileChooserFactory.getInstance()
+                .createSaveFileDialog(descriptor, project)
+                .save("${project.name}-sbom.cdx.json")
+                ?: return
+            val content = CycloneDxWriter.write(
+                projectName = project.name,
+                toolVersion = StaleguardVersion.current(),
+                components = components,
+                serialUuid = UUID.randomUUID().toString(),
+                timestampMillis = System.currentTimeMillis(),
+            )
             Files.writeString(wrapper.file.toPath(), content)
         }
     }

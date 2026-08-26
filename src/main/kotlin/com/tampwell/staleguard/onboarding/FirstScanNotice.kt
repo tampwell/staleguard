@@ -18,6 +18,7 @@ import com.tampwell.staleguard.services.FreshnessListener
 import com.tampwell.staleguard.services.FreshnessRefreshService
 import com.tampwell.staleguard.toolwindow.ProjectSummary
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Tells the user, once per project, that the first scan finished and found
@@ -42,9 +43,23 @@ internal class FirstScanNotice(private val project: Project) : Disposable {
         evaluate()
     }
 
+    /** Bounded so an unresolvable project cannot cost a summary per event forever. */
+    private val attempts = AtomicInteger(0)
+
     private fun evaluate() {
         if (settled.get() || project.isDisposed || alreadyHandled()) return
         if (FreshnessRefreshService.getInstance(project).hasPendingLookups()) return
+        // Offline, or a private repository with no credentials yet, leaves
+        // coordinates unresolved indefinitely — and the verdict below refuses
+        // to claim "everything is current" on incomplete data, so this would
+        // recompute the whole project summary on every freshness event with
+        // no end. Give up after a few tries. Deliberately NOT persisted: the
+        // next session gets a clean shot once the network or credentials are
+        // sorted out.
+        if (attempts.incrementAndGet() > MAX_ATTEMPTS) {
+            settled.set(true)
+            return
+        }
 
         ReadAction.nonBlocking<ModuleStats> { ProjectSummary.compute(project) }
             .expireWith(this)
@@ -89,6 +104,9 @@ internal class FirstScanNotice(private val project: Project) : Disposable {
     override fun dispose() = Unit
 
     companion object {
+        /** Enough to cover a normal warm-up burst, small enough to stay cheap. */
+        private const val MAX_ATTEMPTS = 10
+
         private const val FLAG = "staleguard.first.scan.reported"
 
         fun getInstance(project: Project): FirstScanNotice = project.service()

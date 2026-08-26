@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-08-22
+
+### Added
+- SBOM export: the tool window exports a CycloneDX 1.5 JSON bill of materials covering every resolved dependency, with Maven purls, the license names published in each POM, and the known OSV vulnerabilities affecting your declared versions linked back to the components they affect. The output validates against the official CycloneDX schema and imports into Dependency-Track and anything else that reads CycloneDX, so a compliance request no longer means a CI pipeline.
+
 ## [1.6.0] - 2026-08-22
 
 ### Added
