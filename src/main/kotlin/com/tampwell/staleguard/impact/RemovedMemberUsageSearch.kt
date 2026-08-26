@@ -1,6 +1,5 @@
 package com.tampwell.staleguard.impact
 
-import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.ProjectFileIndex
@@ -15,6 +14,7 @@ import com.intellij.psi.search.GlobalSearchScope
 import com.intellij.psi.search.PsiSearchHelper
 import com.intellij.psi.search.searches.ReferencesSearch
 import com.intellij.psi.util.TypeConversionUtil
+import com.intellij.util.Processor
 
 /**
  * Finds which removed members this project actually calls.
@@ -43,18 +43,20 @@ object RemovedMemberUsageSearch {
     fun find(project: Project, removed: Collection<MemberRef>, indicator: ProgressIndicator): Result {
         if (removed.isEmpty()) return Result(emptyList(), searchedAll = true)
 
-        val sourceScope = ReadAction.compute<GlobalSearchScope, RuntimeException> {
-            GlobalSearchScope.projectScope(project)
-        }
+        val sourceScope = inReadAction { GlobalSearchScope.projectScope(project) }
 
         // One index probe per distinct word drops the members whose names
         // appear nowhere in this project — which is nearly all of them, and
         // costs no PSI resolution at all.
-        val present = ReadAction.compute<Set<String>, RuntimeException> {
+        val present = inReadAction {
             val helper = PsiSearchHelper.getInstance(project)
             removed.mapTo(HashSet()) { it.searchWord }
                 .filterTo(HashSet()) { word ->
-                    helper.isCheapEnoughToSearch(word, sourceScope, null, indicator) !=
+                    // The four-argument overload taking an indicator is
+                    // deprecated on every supported line; this one reads the
+                    // thread's current indicator, which inside a Backgroundable
+                    // task is the same one, so cancellation still applies.
+                    helper.isCheapEnoughToSearch(word, sourceScope, null) !=
                         PsiSearchHelper.SearchCostResult.ZERO_OCCURRENCES
                 }
         }
@@ -67,9 +69,7 @@ object RemovedMemberUsageSearch {
             indicator.checkCanceled()
             indicator.fraction = index.toDouble() / searched.size
             indicator.text2 = member.display()
-            val locations = ReadAction.compute<List<UsageLocation>, RuntimeException> {
-                locationsOf(project, member, sourceScope)
-            }
+            val locations = inReadAction { locationsOf(project, member, sourceScope) }
             if (locations.isNotEmpty()) usages += RemovedUsage(member, locations)
         }
         return Result(usages, searchedAll = searched.size == candidates.size)
@@ -82,10 +82,15 @@ object RemovedMemberUsageSearch {
     ): List<UsageLocation> {
         val target = resolveTarget(project, member) ?: return emptyList()
         val locations = mutableListOf<UsageLocation>()
-        ReferencesSearch.search(target, scope).forEach { reference ->
-            locationOf(project, reference.element)?.let { locations += it }
-            locations.size < MAX_LOCATIONS_PER_MEMBER
-        }
+        // Explicit Processor, not the Kotlin Iterable.forEach extension that
+        // Query also matches: only this overload's boolean return stops the
+        // search, and with the extension the cap would silently do nothing.
+        ReferencesSearch.search(target, scope).forEach(
+            Processor { reference ->
+                locationOf(project, reference.element)?.let { locations += it }
+                locations.size < MAX_LOCATIONS_PER_MEMBER
+            },
+        )
         return locations
     }
 

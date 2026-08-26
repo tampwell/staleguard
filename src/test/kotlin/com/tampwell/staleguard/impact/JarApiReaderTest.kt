@@ -109,6 +109,9 @@ class JarApiReaderTest {
                 lookup.find("com/tampwell/staleguard/impact/MemberKey")?.internalName,
             )
             assertNull(lookup.find("nothing/Here"))
+            // The negative answer must be remembered, not re-derived on every
+            // one of the thousands of lookups a diff performs.
+            assertNull(lookup.find("nothing/Here"))
         }
     }
 }

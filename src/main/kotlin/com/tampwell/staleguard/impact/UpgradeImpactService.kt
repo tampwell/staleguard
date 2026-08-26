@@ -40,7 +40,6 @@ class UpgradeImpactService(private val project: Project) {
             truncated: Boolean = false,
         ) = ImpactReport(coordinate, fromVersion, toVersion, removedTotal, usages, incomplete, truncated)
 
-        val classpath = ProjectClasspath.libraryJars(project)
         val cache = RemovedMembersCache(cacheDirectory())
         val cached = cache.read(coordinates, fromVersion, toVersion)
         if (cached != null) {
@@ -50,6 +49,7 @@ class UpgradeImpactService(private val project: Project) {
 
         if (StaleguardSettings.getInstance().state.offlineMode) return report(incomplete = ImpactReport.Incomplete.OFFLINE)
 
+        val classpath = ProjectClasspath.libraryJars(project)
         val workspace = Files.createTempDirectory("staleguard-impact")
         try {
             indicator.text2 = fromVersion

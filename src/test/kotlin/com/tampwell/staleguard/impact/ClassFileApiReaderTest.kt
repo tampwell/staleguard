@@ -1,7 +1,7 @@
 package com.tampwell.staleguard.impact
 
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -12,7 +12,7 @@ import org.junit.Test
  */
 class ClassFileApiReaderTest {
 
-    private fun readOwn(internalName: String): ClassApi? {
+    private fun readOwn(internalName: String): ClassApi {
         val bytes = checkNotNull(javaClass.getResourceAsStream("/$internalName.class")) {
             "compiled class not on the test classpath: $internalName"
         }.use { it.readBytes() }
@@ -44,9 +44,18 @@ class ClassFileApiReaderTest {
     }
 
     @Test
-    fun `a non-public class contributes nothing`() {
+    fun `a non-public class is kept for hierarchy walks but declares no API`() {
         // Compiled from a private nested class, so it is package-private at the JVM level.
-        assertNull(readOwn("com/tampwell/staleguard/impact/ClassFileApiReader\$Cursor"))
+        val api = readOwn("com/tampwell/staleguard/impact/ClassFileApiReader\$Cursor")
+
+        assertFalse(api.isPublic)
+        // It still carries its links, which is the whole reason it is kept.
+        assertEquals("java/lang/Object", api.superName)
+        assertEquals(
+            "a package-private class declares nothing a caller can name",
+            emptySet<MemberRef>(),
+            ApiSurface.of(listOf(api)).removedIn(ApiSurface.EMPTY),
+        )
     }
 
     @Test
@@ -57,9 +66,9 @@ class ClassFileApiReaderTest {
         assertEquals(
             "a Synthetic attribute must exclude the member exactly as the flag does",
             emptySet<MemberKey>(),
-            withAttribute!!.members,
+            withAttribute.members,
         )
-        assertEquals(setOf(MemberKey("execute", "()V")), without!!.members)
+        assertEquals(setOf(MemberKey("execute", "()V")), without.members)
     }
 
     @Test(expected = ClassFormatException::class)

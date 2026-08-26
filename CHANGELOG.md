@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-08-25
+
+### Added
+- Upgrade impact analysis. On any outdated dependency, Alt+Enter now offers "Check upgrade impact": Staleguard compares the two versions' actual binaries and tells you whether your own code calls anything the new version removes, with every call site listed and one click away. The answer is the one an upgrade hint cannot give you, and the one that decides whether an upgrade is a version bump or an afternoon.
+- Removals are judged the way the JVM judges them. Resolution walks superclasses and interfaces, so a method that simply moved up into a supertype is not reported as a break. On jackson-databind 2.13 to 2.19 that is the difference between 197 alarming differences and 182 real ones.
+- Works the same on Maven, Gradle, Kotlin DSL and version catalogs, because it compares two artifacts rather than two resolved dependency graphs. Android .aar dependencies are unpacked and compared through their classes.jar. Private repositories, mirrors and credentials are reused from your existing configuration.
+- Results are cached per version pair, so asking a second time costs no download. Nothing runs during highlighting: the check downloads a jar, so it only ever happens when you ask for it.
+
 ## [1.7.0] - 2026-08-22
 
 ### Added

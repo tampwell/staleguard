@@ -66,6 +66,13 @@ data class ClassApi(
     val superName: String?,
     val interfaces: List<String>,
     val members: Set<MemberKey>,
+    /**
+     * Whether callers can name this class. Non-public classes are still kept,
+     * because a public class routinely extends a package-private base that
+     * declares public methods, and dropping the base would turn every one of
+     * those inherited members into an unresolvable walk.
+     */
+    val isPublic: Boolean = true,
 )
 
 /**
@@ -99,6 +106,10 @@ class ApiSurface(val classes: Map<String, ClassApi>) {
     fun removedIn(newer: ApiSurface, supertypes: ClassApiLookup = ClassApiLookup.NONE): Set<MemberRef> {
         val removed = LinkedHashSet<MemberRef>()
         for ((internalName, old) in classes) {
+            // Only classes a caller can name declare API. Members of a
+            // package-private class reach callers through a public supertype,
+            // where they are enumerated already.
+            if (!old.isPublic) continue
             for (member in old.members) {
                 if (newer.resolve(internalName, member, supertypes) == Resolution.ABSENT) {
                     removed += MemberRef(internalName, member)

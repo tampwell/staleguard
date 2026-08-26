@@ -1,8 +1,9 @@
 package com.tampwell.staleguard.impact
 
-import com.intellij.openapi.application.ReadAction
+import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.roots.OrderEnumerator
+import com.intellij.openapi.util.Computable
 import com.intellij.openapi.vfs.VfsUtilCore
 import java.nio.file.Path
 import java.util.zip.ZipFile
@@ -18,7 +19,7 @@ import java.util.zip.ZipFile
  */
 object ProjectClasspath {
 
-    fun libraryJars(project: Project): List<Path> = ReadAction.compute<List<Path>, RuntimeException> {
+    fun libraryJars(project: Project): List<Path> = inReadAction {
         OrderEnumerator.orderEntries(project)
             .librariesOnly()
             .classes()
@@ -44,6 +45,16 @@ object ProjectClasspath {
 }
 
 /**
+ * Read action helper.
+ *
+ * Not ReadAction.compute: that overload is deprecated from the 261 line
+ * onward, and Application.runReadAction(Computable) is non-deprecated across
+ * every line this plugin supports, all the way back to the 243 floor.
+ */
+internal fun <T> inReadAction(body: () -> T): T =
+    ApplicationManager.getApplication().runReadAction(Computable(body))
+
+/**
  * Reads single classes out of a jar set on demand, so the diff can follow a
  * supertype into a sibling jar without paying to parse the whole classpath.
  * Entries are opened lazily and cached; close it when the analysis is done.
@@ -53,15 +64,22 @@ class ClasspathClassLookup(private val jars: List<Path>) : ClassApiLookup, AutoC
     private val open = HashMap<Path, ZipFile?>()
     private val parsed = HashMap<String, ClassApi?>()
 
-    override fun find(internalName: String): ClassApi? = parsed.getOrPut(internalName) {
+    // Not getOrPut: it re-runs the loader whenever the stored value is null,
+    // so every unresolvable supertype would rescan the whole classpath on each
+    // of the thousands of member lookups a diff performs.
+    override fun find(internalName: String): ClassApi? {
+        if (parsed.containsKey(internalName)) return parsed[internalName]
         val entryName = "$internalName.class"
+        var found: ClassApi? = null
         for (jar in jars) {
             val zip = open.getOrPut(jar) { runCatching { ZipFile(jar.toFile()) }.getOrNull() } ?: continue
             val entry = zip.getEntry(entryName) ?: continue
             val data = runCatching { zip.getInputStream(entry).use { it.readBytes() } }.getOrNull() ?: continue
-            runCatching { ClassFileApiReader.read(data) }.getOrNull()?.let { return@getOrPut it }
+            found = runCatching { ClassFileApiReader.read(data) }.getOrNull()
+            if (found != null) break
         }
-        null
+        parsed[internalName] = found
+        return found
     }
 
     override fun close() {

@@ -117,7 +117,12 @@ class ImpactDialog(private val project: Project, private val report: ImpactRepor
 
         val tree = Tree(DefaultTreeModel(root))
         tree.isRootVisible = true
-        for (row in 0 until tree.rowCount) tree.expandRow(row)
+        // rowCount grows as rows expand, so this has to re-read it each pass.
+        var row = 0
+        while (row < tree.rowCount) {
+            tree.expandRow(row)
+            row++
+        }
         tree.addMouseListener(object : MouseAdapter() {
             override fun mouseClicked(e: MouseEvent) {
                 if (e.clickCount != 2) return

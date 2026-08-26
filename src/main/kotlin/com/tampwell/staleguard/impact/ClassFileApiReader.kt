@@ -25,14 +25,17 @@ object ClassFileApiReader {
     private const val ACC_SYNTHETIC = 0x1000
 
     /**
-     * The public shape of one class, or null when the class is not public and
-     * therefore not part of any caller's API. Throws [ClassFormatException] on
-     * anything it cannot read, so a corrupt entry fails loudly rather than
-     * silently shrinking the surface and inventing removals.
+     * The public shape of one class, with [ClassApi.isPublic] recording whether
+     * a caller can name it. Non-public classes are returned rather than
+     * dropped so they can still carry a hierarchy walk. Throws
+     * [ClassFormatException] on anything it cannot read, so a corrupt entry
+     * fails loudly rather than silently shrinking the surface and inventing
+     * removals.
      */
-    fun read(data: ByteArray): ClassApi? {
+    fun read(data: ByteArray): ClassApi {
         val r = Cursor(data)
         if (r.u4() != MAGIC) throw ClassFormatException("not a class file")
+
         r.u2()
         r.u2()
 
@@ -61,7 +64,7 @@ object ClassFileApiReader {
         }
 
         val access = r.u2()
-        if (access and ACC_PUBLIC == 0) return null
+        val isPublic = access and ACC_PUBLIC != 0
         val owner = utf8[classNameIndex[r.u2()]] ?: throw ClassFormatException("no this_class name")
         // java/lang/Object has super_class 0; every other class names one.
         val superName = r.u2().takeIf { it != 0 }?.let { utf8[classNameIndex[it]] }
@@ -90,7 +93,7 @@ object ClassFileApiReader {
                 }
             }
         }
-        return ClassApi(owner, superName, interfaces, members)
+        return ClassApi(owner, superName, interfaces, members, isPublic)
     }
 
     private class Cursor(private val b: ByteArray) {
@@ -111,9 +114,12 @@ object ClassFileApiReader {
         fun utf8(): String {
             val len = u2()
             require(len)
-            // Modified UTF-8 differs from standard UTF-8 only for the NUL byte
-            // and supplementary characters, neither of which appears in a
-            // member name or descriptor that a caller could reference.
+            // The class file format uses modified UTF-8, which differs from
+            // standard UTF-8 only for the NUL byte and supplementary
+            // characters. Neither appears in a member name or descriptor a
+            // caller could reference, and both sides of a diff decode
+            // identically anyway, so even an exotic name compares equal to
+            // itself rather than reading as a removal.
             return String(b, p, len, StandardCharsets.UTF_8).also { p += len }
         }
 
