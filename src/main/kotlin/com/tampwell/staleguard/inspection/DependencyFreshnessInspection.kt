@@ -184,7 +184,11 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                                 FreshnessProblems.bomMessage(artifactId, current.value, bumpTo.value, recommendation)
                             else ->
                                 FreshnessProblems.message(severity, current.value, bumpTo.value, recommendation, releaseAge)
-                        } + FreshnessProblems.vulnerableTargetNote(steered.knownVulnerable)
+                        } + FreshnessProblems.vulnerableTargetNote(steered.knownVulnerable) +
+                            FreshnessProblems.measuredImpactNote(
+                                com.tampwell.staleguard.impact.ImpactMemory.getInstance(project)
+                                    .measured(coordinates.toString(), current.value, bumpTo.value),
+                            )
                         problems += manager.createProblemDescriptor(
                             anchor, message, isOnTheFly, fixes, highlightTypeFor(severity),
                         )

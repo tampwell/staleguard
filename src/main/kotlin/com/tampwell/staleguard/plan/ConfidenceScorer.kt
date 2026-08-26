@@ -16,6 +16,9 @@ data class UpdateConfidence(val score: Int, val factors: List<Factor>) {
  */
 object ConfidenceScorer {
 
+    /** Highest score a measured-breaking upgrade can reach, however good it looks otherwise. */
+    const val BREAKS_CEILING = 20
+
     private val ONE_WEEK = TimeUnit.DAYS.toMillis(7)
     private val TWO_YEARS = TimeUnit.DAYS.toMillis(2 * 365)
 
@@ -24,6 +27,8 @@ object ConfidenceScorer {
         releaseAgeMillis: Long?,
         abandoned: Boolean,
         vulnerable: Boolean = false,
+        /** What an actual binary comparison found, when the user has run one. */
+        measured: MeasuredImpact = MeasuredImpact.Unknown,
     ): UpdateConfidence {
         var score = 50
         val factors = mutableListOf<UpdateConfidence.Factor>()
@@ -53,6 +58,17 @@ object ConfidenceScorer {
         // is the risky option, so the update deserves the benefit of the doubt.
         if (vulnerable) add("confidence.factor.vulnerable", +20)
 
-        return UpdateConfidence(score.coerceIn(0, 100), factors)
+        when (measured) {
+            MeasuredImpact.Clean -> add("confidence.factor.impact.clean", +25)
+            is MeasuredImpact.Breaks -> add("confidence.factor.impact.breaks", -50)
+            MeasuredImpact.Unknown -> Unit
+        }
+
+        // A known break is not one factor among several. We have compiled
+        // evidence that this project calls something the new version deletes,
+        // and no combination of age and severity should be able to talk that
+        // back up into a confident-looking number.
+        val ceiling = if (measured is MeasuredImpact.Breaks) BREAKS_CEILING else 100
+        return UpdateConfidence(score.coerceIn(0, ceiling), factors)
     }
 }

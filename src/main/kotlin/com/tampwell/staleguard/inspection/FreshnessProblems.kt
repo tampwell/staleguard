@@ -1,6 +1,7 @@
 package com.tampwell.staleguard.inspection
 
 import com.tampwell.staleguard.StaleguardBundle
+import com.tampwell.staleguard.plan.MeasuredImpact
 import com.tampwell.staleguard.plan.Recommendation
 import com.tampwell.staleguard.util.RelativeTime
 import com.tampwell.staleguard.version.UpgradeSeverity
@@ -48,6 +49,17 @@ object FreshnessProblems {
     /** Imported BOMs (Maven scope=import, Gradle platform()/enforcedPlatform()). */
     fun bomMessage(artifactId: String, current: String, suggested: String, recommendation: Recommendation): String =
         managedSetMessage("inspection.bom.message", artifactId, current, suggested, recommendation)
+
+    /**
+     * Appended when the user has actually compared the two binaries — empty
+     * otherwise, so an unchecked upgrade never implies it was checked.
+     */
+    fun measuredImpactNote(measured: MeasuredImpact): String = when (measured) {
+        MeasuredImpact.Unknown -> ""
+        MeasuredImpact.Clean -> " " + StaleguardBundle.message("impact.measured.clean")
+        is MeasuredImpact.Breaks ->
+            " " + StaleguardBundle.message("impact.measured.breaks", measured.members, measured.callSites)
+    }
 
     /** Appended when steering could not find a clean target — empty otherwise. */
     fun vulnerableTargetNote(stillVulnerable: Boolean): String =

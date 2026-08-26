@@ -39,6 +39,7 @@ class UpgradeImpactService(private val project: Project) {
             incomplete: ImpactReport.Incomplete? = null,
             truncated: Boolean = false,
         ) = ImpactReport(coordinate, fromVersion, toVersion, removedTotal, usages, incomplete, truncated)
+            .also { ImpactMemory.getInstance(project).record(it) }
 
         val cache = RemovedMembersCache(cacheDirectory())
         val cached = cache.read(coordinates, fromVersion, toVersion)

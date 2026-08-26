@@ -38,6 +38,7 @@ class ApplyAllPatchAction : AnAction() {
             nowMillis = System.currentTimeMillis(),
             advisoryCount = com.tampwell.staleguard.services.VulnerabilityService.getInstance().advisoryCounter(),
             versionAllowed = com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project)::versionAllowed,
+            measuredImpact = com.tampwell.staleguard.impact.ImpactMemory.getInstance(project).lookup(),
         )
 
         val patches = plan.candidates.filter { it.severity == UpgradeSeverity.PATCH }

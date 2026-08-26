@@ -24,6 +24,7 @@ internal object ProjectSummary {
         val plan = UpgradePlanner.plan(
             inputs, settings.state.suggestPrereleases, thresholdMs, policy::isIgnored, nowMillis,
             versionAllowed = policy::versionAllowed,
+            measuredImpact = com.tampwell.staleguard.impact.ImpactMemory.getInstance(project).lookup(),
         )
         return StatsCalculator.summary(
             StatsCalculator.compute(

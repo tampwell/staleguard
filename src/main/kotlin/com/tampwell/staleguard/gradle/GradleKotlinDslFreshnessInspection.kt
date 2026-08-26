@@ -138,7 +138,11 @@ class GradleKotlinDslFreshnessInspection : LocalInspectionTool() {
                     } else {
                         com.tampwell.staleguard.inspection.FreshnessProblems
                             .message(severity, current.value, suggested.value, recommendation, releaseAge)
-                    } + com.tampwell.staleguard.inspection.FreshnessProblems.vulnerableTargetNote(steered?.knownVulnerable == true)
+                    } + com.tampwell.staleguard.inspection.FreshnessProblems.vulnerableTargetNote(steered?.knownVulnerable == true) +
+                        com.tampwell.staleguard.inspection.FreshnessProblems.measuredImpactNote(
+                            com.tampwell.staleguard.impact.ImpactMemory.getInstance(project)
+                                .measured(coordinates.toString(), current.value, suggested.value),
+                        )
                     problems += manager.createProblemDescriptor(
                         declared.anchor,
                         message,

@@ -78,6 +78,7 @@ class TimelinePanel(private val project: Project) : SimpleToolWindowPanel(true, 
                 val plan = UpgradePlanner.plan(
                     inputs, settings.state.suggestPrereleases, thresholdMs, policy::isIgnored, now,
                     versionAllowed = policy::versionAllowed,
+                    measuredImpact = com.tampwell.staleguard.impact.ImpactMemory.getInstance(project).lookup(),
                 )
                 chart.update(
                     TimelineModel.build(

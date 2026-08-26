@@ -11,6 +11,7 @@
 - Removals are judged the way the JVM judges them. Resolution walks superclasses and interfaces, so a method that simply moved up into a supertype is not reported as a break. On jackson-databind 2.13 to 2.19 that is the difference between 197 alarming differences and 182 real ones.
 - Works the same on Maven, Gradle, Kotlin DSL and version catalogs, because it compares two artifacts rather than two resolved dependency graphs. Android .aar dependencies are unpacked and compared through their classes.jar. Private repositories, mirrors and credentials are reused from your existing configuration.
 - Results are cached per version pair, so asking a second time costs no download. Nothing runs during highlighting: the check downloads a jar, so it only ever happens when you ask for it.
+- The answer follows you back to the editor. Once you have checked an upgrade, the warning on that dependency says what the check found, and the confidence score in the batch update dialog reflects it: a measured break caps the score no matter how safe the version distance looks. A check that could not finish claims nothing at all, so "checked" never appears next to an upgrade that was not fully checked.
 
 ## [1.7.0] - 2026-08-22
 

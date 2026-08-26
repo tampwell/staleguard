@@ -65,6 +65,8 @@ object UpgradePlanner {
         advisoryCount: (groupId: String, artifactId: String, version: String) -> Int = { _, _, _ -> 0 },
         /** Project pin filter — same predicate the inspections use, so the batch dialog can't out-suggest them. */
         versionAllowed: (groupId: String, artifactId: String, current: MavenVersion?, candidate: MavenVersion) -> Boolean = { _, _, _, _ -> true },
+        /** What a binary comparison found for this exact version pair, if one has been run. */
+        measuredImpact: (coordinate: String, from: String, to: String) -> MeasuredImpact = { _, _, _ -> MeasuredImpact.Unknown },
     ): UpgradePlan {
         val propertyUsage = mutableMapOf<String, Int>()
         for (input in inputs) {
@@ -109,7 +111,10 @@ object UpgradePlanner {
                     ageDrivenStale = declared.origin != com.tampwell.staleguard.model.DeclaredDependency.Origin.BUILD_PLUGIN,
                 ),
                 moduleId = input.moduleId,
-                confidence = ConfidenceScorer.score(severity, releaseAge, abandoned, vulnerable),
+                confidence = ConfidenceScorer.score(
+                    severity, releaseAge, abandoned, vulnerable,
+                    measuredImpact("$groupId:$artifactId", current.value, suggested.value),
+                ),
             )
         }
 
