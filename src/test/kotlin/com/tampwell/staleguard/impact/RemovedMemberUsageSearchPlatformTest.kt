@@ -155,6 +155,35 @@ class RemovedMemberUsageSearchPlatformTest : BasePlatformTestCase() {
         assertTrue(location.fileUrl.endsWith("Caller.java"))
     }
 
+    fun `test the most-used member is reported first`() {
+        // gone(Thing) has one call site; kept() is called once too, so give
+        // one of them a second call to make the ordering observable.
+        myFixture.addFileToProject(
+            "app/Second.java",
+            """
+            package app;
+
+            import lib.Lib;
+
+            public class Second {
+                void run() {
+                    new Lib(1).kept();
+                    new Lib(2).kept();
+                }
+            }
+            """.trimIndent(),
+        )
+
+        val result = find(
+            MemberRef("lib/Lib", "gone", "(Llib/Thing;)V"),
+            MemberRef("lib/Lib", "kept", "()V"),
+        )
+
+        assertEquals(2, result.usages.size)
+        assertEquals("kept", result.usages.first().member.name)
+        assertTrue(result.usages.first().locations.size > result.usages.last().locations.size)
+    }
+
     fun `test several removed members are reported together`() {
         val result = find(
             MemberRef("lib/Lib", "kept", "()V"),

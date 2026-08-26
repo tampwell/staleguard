@@ -15,14 +15,18 @@ object JarApiReader {
      * against another jar's base would manufacture removals that no user could
      * ever hit.
      *
-     * [cancelled] is polled per entry so a large jar stays interruptible.
+     * [cancelled] is polled per entry so a large jar stays interruptible, and
+     * returns NULL rather than a partial surface when it fires. An empty
+     * surface would flow through the diff as "this version removes nothing",
+     * which is the one wrong answer that matters: a cancelled check must never
+     * be able to report an all-clear.
      */
-    fun read(jar: Path, cancelled: () -> Boolean = { false }): ApiSurface {
+    fun read(jar: Path, cancelled: () -> Boolean = { false }): ApiSurface? {
         val classes = mutableMapOf<String, ClassApi>()
         ZipFile(jar.toFile()).use { zip ->
             val entries = zip.entries()
             while (entries.hasMoreElements()) {
-                if (cancelled()) return ApiSurface.EMPTY
+                if (cancelled()) return null
                 val entry = entries.nextElement()
                 val name = entry.name
                 if (!name.endsWith(".class") || name.startsWith("META-INF/")) continue

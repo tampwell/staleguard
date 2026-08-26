@@ -4,6 +4,7 @@ import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.tampwell.staleguard.repository.Coordinates
@@ -63,9 +64,11 @@ class UpgradeImpactService(private val project: Project) {
                 ?: return report(incomplete = ImpactReport.Incomplete.CANDIDATE_JAR_UNAVAILABLE)
 
             indicator.checkCanceled()
-            val current = JarApiReader.read(currentJar) { indicator.isCanceled }
-            val candidate = JarApiReader.read(candidateJar) { indicator.isCanceled }
-            indicator.checkCanceled()
+            // A null read means cancellation, and the only correct response is
+            // to abandon the analysis: reporting on half a jar would invent
+            // removals, and reporting on none would invent an all-clear.
+            val current = JarApiReader.read(currentJar) { indicator.isCanceled } ?: throw ProcessCanceledException()
+            val candidate = JarApiReader.read(candidateJar) { indicator.isCanceled } ?: throw ProcessCanceledException()
 
             // Supertypes are looked up in the rest of the project's classpath:
             // a class's parent usually ships in a sibling jar, and without it

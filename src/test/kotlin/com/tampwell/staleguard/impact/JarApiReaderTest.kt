@@ -44,7 +44,7 @@ class JarApiReaderTest {
             ),
         )
 
-        val surface = JarApiReader.read(jar)
+        val surface = checkNotNull(JarApiReader.read(jar))
 
         assertEquals(
             setOf("com/tampwell/staleguard/impact/MemberKey", "com/tampwell/staleguard/impact/JvmDescriptors"),
@@ -64,7 +64,7 @@ class JarApiReaderTest {
             ),
         )
 
-        assertEquals(1, JarApiReader.read(jar).classes.size)
+        assertEquals(1, checkNotNull(JarApiReader.read(jar)).classes.size)
     }
 
     @Test
@@ -77,13 +77,13 @@ class JarApiReaderTest {
             ),
         )
 
-        val surface = JarApiReader.read(jar)
+        val surface = checkNotNull(JarApiReader.read(jar))
 
         assertEquals(setOf("com/tampwell/staleguard/impact/MemberKey"), surface.classes.keys)
     }
 
     @Test
-    fun `cancellation stops the read and reports nothing rather than a partial surface`() {
+    fun `cancellation returns null, never an empty surface a diff would read as no removals`() {
         val jar = jarOf(
             mapOf(
                 "com/tampwell/staleguard/impact/MemberKey.class" to
@@ -91,7 +91,7 @@ class JarApiReaderTest {
             ),
         )
 
-        assertTrue(JarApiReader.read(jar) { true }.isEmpty)
+        assertNull(JarApiReader.read(jar) { true })
     }
 
     @Test

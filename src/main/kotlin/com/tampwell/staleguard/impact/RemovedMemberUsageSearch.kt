@@ -72,6 +72,10 @@ object RemovedMemberUsageSearch {
             val locations = inReadAction { locationsOf(project, member, sourceScope) }
             if (locations.isNotEmpty()) usages += RemovedUsage(member, locations)
         }
+        // Most-used first: a big upgrade can surface a long list, and the
+        // member called from fifteen places is the one that decides whether
+        // the upgrade happens today.
+        usages.sortWith(compareByDescending<RemovedUsage> { it.locations.size }.thenBy { it.member.display() })
         return Result(usages, searchedAll = searched.size == candidates.size)
     }
 
