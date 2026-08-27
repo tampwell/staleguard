@@ -9,6 +9,7 @@
 ### Added
 - Copy as Markdown on the upgrade impact report: one click puts the verdict, the removed members your code calls, and every call site on the clipboard, ready to paste into a pull request or a team chat. An incomplete analysis exports as exactly that, never as a conclusion.
 - The tool window agrees with the editor: once you have checked an upgrade, its row says [checked: safe] or [checked: breaks N members you call].
+- Check Impact for Selected in the batch update dialog: one click compares the binaries for every selected upgrade, writes the verdict into each row, and deselects anything measured as breaking, so a bulk apply can never silently include an upgrade known to break the build. Cancelling keeps the verdicts that finished.
 - The impact comparison cache is visible in Settings next to the version cache, with its own clear button.
 
 ### Fixed

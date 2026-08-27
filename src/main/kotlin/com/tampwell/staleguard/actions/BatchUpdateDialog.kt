@@ -17,7 +17,7 @@ import javax.swing.JComponent
  * select-all toggle. Nothing is written until OK — this dialog IS the
  * preview of exactly what will change.
  */
-class BatchUpdateDialog(project: Project, private val plan: UpgradePlan) : DialogWrapper(project) {
+class BatchUpdateDialog(private val project: Project, private val plan: UpgradePlan) : DialogWrapper(project) {
 
     private val rows = linkedMapOf<JBCheckBox, UpgradeCandidate>()
 
@@ -26,6 +26,74 @@ class BatchUpdateDialog(project: Project, private val plan: UpgradePlan) : Dialo
         setOKButtonText(StaleguardBundle.message("batch.dialog.apply"))
         init()
     }
+
+    override fun createLeftSideActions(): Array<javax.swing.Action> = arrayOf(checkImpactAction())
+
+    /**
+     * Runs the binary comparison for every selected row, then writes the
+     * verdict into the row and DESELECTS anything measured as breaking. The
+     * whole point of this dialog is bulk-apply, and bulk-apply must not be
+     * able to silently include an upgrade known to break the build.
+     */
+    private fun checkImpactAction(): javax.swing.Action = object : DialogWrapperAction(
+        StaleguardBundle.message("batch.impact.button"),
+    ) {
+        override fun doAction(e: java.awt.event.ActionEvent) {
+            if (com.intellij.openapi.project.DumbService.isDumb(project)) {
+                setErrorText(StaleguardBundle.message("impact.indexing"))
+                return
+            }
+            // Plugin markers resolve to no jar; there is nothing to compare.
+            val targets = rows.filter { (box, candidate) ->
+                box.isSelected && !candidate.coordinates.artifactId.endsWith(".gradle.plugin")
+            }
+            if (targets.isEmpty()) return
+            setErrorText(null)
+
+            val service = com.tampwell.staleguard.impact.UpgradeImpactService.getInstance(project)
+            val results = linkedMapOf<JBCheckBox, com.tampwell.staleguard.plan.MeasuredImpact>()
+            val completed = com.intellij.openapi.progress.ProgressManager.getInstance()
+                .runProcessWithProgressSynchronously(
+                    {
+                        val indicator = com.intellij.openapi.progress.ProgressManager.getInstance().progressIndicator
+                        indicator.isIndeterminate = false
+                        for ((index, entry) in targets.entries.withIndex()) {
+                            val (box, candidate) = entry
+                            indicator.checkCanceled()
+                            indicator.fraction = index.toDouble() / targets.size
+                            indicator.text = candidate.coordinates.toString()
+                            val report = service.analyze(
+                                candidate.coordinates,
+                                candidate.currentVersion.value,
+                                candidate.suggestedVersion.value,
+                                indicator,
+                            )
+                            results[box] = com.tampwell.staleguard.impact.ImpactMemory.classify(report)
+                        }
+                    },
+                    StaleguardBundle.message("batch.impact.progress"),
+                    true,
+                    project,
+                )
+
+            // A cancelled run still applies what it finished: each verdict was
+            // fully measured before the next began.
+            for ((box, measured) in results) {
+                when (measured) {
+                    is com.tampwell.staleguard.plan.MeasuredImpact.Breaks -> {
+                        box.isSelected = false
+                        box.text = withVerdict(box.text, StaleguardBundle.message("toolwindow.impact.breaks", measured.members))
+                    }
+                    com.tampwell.staleguard.plan.MeasuredImpact.Clean ->
+                        box.text = withVerdict(box.text, StaleguardBundle.message("toolwindow.impact.clean"))
+                    com.tampwell.staleguard.plan.MeasuredImpact.Unknown -> Unit
+                }
+            }
+            if (!completed) setErrorText(StaleguardBundle.message("batch.impact.cancelled"))
+        }
+    }
+
+
 
     override fun createCenterPanel(): JComponent = panel {
         for (severity in DISPLAY_ORDER) {
@@ -91,8 +159,12 @@ class BatchUpdateDialog(project: Project, private val plan: UpgradePlan) : Dialo
     fun selectedCandidates(): List<UpgradeCandidate> =
         rows.filterKeys { it.isSelected }.values.toList()
 
-    private companion object {
-        val DISPLAY_ORDER = listOf(
+    companion object {
+        /** Idempotent: re-checking replaces the old verdict instead of stacking a second one. */
+        fun withVerdict(text: String, verdict: String): String =
+            text.substringBefore("  [checked:").trimEnd() + "  " + verdict
+
+        private val DISPLAY_ORDER = listOf(
             UpgradeSeverity.PATCH,
             UpgradeSeverity.MINOR,
             UpgradeSeverity.QUALIFIER,
