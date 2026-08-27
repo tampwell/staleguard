@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-08-27
+
+### Added
+- Copy as Markdown on the upgrade impact report: one click puts the verdict, the removed members your code calls, and every call site on the clipboard, ready to paste into a pull request or a team chat. An incomplete analysis exports as exactly that, never as a conclusion.
+
 ## [1.8.0] - 2026-08-25
 
 ### Added

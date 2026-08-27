@@ -36,7 +36,19 @@ class ImpactDialog(private val project: Project, private val report: ImpactRepor
         init()
     }
 
-    override fun createActions() = arrayOf(okAction)
+    override fun createActions() = arrayOf(copyAction(), okAction)
+
+    private fun copyAction(): javax.swing.Action = object : DialogWrapperAction(
+        StaleguardBundle.message("impact.copy"),
+    ) {
+        override fun doAction(e: java.awt.event.ActionEvent) {
+            java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(
+                java.awt.datatransfer.StringSelection(ImpactMarkdown.render(report)),
+                null,
+            )
+            close(OK_EXIT_CODE)
+        }
+    }
 
     override fun createCenterPanel(): JComponent {
         val panel = JPanel(BorderLayout(0, JBUI.scale(8)))
