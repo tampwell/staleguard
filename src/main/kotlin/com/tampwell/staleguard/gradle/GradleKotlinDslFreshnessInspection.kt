@@ -155,9 +155,12 @@ class GradleKotlinDslFreshnessInspection : LocalInspectionTool() {
                                     current.value, suggested.value, data.versions.map { v -> v.value },
                                 )
                             },
+                            // Not on plugin markers or platform()/enforcedPlatform()
+                            // BOMs: a marker resolves to no jar and a BOM is a pom,
+                            // so the check could only ever fail after a download.
                             com.tampwell.staleguard.impact.CheckUpgradeImpactQuickFix(
                                 coordinates.toString(), current.value, suggested.value,
-                            ).takeUnless { coordinates.artifactId.endsWith(".gradle.plugin") },
+                            ).takeUnless { declared.isPlatform || coordinates.artifactId.endsWith(".gradle.plugin") },
                             ScmUrls.changelogUrl(data.scmUrl)?.let(::OpenChangelogQuickFix),
                             IgnoreDependencyQuickFix(declared.group, declared.name),
                         ).toTypedArray<LocalQuickFix>(),

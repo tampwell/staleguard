@@ -207,11 +207,23 @@ class StaleguardStatsPanel(private val project: Project) :
                 } else {
                     ""
                 }
+                // The tool window must agree with the editor: once an impact
+                // check ran for this exact pair, the row says what it found.
+                val measuredSuffix = candidate?.let {
+                    when (val m = com.tampwell.staleguard.impact.ImpactMemory.getInstance(project)
+                        .measured(it.coordinates.toString(), it.currentVersion.value, it.suggestedVersion.value)) {
+                        is com.tampwell.staleguard.plan.MeasuredImpact.Breaks ->
+                            "  " + StaleguardBundle.message("toolwindow.impact.breaks", m.members)
+                        com.tampwell.staleguard.plan.MeasuredImpact.Clean ->
+                            "  " + StaleguardBundle.message("toolwindow.impact.clean")
+                        com.tampwell.staleguard.plan.MeasuredImpact.Unknown -> ""
+                    }
+                } ?: ""
                 val label = when {
                     candidate != null ->
                         "$coordinate  ${candidate.currentVersion.value} → ${candidate.suggestedVersion.value}" +
                             " (" + StaleguardBundle.message("severity.${candidate.severity.name.lowercase()}") + ")" +
-                            advisorySuffix + pinSuffix + licenseSuffix
+                            measuredSuffix + advisorySuffix + pinSuffix + licenseSuffix
                     row.input.known == null -> {
                         row.input.declared.groupId?.let { g ->
                             row.input.declared.artifactId?.let { a -> unresolvedCoordinates.add(Coordinates(g, a)) }
