@@ -66,7 +66,11 @@ class ImpactDialog(private val project: Project, private val report: ImpactRepor
         panel.add(header, BorderLayout.NORTH)
 
         if (report.usages.isEmpty()) return panel
-        panel.add(JBScrollPane(usageTree()), BorderLayout.CENTER)
+        val scroll = JBScrollPane(usageTree())
+        // A big upgrade can list hundreds of call sites; without a bound the
+        // tree's preferred size dictates the dialog's and it fills the screen.
+        scroll.preferredSize = java.awt.Dimension(JBUI.scale(640), JBUI.scale(360))
+        panel.add(scroll, BorderLayout.CENTER)
         return panel
     }
 

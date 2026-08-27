@@ -9,6 +9,7 @@
 ### Added
 - Copy as Markdown on the upgrade impact report: one click puts the verdict, the removed members your code calls, and every call site on the clipboard, ready to paste into a pull request or a team chat. An incomplete analysis exports as exactly that, never as a conclusion.
 - The tool window agrees with the editor: once you have checked an upgrade, its row says [checked: safe] or [checked: breaks N members you call].
+- The impact comparison cache is visible in Settings next to the version cache, with its own clear button.
 
 ### Fixed
 - platform() and enforcedPlatform() BOM entries no longer offer the upgrade impact check. A BOM is a pom, not a jar, so the check could only ever fail after a pointless download.

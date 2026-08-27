@@ -1,6 +1,7 @@
 # Staleguard
 
-An IntelliJ IDEA plugin that shows outdated Maven and Gradle dependencies directly in the editor.
+An IntelliJ IDEA plugin that tells you which dependencies are out of date, which are
+vulnerable, and whether upgrading will break your code - directly in the editor.
 
 **[Install from the JetBrains Marketplace](https://plugins.jetbrains.com/plugin/33571-staleguard)** - or in the IDE: Settings -> Plugins -> Marketplace -> search "Staleguard".
 
@@ -8,6 +9,10 @@ An IntelliJ IDEA plugin that shows outdated Maven and Gradle dependencies direct
 
 - Warns on outdated dependency versions with major / minor / patch severity
 - Flags versions with known vulnerabilities, naming the CVE, its severity, and the first fixed version (data from the [OSV database](https://osv.dev))
+- **Upgrade impact analysis**: compares the two versions' bytecode and reports the removed
+  members your own code calls, with navigable call sites. Removal is judged the way the JVM
+  links - a method that moved up into a superclass is never a false alarm. Results follow
+  you back into the editor warning and copy as Markdown for pull requests
 - One-click version updates via <kbd>Alt</kbd>+<kbd>Enter</kbd>
 - Edits Maven `<properties>` and Gradle version catalogs correctly, rather than inlining literals
 - Flags dependencies whose newest release is years old
@@ -16,9 +21,14 @@ An IntelliJ IDEA plugin that shows outdated Maven and Gradle dependencies direct
 - Batch update dialog with per-dependency confidence scores; security fixes come preselected
 - Checks parent POM freshness, since one edit there updates every managed dependency
 - Statistics and timeline tool window with license visibility, vulnerability counts, and Markdown/CSV/PNG export
+- CycloneDX 1.5 SBOM export, validated against the official schema, ready for Dependency-Track
+- Private repositories: credentials for Nexus and Artifactory live in the IDE password safe,
+  are sent only to hosts you list, and can be imported from `~/.m2/settings.xml`; Maven
+  mirrors from settings.xml are routed exactly as Maven would
+- Version pins and ceilings in `.staleguard.toml`, honored by every surface including batch updates
 - Generates runnable try-out scripts (Java, JBang, Kotlin, JShell, Groovy) for any library
 
-Supported build files: `pom.xml`, `build.gradle`, `build.gradle.kts`, `gradle/libs.versions.toml`.
+Supported build files: `pom.xml`, `build.gradle`, `build.gradle.kts`, `gradle/libs.versions.toml`, `gradle.properties`, and `buildSrc` version constants. Gradle `plugins {}` blocks, parent POMs, and `platform()`/scope=import BOMs are checked too.
 
 Suggests stable releases only by default. Prereleases are available behind a setting.
 

@@ -109,7 +109,8 @@ class UpgradeImpactService(private val project: Project) {
     companion object {
         fun getInstance(project: Project): UpgradeImpactService = project.service()
 
-        private fun cacheDirectory(): Path =
+        /** Also read by the settings page for stats and clearing — one owner for the path. */
+        fun cacheDirectory(): Path =
             Path.of(PathManager.getSystemPath(), "staleguard", "impact-cache")
 
         private fun pluginVersion(): String = com.tampwell.staleguard.StaleguardVersion.current()

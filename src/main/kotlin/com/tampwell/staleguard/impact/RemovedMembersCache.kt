@@ -47,6 +47,31 @@ class RemovedMembersCache(private val directory: Path) {
         }
     }
 
+    fun stats(): Pair<Int, Long> = try {
+        if (!Files.exists(directory)) {
+            0 to 0L
+        } else {
+            Files.list(directory).use { stream ->
+                val files = stream.filter { it.toString().endsWith(".json") }.toList()
+                files.size to files.sumOf { runCatching { Files.size(it) }.getOrDefault(0L) }
+            }
+        }
+    } catch (_: Exception) {
+        0 to 0L
+    }
+
+    fun clear() {
+        try {
+            if (!Files.exists(directory)) return
+            Files.list(directory).use { stream ->
+                stream.filter { it.toString().endsWith(".json") }
+                    .forEach { runCatching { Files.deleteIfExists(it) } }
+            }
+        } catch (_: Exception) {
+            // disposable cache: best effort
+        }
+    }
+
     private fun discard(file: Path): Set<MemberRef>? {
         runCatching { Files.deleteIfExists(file) }
         return null

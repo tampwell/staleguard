@@ -83,6 +83,17 @@ class StaleguardConfigurable : BoundConfigurable(StaleguardBundle.message("setti
                     statsLabel.component.text = StaleguardBundle.message("settings.cache.cleared")
                 }
             }
+            row {
+                val impactCache = com.tampwell.staleguard.impact.RemovedMembersCache(
+                    com.tampwell.staleguard.impact.UpgradeImpactService.cacheDirectory(),
+                )
+                val (count, bytes) = impactCache.stats()
+                val statsLabel = label(StaleguardBundle.message("settings.impact.cache.stats", count, bytes / 1024))
+                button(StaleguardBundle.message("settings.impact.cache.clear")) {
+                    impactCache.clear()
+                    statsLabel.component.text = StaleguardBundle.message("settings.impact.cache.cleared")
+                }
+            }
         }
     }
 }
