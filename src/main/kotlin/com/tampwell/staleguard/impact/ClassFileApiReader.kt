@@ -32,7 +32,24 @@ object ClassFileApiReader {
      * fails loudly rather than silently shrinking the surface and inventing
      * removals.
      */
-    fun read(data: ByteArray): ClassApi {
+    fun read(data: ByteArray): ClassApi = parse(data, collectRefs = false).api
+
+    /**
+     * The linkage view of one class: every declared member at every
+     * visibility, plus every external member reference in the constant pool.
+     *
+     * The declared set deliberately includes what [read] excludes. Synthetic
+     * bridge methods are real call targets (javac emits calls to them for
+     * covariant overrides), and private members resolve for same-class refs,
+     * so filtering either would invent unlinkable calls that link fine.
+     */
+    fun scan(data: ByteArray): ClassScan = parse(data, collectRefs = true).let { parsed ->
+        ClassScan(parsed.api, parsed.declaredAll, parsed.refs)
+    }
+
+    private class Parsed(val api: ClassApi, val declaredAll: Set<MemberKey>, val refs: Set<MemberRef>)
+
+    private fun parse(data: ByteArray, collectRefs: Boolean): Parsed {
         val r = Cursor(data)
         if (r.u4() != MAGIC) throw ClassFormatException("not a class file")
 
@@ -42,16 +59,29 @@ object ClassFileApiReader {
         val cpCount = r.u2()
         val utf8 = arrayOfNulls<String>(cpCount)
         val classNameIndex = IntArray(cpCount)
+        // NameAndType and member-ref entries, kept only when refs are wanted.
+        val natIndex = if (collectRefs) arrayOfNulls<IntArray>(cpCount) else null
+        val memberRefIndex = if (collectRefs) arrayOfNulls<IntArray>(cpCount) else null
         var i = 1
         while (i < cpCount) {
             when (val tag = r.u1()) {
                 TAG_UTF8 -> utf8[i] = r.utf8()
                 TAG_CLASS -> classNameIndex[i] = r.u2()
+                TAG_FIELDREF, TAG_METHODREF, TAG_INTERFACE_METHODREF ->
+                    if (memberRefIndex != null) {
+                        memberRefIndex[i] = intArrayOf(r.u2(), r.u2())
+                    } else {
+                        r.skip(4)
+                    }
+                TAG_NAME_AND_TYPE ->
+                    if (natIndex != null) {
+                        natIndex[i] = intArrayOf(r.u2(), r.u2())
+                    } else {
+                        r.skip(4)
+                    }
                 TAG_STRING, TAG_METHOD_TYPE, TAG_MODULE, TAG_PACKAGE -> r.skip(2)
                 TAG_METHOD_HANDLE -> r.skip(3)
-                TAG_INTEGER, TAG_FLOAT, TAG_FIELDREF, TAG_METHODREF, TAG_INTERFACE_METHODREF,
-                TAG_NAME_AND_TYPE, TAG_DYNAMIC, TAG_INVOKE_DYNAMIC,
-                -> r.skip(4)
+                TAG_INTEGER, TAG_FLOAT, TAG_DYNAMIC, TAG_INVOKE_DYNAMIC -> r.skip(4)
                 // Long and Double take two constant pool slots. The JVM spec
                 // calls this a historical mistake; it is still load-bearing.
                 TAG_LONG, TAG_DOUBLE -> {
@@ -72,7 +102,8 @@ object ClassFileApiReader {
             utf8[classNameIndex[r.u2()]] ?: throw ClassFormatException("no interface name")
         }
 
-        val members = LinkedHashSet<MemberKey>()
+        val apiMembers = LinkedHashSet<MemberKey>()
+        val declaredAll = if (collectRefs) LinkedHashSet<MemberKey>() else null
         repeat(2) { // fields, then methods: identical layout
             repeat(r.u2()) {
                 val memberAccess = r.u2()
@@ -88,12 +119,30 @@ object ClassFileApiReader {
                     if (utf8[r.u2()] == "Synthetic") synthetic = true
                     r.skip(r.u4().toInt())
                 }
+                declaredAll?.add(MemberKey(name, descriptor))
                 if (memberAccess and (ACC_PUBLIC or ACC_PROTECTED) != 0 && !synthetic) {
-                    members += MemberKey(name, descriptor)
+                    apiMembers += MemberKey(name, descriptor)
                 }
             }
         }
-        return ClassApi(owner, superName, interfaces, members, isPublic)
+        val api = ClassApi(owner, superName, interfaces, apiMembers, isPublic)
+
+        if (memberRefIndex == null || natIndex == null || declaredAll == null) {
+            return Parsed(api, emptySet(), emptySet())
+        }
+        val refs = LinkedHashSet<MemberRef>()
+        for (entry in 1 until cpCount) {
+            val pair = memberRefIndex[entry] ?: continue
+            val refOwner = utf8[classNameIndex[pair[0]]] ?: continue
+            // Array pseudo-owners ("[Ljava/lang/String;".clone()) resolve
+            // against Object at runtime and never against a jar.
+            if (refOwner.startsWith("[")) continue
+            val nat = natIndex[pair[1]] ?: continue
+            val name = utf8[nat[0]] ?: continue
+            val descriptor = utf8[nat[1]] ?: continue
+            refs += MemberRef(refOwner, name, descriptor)
+        }
+        return Parsed(api, declaredAll, refs)
     }
 
     private class Cursor(private val b: ByteArray) {
