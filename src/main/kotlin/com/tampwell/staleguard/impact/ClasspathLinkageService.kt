@@ -8,7 +8,6 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.attribute.FileTime
 import java.util.concurrent.ConcurrentHashMap
-import java.util.zip.ZipFile
 
 /**
  * Runs the [LinkageAudit] over this project's resolved classpath.
@@ -48,21 +47,7 @@ class ClasspathLinkageService(private val project: Project) {
     private fun scansOf(jar: Path): LinkageAudit.JarScans? {
         val modified = runCatching { Files.getLastModifiedTime(jar) }.getOrNull() ?: return null
         scanCache[jar]?.takeIf { it.first == modified }?.let { return it.second }
-
-        val classes = mutableListOf<ClassScan>()
-        runCatching {
-            ZipFile(jar.toFile()).use { zip ->
-                for (entry in zip.entries()) {
-                    val name = entry.name
-                    if (!name.endsWith(".class") || name.startsWith("META-INF/")) continue
-                    val data = zip.getInputStream(entry).use { it.readBytes() }
-                    // One unreadable entry must not lose the jar; a shaded jar
-                    // occasionally carries a deliberately broken class.
-                    runCatching { ClassFileApiReader.scan(data) }.getOrNull()?.let { classes += it }
-                }
-            }
-        }.getOrElse { return null }
-        val scans = LinkageAudit.JarScans(jar.fileName.toString(), classes)
+        val scans = JarScanner.scan(jar) ?: return null
         scanCache[jar] = modified to scans
         return scans
     }
