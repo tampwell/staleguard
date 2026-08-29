@@ -10,6 +10,7 @@ object LinkageMarkdown {
     fun render(
         report: LinkageAudit.Report,
         ownCode: OwnCodeAudit.Standing = OwnCodeAudit.Standing.NothingBuilt,
+        suggestions: Map<String, FixSuggestions.Suggestion> = emptyMap(),
     ): String = buildString {
         appendLine("### Classpath linkage check")
         appendLine()
@@ -46,6 +47,18 @@ object LinkageMarkdown {
                     "- `${evicted.owner.replace('/', '.')}` is not on the classpath " +
                         "(${evicted.refCount} ${plural(evicted.refCount, "reference")} from `${evicted.fromJar}`)",
                 )
+            }
+            if (suggestions.isNotEmpty()) {
+                appendLine()
+                appendLine("**The fix:**")
+                for ((jarName, suggestion) in suggestions.entries.sortedBy { it.key }) {
+                    when (suggestion) {
+                        is FixSuggestions.Suggestion.FixedIn ->
+                            appendLine("- bump `$jarName` to **${suggestion.version}** or later")
+                        FixSuggestions.Suggestion.NoCleanVersion ->
+                            appendLine("- `$jarName`: no released version satisfies every call; the callers need to move instead")
+                    }
+                }
             }
         }
         appendLine()

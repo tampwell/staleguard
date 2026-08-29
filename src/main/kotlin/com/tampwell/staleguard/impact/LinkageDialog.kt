@@ -24,6 +24,7 @@ class LinkageDialog(
     project: Project,
     private val report: LinkageAudit.Report,
     private val ownCode: OwnCodeAudit.Standing = OwnCodeAudit.Standing.NothingBuilt,
+    private val suggestions: Map<String, FixSuggestions.Suggestion> = emptyMap(),
 ) : DialogWrapper(project) {
 
     init {
@@ -38,7 +39,7 @@ class LinkageDialog(
     ) {
         override fun doAction(e: java.awt.event.ActionEvent) {
             java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(
-                java.awt.datatransfer.StringSelection(LinkageMarkdown.render(report, ownCode)),
+                java.awt.datatransfer.StringSelection(LinkageMarkdown.render(report, ownCode, suggestions)),
                 null,
             )
             close(OK_EXIT_CODE)
@@ -77,6 +78,15 @@ class LinkageDialog(
         )
     }
 
+    private fun suggestionLine(jarName: String?): String? =
+        when (val suggestion = suggestions[jarName ?: return null]) {
+            is FixSuggestions.Suggestion.FixedIn ->
+                StaleguardBundle.message("linkage.fix.version", jarName, suggestion.version)
+            FixSuggestions.Suggestion.NoCleanVersion ->
+                StaleguardBundle.message("linkage.fix.none", jarName)
+            null -> null
+        }
+
     override fun createCenterPanel(): JComponent {
         val panel = JPanel(BorderLayout(0, JBUI.scale(8)))
         val headline = if (report.clean) {
@@ -107,6 +117,8 @@ class LinkageDialog(
             val jarNode = DefaultMutableTreeNode(
                 StaleguardBundle.message("linkage.tree.jar", fromJar, broken.size),
             )
+            suggestionLine(broken.firstNotNullOfOrNull { it.ownerJar })
+                ?.let { jarNode.add(DefaultMutableTreeNode(it)) }
             for (entry in broken.groupBy { it.ref }.entries.sortedByDescending { it.value.size }) {
                 jarNode.add(
                     DefaultMutableTreeNode(
@@ -119,6 +131,13 @@ class LinkageDialog(
                 )
             }
             root.add(jarNode)
+        }
+        for (jarName in suggestions.keys.sorted()) {
+            // A suggestion attributed only through evicted classes belongs to
+            // a jar no broken-member group displayed; it still gets its line.
+            if (report.brokenMembers.none { it.ownerJar == jarName }) {
+                suggestionLine(jarName)?.let { root.add(DefaultMutableTreeNode(it)) }
+            }
         }
         for (evicted in report.evictedClasses.sortedByDescending { it.refCount }) {
             root.add(

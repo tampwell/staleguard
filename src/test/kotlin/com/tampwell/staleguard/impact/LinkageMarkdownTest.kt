@@ -77,6 +77,22 @@ class LinkageMarkdownTest {
     }
 
     @Test
+    fun `the fix block names the bump or the honest absence of one`() {
+        val markdown = LinkageMarkdown.render(
+            LinkageAudit.Report(3, 900, 22902, listOf(broken), emptyList()),
+            OwnCodeAudit.Standing.NothingBuilt,
+            mapOf(
+                "jackson-core-2.13.0.jar" to FixSuggestions.Suggestion.FixedIn("2.15.0"),
+                "vendored.jar" to FixSuggestions.Suggestion.NoCleanVersion,
+            ),
+        )
+
+        assertTrue(markdown.contains("**The fix:**"))
+        assertTrue(markdown.contains("- bump `jackson-core-2.13.0.jar` to **2.15.0** or later"))
+        assertTrue(markdown.contains("- `vendored.jar`: no released version satisfies every call"))
+    }
+
+    @Test
     fun `output ends with exactly one newline and carries the attribution line`() {
         val markdown = LinkageMarkdown.render(LinkageAudit.Report(1, 1, 1, emptyList(), emptyList()))
 

@@ -45,7 +45,7 @@ internal class CheckClasspathAction : AnAction(
             }
 
             override fun onSuccess() {
-                result?.let { LinkageDialog(project, it.report, it.ownCode).show() }
+                result?.let { LinkageDialog(project, it.report, it.ownCode, it.suggestions).show() }
             }
         }.queue()
     }

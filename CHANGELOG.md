@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [2.2.0] - 2026-08-29
+
+### Added
+- The classpath check now tells you the fix. For every jar whose calls cannot link, Staleguard finds the earliest released version that satisfies everything the classpath asks of it, by actually downloading candidates and checking, and says "bump jackson-core to 2.15.0 or later" right in the findings and in the Markdown export. When no released version satisfies every call, it says that instead, because the callers are what has to move and pretending otherwise wastes your afternoon.
+- Computed, never guessed. Suggestions come from probing real binaries, capped at eight downloads per jar through the same repositories, mirrors and credentials your other lookups use. A jar that cannot be identified as Maven coordinates gets no suggestion, versions your .staleguard.toml pins forbid are never suggested, and a cold version cache means no suggestion this run rather than a surprise network fan-out.
+
 ## [2.1.0] - 2026-08-28
 
 ### Added
