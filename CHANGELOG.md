@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-08-28
+
+### Added
+- Classpath linkage check. One click in the tool window resolves every call every jar makes against what the rest of your resolved classpath actually declares, and reports the calls that cannot link: the NoSuchMethodError and NoClassDefFoundError a version conflict produces when dependency resolution evicted the version somebody was compiled against. You see them before the app runs, named by the jar whose calls fail and the jar whose version has to move.
+- The check reads constant pools, not bytecode bodies, so a full classpath resolves in seconds: a 28 jar, 125,000 class product classpath checks 977,000 references in under four seconds, and repeat runs re-read nothing that has not changed.
+- Precision over recall, throughout. JDK membership is answered by your project SDK, so the verdict matches the Java you actually compile against. A missing class only counts when its package is partially present, which is what separates a version conflict from an optional dependency. Groovy runtime callers are excluded because Groovy dispatches through its own runtime. On a real product classpath this leaves three findings in 977,000 references, and two of them are real.
+- Results copy as Markdown, because a classpath conflict is a team conversation: the paste names the member, the caller, and the jar whose version has to move.
+
 ## [1.9.0] - 2026-08-27
 
 ### Added
