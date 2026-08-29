@@ -20,7 +20,11 @@ import javax.swing.tree.DefaultTreeModel
  * and findings are grouped by the jar whose calls would fail, because that is
  * the jar whose version has to move.
  */
-class LinkageDialog(project: Project, private val report: LinkageAudit.Report) : DialogWrapper(project) {
+class LinkageDialog(
+    project: Project,
+    private val report: LinkageAudit.Report,
+    private val ownCode: OwnCodeAudit.Standing = OwnCodeAudit.Standing.NothingBuilt,
+) : DialogWrapper(project) {
 
     init {
         title = StaleguardBundle.message("linkage.dialog.title")
@@ -34,11 +38,43 @@ class LinkageDialog(project: Project, private val report: LinkageAudit.Report) :
     ) {
         override fun doAction(e: java.awt.event.ActionEvent) {
             java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(
-                java.awt.datatransfer.StringSelection(LinkageMarkdown.render(report)),
+                java.awt.datatransfer.StringSelection(LinkageMarkdown.render(report, ownCode)),
                 null,
             )
             close(OK_EXIT_CODE)
         }
+    }
+
+    /**
+     * States what the own-code half of the verdict is allowed to claim. A
+     * clean report with a partial build must not read as "your code is clean",
+     * because the unbuilt modules were never checked.
+     */
+    private fun ownCodeLine(): JBLabel? = when (val standing = ownCode) {
+        is OwnCodeAudit.Standing.Built ->
+            if (report.clean) {
+                JBLabel(
+                    StaleguardBundle.message(
+                        "linkage.owncode.clean",
+                        java.text.DateFormat.getDateTimeInstance(java.text.DateFormat.SHORT, java.text.DateFormat.SHORT)
+                            .format(java.util.Date(standing.asOfMillis)),
+                    ),
+                    AllIcons.General.InspectionsOK,
+                    JBLabel.LEADING,
+                )
+            } else {
+                null // the findings tree already speaks for itself
+            }
+        is OwnCodeAudit.Standing.PartiallyBuilt -> JBLabel(
+            StaleguardBundle.message("linkage.owncode.partial", standing.missingModules.joinToString(", ")),
+            AllIcons.General.Information,
+            JBLabel.LEADING,
+        )
+        OwnCodeAudit.Standing.NothingBuilt -> JBLabel(
+            StaleguardBundle.message("linkage.owncode.unbuilt"),
+            AllIcons.General.Information,
+            JBLabel.LEADING,
+        )
     }
 
     override fun createCenterPanel(): JComponent {
@@ -60,7 +96,10 @@ class LinkageDialog(project: Project, private val report: LinkageAudit.Report) :
                 JBLabel.LEADING,
             )
         }
-        panel.add(headline, BorderLayout.NORTH)
+        val header = javax.swing.Box.createVerticalBox()
+        header.add(headline)
+        ownCodeLine()?.let { header.add(it) }
+        panel.add(header, BorderLayout.NORTH)
         if (report.clean) return panel
 
         val root = DefaultMutableTreeNode(StaleguardBundle.message("linkage.tree.root"))

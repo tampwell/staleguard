@@ -26,7 +26,7 @@ class LinkageMarkdownTest {
             LinkageAudit.Report(jarCount = 28, classCount = 1000, refCount = 977057, brokenMembers = emptyList(), evictedClasses = emptyList()),
         )
 
-        assertTrue(markdown.contains("Every call across 28 jars resolves (977057 references checked)."))
+        assertTrue(markdown.contains("Every call across 28 classpath entries resolves (977057 references checked)."))
         assertTrue(markdown.contains("Nothing will fail to link."))
     }
 
@@ -56,6 +56,24 @@ class LinkageMarkdownTest {
 
         assertEquals(1, Regex("streamReadConstraints").findAll(markdown).count())
         assertTrue(markdown.contains("**3** calls cannot resolve"))
+    }
+
+    @Test
+    fun `the own-code standing is stated in every export`() {
+        val clean = LinkageAudit.Report(2, 10, 100, emptyList(), emptyList())
+
+        assertTrue(
+            LinkageMarkdown.render(clean, OwnCodeAudit.Standing.Built(asOfMillis = 1000))
+                .contains("_Includes your own compiled classes, as of the last build._"),
+        )
+        assertTrue(
+            LinkageMarkdown.render(clean, OwnCodeAudit.Standing.PartiallyBuilt(listOf("web", "cli"), 1000))
+                .contains("EXCEPT unbuilt modules web, cli; their calls were not checked."),
+        )
+        assertTrue(
+            LinkageMarkdown.render(clean, OwnCodeAudit.Standing.NothingBuilt)
+                .contains("_Jars only; no compiled project output was found to include._"),
+        )
     }
 
     @Test

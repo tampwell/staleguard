@@ -24,7 +24,9 @@ class ClasspathLinkageService(private val project: Project) {
     /** Jar scans keyed by path and modification time, so repeat runs re-read nothing. */
     private val scanCache = ConcurrentHashMap<Path, Pair<FileTime, LinkageAudit.JarScans>>()
 
-    fun audit(indicator: ProgressIndicator): LinkageAudit.Report {
+    data class Result(val report: LinkageAudit.Report, val ownCode: OwnCodeAudit.Standing)
+
+    fun audit(indicator: ProgressIndicator): Result {
         val jars = ProjectClasspath.libraryJars(project)
         indicator.isIndeterminate = false
 
@@ -33,15 +35,24 @@ class ClasspathLinkageService(private val project: Project) {
             indicator.fraction = index.toDouble() / jars.size * SCAN_SHARE
             indicator.text2 = jar.fileName.toString()
             scansOf(jar)
-        }
+        }.toMutableList()
+
+        // The user's own compiled classes join as one more scan set. Their
+        // calls into the classpath are where a conflict actually bites, and
+        // OwnCodeAudit.standing is what keeps a stale or partial build from
+        // turning into a false promise.
+        val outputs = ModuleOutputs.collect(project)
+        val standing = OwnCodeAudit.standing(outputs)
+        scans += OwnCodeAudit.auditableScans(outputs)
 
         indicator.text2 = ""
         indicator.fraction = SCAN_SHARE
         val platformMembers = PsiPlatformMembers(project)
-        return LinkageAudit.run(scans) { internalName, memberName ->
+        val report = LinkageAudit.run(scans) { internalName, memberName ->
             indicator.checkCanceled()
             platformMembers.has(internalName, memberName)
         }
+        return Result(report, standing)
     }
 
     private fun scansOf(jar: Path): LinkageAudit.JarScans? {

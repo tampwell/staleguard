@@ -7,12 +7,24 @@ package com.tampwell.staleguard.impact
  */
 object LinkageMarkdown {
 
-    fun render(report: LinkageAudit.Report): String = buildString {
+    fun render(
+        report: LinkageAudit.Report,
+        ownCode: OwnCodeAudit.Standing = OwnCodeAudit.Standing.NothingBuilt,
+    ): String = buildString {
         appendLine("### Classpath linkage check")
+        appendLine()
+        when (ownCode) {
+            is OwnCodeAudit.Standing.Built -> appendLine("_Includes your own compiled classes, as of the last build._")
+            is OwnCodeAudit.Standing.PartiallyBuilt -> appendLine(
+                "_Includes your compiled classes EXCEPT unbuilt ${plural(ownCode.missingModules.size, "module")} " +
+                    "${ownCode.missingModules.joinToString(", ")}; their calls were not checked._",
+            )
+            OwnCodeAudit.Standing.NothingBuilt -> appendLine("_Jars only; no compiled project output was found to include._")
+        }
         appendLine()
         if (report.clean) {
             appendLine(
-                "Every call across ${report.jarCount} ${plural(report.jarCount, "jar")} resolves " +
+                "Every call across ${report.jarCount} classpath ${plural(report.jarCount, "entry", "entries")} resolves " +
                     "(${report.refCount} references checked). Nothing will fail to link.",
             )
         } else {
@@ -40,5 +52,6 @@ object LinkageMarkdown {
         appendLine("_Staleguard classpath linkage check, resolved at the bytecode level._")
     }.trimEnd() + "\n"
 
-    private fun plural(count: Int, word: String) = if (count == 1) word else word + "s"
+    private fun plural(count: Int, word: String, pluralForm: String = word + "s") =
+        if (count == 1) word else pluralForm
 }

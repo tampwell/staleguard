@@ -12,10 +12,10 @@ import com.intellij.testFramework.fixtures.BasePlatformTestCase
 class ClasspathLinkagePlatformTest : BasePlatformTestCase() {
 
     fun `test an empty classpath audits clean and fast`() {
-        val report = ClasspathLinkageService.getInstance(project).audit(EmptyProgressIndicator())
+        val result = ClasspathLinkageService.getInstance(project).audit(EmptyProgressIndicator())
 
-        assertTrue(report.clean)
-        assertEquals(0, report.jarCount)
+        assertTrue(result.report.clean)
+        assertEquals(0, result.report.jarCount)
     }
 
     override fun setUp() {

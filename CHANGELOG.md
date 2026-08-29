@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-08-28
+
+### Added
+- Your own code joins the classpath linkage check. Every module's compiled classes are audited exactly like the jars, so the calls YOUR code makes into a conflicted classpath, which is where a version conflict actually bites, are reported with the same precision: in testing, one finding, the right one, zero noise.
+- Honest about builds, always. The verdict states whether your code was included and as of which build. A module with no compiled output is named, and a clean claim is never made while any module is unchecked: findings always show, but "your code is clean" is a promise, and promises need the whole project built.
+
 ## [2.0.0] - 2026-08-28
 
 ### Added

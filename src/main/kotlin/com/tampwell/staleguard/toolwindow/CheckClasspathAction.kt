@@ -9,7 +9,6 @@ import com.intellij.openapi.project.DumbService
 import com.intellij.openapi.project.Project
 import com.tampwell.staleguard.StaleguardBundle
 import com.tampwell.staleguard.impact.ClasspathLinkageService
-import com.tampwell.staleguard.impact.LinkageAudit
 import com.tampwell.staleguard.impact.LinkageDialog
 
 /**
@@ -39,14 +38,14 @@ internal class CheckClasspathAction : AnAction(
 
     private fun run(project: Project) {
         object : Task.Backgroundable(project, StaleguardBundle.message("linkage.progress"), true) {
-            private var report: LinkageAudit.Report? = null
+            private var result: ClasspathLinkageService.Result? = null
 
             override fun run(indicator: ProgressIndicator) {
-                report = ClasspathLinkageService.getInstance(project).audit(indicator)
+                result = ClasspathLinkageService.getInstance(project).audit(indicator)
             }
 
             override fun onSuccess() {
-                report?.let { LinkageDialog(project, it).show() }
+                result?.let { LinkageDialog(project, it.report, it.ownCode).show() }
             }
         }.queue()
     }
