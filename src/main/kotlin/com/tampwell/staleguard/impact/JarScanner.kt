@@ -18,7 +18,10 @@ object JarScanner {
         val classes = mutableListOf<ClassScan>()
         return runCatching {
             java.nio.file.Files.walk(root).use { stream ->
-                stream.filter { it.fileName.toString().endsWith(".class") }.forEach { file ->
+                stream.filter { file ->
+                    val name = file.fileName.toString()
+                    name.endsWith(".class") && name != "module-info.class"
+                }.forEach { file ->
                     val data = java.nio.file.Files.readAllBytes(file)
                     runCatching { ClassFileApiReader.scan(data) }.getOrNull()?.let { classes += it }
                 }
@@ -50,6 +53,11 @@ object JarScanner {
                 for (entry in zip.entries()) {
                     val name = entry.name
                     if (!name.endsWith(".class") || name.startsWith("META-INF/")) continue
+                    // A module descriptor is not a class anyone links against,
+                    // and every modular jar carries one under the same name —
+                    // excluding it here keeps that invariant deliberate
+                    // instead of relying on descriptors having no members.
+                    if (name.endsWith("module-info.class")) continue
                     val data = zip.getInputStream(entry).use { it.readBytes() }
                     // One unreadable entry must not lose the jar; a shaded jar
                     // occasionally carries a deliberately broken class.
