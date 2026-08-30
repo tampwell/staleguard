@@ -80,11 +80,19 @@ class LinkageWatchService(private val project: Project) : Disposable {
     }
 
     private fun notify(delta: LinkageDelta.Delta) {
+        // Broken calls and latent shadowing are different news; a shadow-only
+        // delta must not claim calls will fail.
+        val failing = delta.newBroken.size + delta.newEvicted.size
+        val content = listOfNotNull(
+            StaleguardBundle.message("linkage.watch.news", failing).takeIf { failing > 0 },
+            StaleguardBundle.message("linkage.watch.news.shadow", delta.newShadowed.size)
+                .takeIf { delta.newShadowed.isNotEmpty() },
+        ).joinToString(" ")
         NotificationGroupManager.getInstance()
             .getNotificationGroup("Staleguard")
             .createNotification(
                 StaleguardBundle.message("notification.title"),
-                StaleguardBundle.message("linkage.watch.news", delta.count),
+                content,
                 NotificationType.WARNING,
             )
             .addAction(

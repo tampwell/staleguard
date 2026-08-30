@@ -40,6 +40,12 @@ object LinkageAudit {
         val refCount: Int,
         val brokenMembers: List<BrokenRef>,
         val evictedClasses: List<EvictedClassRefs>,
+        /**
+         * Duplicate classes with differing APIs ([ShadowAudit]). Latent, not
+         * broken calls, so they do not unset [clean] — but they render, and
+         * the watcher treats a newly appearing group as news.
+         */
+        val shadowedGroups: List<ShadowAudit.ShadowGroup> = emptyList(),
     ) {
         val clean: Boolean get() = brokenMembers.isEmpty() && evictedClasses.isEmpty()
     }

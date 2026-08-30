@@ -4,32 +4,17 @@
 
 ## [Unreleased]
 
-## [2.4.0] - 2026-08-30
+## [2.1.0] - 2026-08-30
 
 ### Added
-- The classpath check now audits each module's REAL classpath, not a project-wide union. A union is a set no JVM ever loads: it stays silent when a class is missing from the module that needs it but happens to sit on a sibling module's classpath, and it can resolve duplicate versions in a combination no module actually runs with. Every module is now resolved against exactly its own jars and the module outputs that ride along at its runtime, and findings name the modules they hold in.
-- Merged honestly, priced sensibly. The same break appearing in several modules is one finding listing its modules, not several, so reports, the background watcher and fix suggestions keep their shape and a known break appearing in one more module never re-notifies. Modules sharing a classpath are audited once, jars are scanned once however many modules use them, and a single-module project reads exactly as before.
+- Your own code joins the classpath linkage check. Every module's compiled classes are audited exactly like the jars, so the calls YOUR code makes into a conflicted classpath, which is where a version conflict actually bites, are reported with the same precision. The verdict states whether your code was included and as of which build; a module with no compiled output is named, and a clean claim is never made while any module is unchecked, because "your code is clean" is a promise and promises need the whole project built.
+- The classpath check now tells you the fix. For every jar whose calls cannot link, Staleguard finds the earliest released version that satisfies everything the classpath asks of it, by actually downloading candidates and checking, and says "bump jackson-core to 2.15.0 or later" right in the findings. When no released version satisfies every call, it says that instead. Suggestions are computed, never guessed: capped at eight probes per jar through the same repositories, mirrors and credentials your other lookups use, never a version your .staleguard.toml pins forbid, and a cold cache means no suggestion this run rather than a surprise network fan-out.
+- The classpath check now watches. After a Maven or Gradle sync changes your dependencies, the check re-runs by itself in the background and notifies you only when the change introduced a NEW problem that was not there before the sync. The first run establishes a baseline silently, known findings never re-notify, and one click opens the full report. Automatic means local: the background re-check scans and resolves, nothing more, and the whole behavior sits behind one setting, on by default.
+- Each module's REAL classpath is audited, not a project-wide union. A union is a set no JVM ever loads: it stays silent when a class is missing from the module that needs it but happens to sit on a sibling module's classpath. Every module is now resolved against exactly its own jars and module outputs, findings name the modules they hold in, the same break in several modules is one finding rather than several, and a single-module project reads exactly as before.
+- Shadowed class detection. When the same class exists in more than one jar with DIFFERING APIs, classpath order silently decides which copy runs. These conflicts are reported by the jar whose copy wins and the jars it shadows, grouped by the jar set in conflict rather than per class, because one conflicted pair carrying forty duplicated classes is one problem with one fix. Byte-identical copies and compiler-synthetic differences stay silent, priced against a real 141-jar classpath where 271 duplicated names contained exactly one differing group.
 
 ### Changed
-- The clean verdict in a multi-module project now says what was actually proven: every call resolves on each module's own classpath, which is a strictly stronger statement than the union check ever made.
-
-## [2.3.0] - 2026-08-29
-
-### Added
-- The classpath check now watches. After a Maven or Gradle sync changes your dependencies, the linkage check re-runs by itself in the background and notifies you only when the change introduced a NEW break: a call that will fail at runtime which was fine before the sync. The first run after opening a project establishes a baseline silently, findings you already knew about never re-notify, and extra call sites for a known break stay quiet. One click on the notification opens the full report with fix suggestions.
-- Automatic means local. The background re-check scans and resolves, nothing more: fix-version probes download jars, so they stay behind your explicit click. The whole behavior sits behind one setting, on by default because the measured noise floor is three findings in a million references.
-
-## [2.2.0] - 2026-08-29
-
-### Added
-- The classpath check now tells you the fix. For every jar whose calls cannot link, Staleguard finds the earliest released version that satisfies everything the classpath asks of it, by actually downloading candidates and checking, and says "bump jackson-core to 2.15.0 or later" right in the findings and in the Markdown export. When no released version satisfies every call, it says that instead, because the callers are what has to move and pretending otherwise wastes your afternoon.
-- Computed, never guessed. Suggestions come from probing real binaries, capped at eight downloads per jar through the same repositories, mirrors and credentials your other lookups use. A jar that cannot be identified as Maven coordinates gets no suggestion, versions your .staleguard.toml pins forbid are never suggested, and a cold version cache means no suggestion this run rather than a surprise network fan-out.
-
-## [2.1.0] - 2026-08-28
-
-### Added
-- Your own code joins the classpath linkage check. Every module's compiled classes are audited exactly like the jars, so the calls YOUR code makes into a conflicted classpath, which is where a version conflict actually bites, are reported with the same precision: in testing, one finding, the right one, zero noise.
-- Honest about builds, always. The verdict states whether your code was included and as of which build. A module with no compiled output is named, and a clean claim is never made while any module is unchecked: findings always show, but "your code is clean" is a promise, and promises need the whole project built.
+- The clean verdict in a multi-module project now says what was actually proven: every call resolves on each module's own classpath, a strictly stronger statement than any union check could make.
 
 ## [2.0.0] - 2026-08-28
 

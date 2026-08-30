@@ -21,6 +21,19 @@ object LinkageMarkdown {
             val listed = if (names.size == moduleCount) "every module" else names.joinToString(", ")
             return " (in ${plural(names.size, "module")}: $listed)"
         }
+        fun renderShadowed() {
+            if (report.shadowedGroups.isEmpty()) return
+            appendLine()
+            appendLine("**Shadowed classes** (classpath order decides which copy runs):")
+            for (shadow in report.shadowedGroups.sortedByDescending { it.classCount }) {
+                appendLine(
+                    "- `${shadow.winnerJar}` wins over ${shadow.shadowedJars.joinToString(", ") { "`$it`" }}: " +
+                        "${shadow.classCount} ${plural(shadow.classCount, "class", "classes")} with differing APIs " +
+                        "(e.g. ${shadow.examples.joinToString(", ") { "`$it`" }})" +
+                        modulesSuffix(listOf(LinkageDelta.keyOf(shadow))),
+                )
+            }
+        }
         appendLine("### Classpath linkage check")
         appendLine()
         when (ownCode) {
@@ -39,6 +52,7 @@ object LinkageMarkdown {
                 "Every call across ${report.jarCount} classpath ${plural(report.jarCount, "entry", "entries")} resolves" +
                     "$scopeClause (${report.refCount} references checked). Nothing will fail to link.",
             )
+            renderShadowed()
         } else {
             appendLine(
                 "**${report.brokenMembers.size}** ${plural(report.brokenMembers.size, "call")} cannot resolve; " +
@@ -60,6 +74,7 @@ object LinkageMarkdown {
                         modulesSuffix(listOf(LinkageDelta.keyOf(evicted))),
                 )
             }
+            renderShadowed()
             if (suggestions.isNotEmpty()) {
                 appendLine()
                 appendLine("**The fix:**")

@@ -16,9 +16,13 @@ object LinkageDelta {
     /** A finding's identity across runs: what broke, not how many call sites hit it. */
     data class Key(val fromJar: String, val detail: String)
 
-    data class Delta(val newBroken: List<LinkageAudit.BrokenRef>, val newEvicted: List<LinkageAudit.EvictedClassRefs>) {
-        val isNews: Boolean get() = newBroken.isNotEmpty() || newEvicted.isNotEmpty()
-        val count: Int get() = newBroken.size + newEvicted.size
+    data class Delta(
+        val newBroken: List<LinkageAudit.BrokenRef>,
+        val newEvicted: List<LinkageAudit.EvictedClassRefs>,
+        val newShadowed: List<ShadowAudit.ShadowGroup> = emptyList(),
+    ) {
+        val isNews: Boolean get() = newBroken.isNotEmpty() || newEvicted.isNotEmpty() || newShadowed.isNotEmpty()
+        val count: Int get() = newBroken.size + newEvicted.size + newShadowed.size
     }
 
     fun keyOf(finding: LinkageAudit.BrokenRef): Key =
@@ -26,11 +30,22 @@ object LinkageDelta {
 
     fun keyOf(finding: LinkageAudit.EvictedClassRefs): Key = Key(finding.fromJar, finding.owner)
 
+    /**
+     * A shadow group's identity is the jar set in conflict, not the class
+     * count: one more duplicated class inside an already-known conflict is the
+     * same conflict.
+     */
+    fun keyOf(finding: ShadowAudit.ShadowGroup): Key =
+        Key(finding.winnerJar, "shadowed by ${finding.shadowedJars.joinToString(", ")}")
+
     fun fingerprint(report: LinkageAudit.Report): Set<Key> =
-        report.brokenMembers.mapTo(HashSet(), ::keyOf) + report.evictedClasses.mapTo(HashSet(), ::keyOf)
+        report.brokenMembers.mapTo(HashSet(), ::keyOf) +
+            report.evictedClasses.mapTo(HashSet(), ::keyOf) +
+            report.shadowedGroups.mapTo(HashSet(), ::keyOf)
 
     fun newSince(previous: Set<Key>, current: LinkageAudit.Report): Delta = Delta(
         newBroken = current.brokenMembers.filter { keyOf(it) !in previous }.distinctBy(::keyOf),
         newEvicted = current.evictedClasses.filter { keyOf(it) !in previous },
+        newShadowed = current.shadowedGroups.filter { keyOf(it) !in previous },
     )
 }

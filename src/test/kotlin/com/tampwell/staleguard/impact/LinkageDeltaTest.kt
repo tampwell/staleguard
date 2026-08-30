@@ -83,6 +83,20 @@ class LinkageDeltaTest {
     }
 
     @Test
+    fun `a new shadow group is news, but more classes inside a known group are not`() {
+        val known = ShadowAudit.ShadowGroup("a.jar", listOf("b.jar"), 2, listOf("lib.X"))
+        val baseline = LinkageDelta.fingerprint(report().copy(shadowedGroups = listOf(known)))
+
+        val grown = known.copy(classCount = 7, examples = listOf("lib.X", "lib.Y"))
+        assertFalse(LinkageDelta.newSince(baseline, report().copy(shadowedGroups = listOf(grown))).isNews)
+
+        val fresh = ShadowAudit.ShadowGroup("a.jar", listOf("c.jar"), 1, listOf("lib.Z"))
+        val delta = LinkageDelta.newSince(baseline, report().copy(shadowedGroups = listOf(grown, fresh)))
+        assertTrue(delta.isNews)
+        assertEquals(listOf(fresh), delta.newShadowed)
+    }
+
+    @Test
     fun `duplicate new findings collapse to one notification-worthy entry`() {
         val baseline = LinkageDelta.fingerprint(report())
         val dup = broken("app.jar", "gone")

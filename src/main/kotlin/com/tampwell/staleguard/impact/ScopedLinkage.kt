@@ -38,6 +38,7 @@ object ScopedLinkage {
 
         val broken = LinkedHashMap<LinkageDelta.Key, LinkageAudit.BrokenRef>()
         val evicted = LinkedHashMap<LinkageDelta.Key, LinkageAudit.EvictedClassRefs>()
+        val shadowed = LinkedHashMap<LinkageDelta.Key, ShadowAudit.ShadowGroup>()
         val modules = HashMap<LinkageDelta.Key, MutableList<String>>()
         var done = 0
         for (group in groups.values) {
@@ -54,6 +55,11 @@ object ScopedLinkage {
                 evicted.merge(key, finding) { a, b -> if (a.refCount >= b.refCount) a else b }
                 modules.getOrPut(key) { mutableListOf() } += names
             }
+            for (finding in ShadowAudit.run(group.first().jars)) {
+                val key = LinkageDelta.keyOf(finding)
+                shadowed.merge(key, finding) { a, b -> if (a.classCount >= b.classCount) a else b }
+                modules.getOrPut(key) { mutableListOf() } += names
+            }
             done += group.size
             onScopeDone(done, scopes.size)
         }
@@ -68,6 +74,7 @@ object ScopedLinkage {
                 },
                 brokenMembers = broken.values.toList(),
                 evictedClasses = evicted.values.toList(),
+                shadowedGroups = shadowed.values.toList(),
             ),
             moduleCount = scopes.size,
             modulesByFinding = modules.mapValues { (_, names) -> names.distinct().sorted() },

@@ -115,6 +115,31 @@ class ScopedLinkageTest {
     }
 
     @Test
+    fun `shadowed classes merge across scopes with module attribution`() {
+        fun copy(members: List<String>) = ClassScan(
+            api = ClassApi("dup/Thing", "java/lang/Object", emptyList(), members.map { MemberKey(it, "()V") }.toSet()),
+            declaredAll = members.mapTo(LinkedHashSet()) { MemberKey(it, "()V") },
+            refs = emptySet(),
+        )
+        val winner = jar("old.jar", copy(listOf("run")))
+        val loser = jar("new.jar", copy(listOf("run", "runFaster")))
+
+        val merged = ScopedLinkage.run(
+            listOf(
+                ScopedLinkage.Scope("app", listOf(winner, loser)),
+                ScopedLinkage.Scope("web", listOf(winner, loser)),
+                ScopedLinkage.Scope("api", listOf(winner)),
+            ),
+            noJdk,
+        )
+
+        val shadow = merged.report.shadowedGroups.single()
+        assertEquals("old.jar", shadow.winnerJar)
+        assertEquals(listOf("app", "web"), merged.modulesByFinding[LinkageDelta.keyOf(shadow)])
+        assertTrue(merged.report.clean) // latent, not broken calls
+    }
+
+    @Test
     fun `progress reports scopes finished out of the total, reaching the end`() {
         val ticks = mutableListOf<Pair<Int, Int>>()
 

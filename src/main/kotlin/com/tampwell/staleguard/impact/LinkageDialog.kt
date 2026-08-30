@@ -134,9 +134,21 @@ class LinkageDialog(
         }
         val header = javax.swing.Box.createVerticalBox()
         header.add(headline)
+        if (report.shadowedGroups.isNotEmpty()) {
+            header.add(
+                JBLabel(
+                    StaleguardBundle.message(
+                        "linkage.verdict.shadowed",
+                        report.shadowedGroups.sumOf { it.classCount },
+                    ),
+                    AllIcons.General.Warning,
+                    JBLabel.LEADING,
+                ),
+            )
+        }
         ownCodeLine()?.let { header.add(it) }
         panel.add(header, BorderLayout.NORTH)
-        if (report.clean) return panel
+        if (report.clean && report.shadowedGroups.isEmpty()) return panel
 
         val root = DefaultMutableTreeNode(StaleguardBundle.message("linkage.tree.root"))
         for ((fromJar, broken) in report.brokenMembers.groupBy { it.fromJar }) {
@@ -175,6 +187,19 @@ class LinkageDialog(
             )
             val suffix = modulesLine(listOf(LinkageDelta.keyOf(evicted)))?.let { ", $it" } ?: ""
             root.add(DefaultMutableTreeNode(base + suffix))
+        }
+        for (shadow in report.shadowedGroups.sortedByDescending { it.classCount }) {
+            val node = DefaultMutableTreeNode(
+                StaleguardBundle.message(
+                    "linkage.tree.shadow",
+                    shadow.winnerJar,
+                    shadow.shadowedJars.joinToString(", "),
+                    shadow.classCount,
+                    shadow.examples.joinToString(", "),
+                ),
+            )
+            modulesLine(listOf(LinkageDelta.keyOf(shadow)))?.let { node.add(DefaultMutableTreeNode(it)) }
+            root.add(node)
         }
         val tree = Tree(DefaultTreeModel(root))
         tree.isRootVisible = true
