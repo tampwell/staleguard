@@ -110,7 +110,9 @@ class LinkageVerdictState(private val project: Project) : PersistentStateCompone
     }
 
     override fun loadState(state: Bean) {
-        if (state.hasVerdict) current = Verdict(state.failing, state.shadowed, state.asOfMillis)
+        // The loaded state replaces in full: an empty bean means no verdict,
+        // not "keep whatever was here".
+        current = if (state.hasVerdict) Verdict(state.failing, state.shadowed, state.asOfMillis) else null
         problems = state.problems.associate { bean ->
             Coordinates(bean.groupId, bean.artifactId) to JarProblem(
                 version = bean.version,
