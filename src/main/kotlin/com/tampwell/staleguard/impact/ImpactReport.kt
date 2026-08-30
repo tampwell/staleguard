@@ -30,10 +30,22 @@ data class ImpactReport(
     val incomplete: Incomplete? = null,
     /** True when the removal list was too long to search in full; the report says so instead of implying "all clear". */
     val searchTruncated: Boolean = false,
+    /** What the upgrade does to the whole classpath's linkage; null when no rehearsal ran. */
+    val rehearsal: Rehearsal? = null,
 ) {
     val verdict: ImpactVerdict get() = ImpactVerdict.of(this)
 
     val affectedCallSites: Int get() = usages.sumOf { it.locations.size }
+
+    /**
+     * The classpath-audit diff of swapping the current jar for the candidate:
+     * which known linkage problems disappear and which new ones appear,
+     * anywhere on any module's classpath. Display lines, precomputed, so the
+     * report stays platform-free.
+     */
+    data class Rehearsal(val fixed: List<String>, val introduced: List<String>) {
+        val changesNothing: Boolean get() = fixed.isEmpty() && introduced.isEmpty()
+    }
 
     enum class Incomplete {
         /** The current version's jar was not on disk and could not be fetched. */

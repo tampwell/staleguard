@@ -39,7 +39,8 @@ class UpgradeImpactService(private val project: Project) {
             usages: List<RemovedUsage> = emptyList(),
             incomplete: ImpactReport.Incomplete? = null,
             truncated: Boolean = false,
-        ) = ImpactReport(coordinate, fromVersion, toVersion, removedTotal, usages, incomplete, truncated)
+            rehearsal: ImpactReport.Rehearsal? = null,
+        ) = ImpactReport(coordinate, fromVersion, toVersion, removedTotal, usages, incomplete, truncated, rehearsal)
             .also { ImpactMemory.getInstance(project).record(it) }
 
         val cache = RemovedMembersCache(cacheDirectory())
@@ -55,7 +56,8 @@ class UpgradeImpactService(private val project: Project) {
         val workspace = Files.createTempDirectory("staleguard-impact")
         try {
             indicator.text2 = fromVersion
-            val currentJar = ProjectClasspath.findArtifactJar(classpath, coordinates.artifactId, fromVersion)
+            val localCurrent = ProjectClasspath.findArtifactJar(classpath, coordinates.artifactId, fromVersion)
+            val currentJar = localCurrent
                 ?: fetch(coordinates, fromVersion, workspace.resolve("current.jar"), indicator)
                 ?: return report(incomplete = ImpactReport.Incomplete.CURRENT_JAR_UNAVAILABLE)
 
@@ -79,7 +81,25 @@ class UpgradeImpactService(private val project: Project) {
             cache.write(coordinates, fromVersion, toVersion, removed)
 
             val found = RemovedMemberUsageSearch.find(project, removed, indicator)
-            return report(removed.size, found.usages, truncated = !found.searchedAll)
+
+            // The rehearsal only makes sense when the current jar is the one
+            // this project actually resolves; a fetched stand-in is not on
+            // any scope's classpath. Its failure never sinks the impact
+            // report — the rehearsal line is simply absent.
+            val rehearsal = if (localCurrent != null) {
+                indicator.text2 = com.tampwell.staleguard.StaleguardBundle.message("impact.rehearsing")
+                try {
+                    ClasspathLinkageService.getInstance(project).rehearseUpgrade(indicator, localCurrent, candidateJar)
+                } catch (e: ProcessCanceledException) {
+                    throw e
+                } catch (e: Exception) {
+                    log.info("Staleguard: classpath rehearsal failed for $coordinate $toVersion", e)
+                    null
+                }
+            } else {
+                null
+            }
+            return report(removed.size, found.usages, truncated = !found.searchedAll, rehearsal = rehearsal)
         } finally {
             runCatching { Files.walk(workspace).sorted(Comparator.reverseOrder()).forEach(Files::deleteIfExists) }
         }

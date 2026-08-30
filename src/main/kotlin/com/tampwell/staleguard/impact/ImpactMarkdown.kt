@@ -37,6 +37,29 @@ object ImpactMarkdown {
             // in the PR it gets pasted into, so it names itself incomplete.
             ImpactVerdict.UNKNOWN -> appendLine("Analysis incomplete; no conclusion.")
         }
+        report.rehearsal?.let { rehearsal ->
+            appendLine()
+            when {
+                rehearsal.changesNothing ->
+                    appendLine("**Classpath rehearsal:** linkage unchanged; nothing new breaks anywhere on the classpath.")
+                else -> {
+                    if (rehearsal.fixed.isNotEmpty()) {
+                        appendLine(
+                            "**Classpath rehearsal:** this upgrade fixes ${rehearsal.fixed.size} known linkage " +
+                                "${plural(rehearsal.fixed.size, "problem")}:",
+                        )
+                        rehearsal.fixed.forEach { appendLine("- $it") }
+                    }
+                    if (rehearsal.introduced.isNotEmpty()) {
+                        appendLine(
+                            "**Classpath rehearsal:** this upgrade introduces ${rehearsal.introduced.size} new linkage " +
+                                "${plural(rehearsal.introduced.size, "problem")}:",
+                        )
+                        rehearsal.introduced.forEach { appendLine("- $it") }
+                    }
+                }
+            }
+        }
         if (report.searchTruncated) {
             appendLine()
             appendLine("_Search truncated; the list above may be incomplete._")

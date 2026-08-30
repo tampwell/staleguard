@@ -36,11 +36,17 @@ class ClasspathLinkageService(private val project: Project) {
         val jarPaths: Map<String, java.nio.file.Path> = emptyMap(),
     )
 
-    fun audit(indicator: ProgressIndicator, computeSuggestions: Boolean = true): Result {
+    private class ScopeSet(
+        val scopes: List<ScopedLinkage.Scope>,
+        val pathByJarName: Map<String, java.nio.file.Path>,
+        val standing: OwnCodeAudit.Standing,
+        val allScans: List<LinkageAudit.JarScans>,
+    )
+
+    private fun buildScopes(indicator: ProgressIndicator): ScopeSet {
         val moduleScopes = ModuleScopes.collect(project)
         val jars = moduleScopes.flatMap { it.productionJarPaths + it.testJarPaths }.distinct()
             .ifEmpty { ProjectClasspath.libraryJars(project) }
-        indicator.isIndeterminate = false
 
         val pathByJarName = HashMap<String, java.nio.file.Path>()
         val scanByPath = HashMap<java.nio.file.Path, LinkageAudit.JarScans>()
@@ -59,14 +65,11 @@ class ClasspathLinkageService(private val project: Project) {
         // and OwnCodeAudit.standing is what keeps a stale or partial build
         // from turning into a false promise.
         val outputs = ModuleOutputs.collect(project)
-        val standing = OwnCodeAudit.standing(outputs)
         val outputScans = outputs.mapNotNull { output ->
             output.scans?.takeIf { it.classes.isNotEmpty() }?.let { output.moduleName to it }
         }.toMap()
         val testOutputScans = ModuleOutputs.collectTestScans(project)
 
-        indicator.text2 = ""
-        indicator.fraction = SCAN_SHARE
         val scopes = if (moduleScopes.isEmpty()) {
             listOf(ScopedLinkage.Scope(project.name, scanByPath.values.toList() + outputScans.values))
         } else {
@@ -88,6 +91,20 @@ class ClasspathLinkageService(private val project: Project) {
                 )
             }
         }
+        return ScopeSet(
+            scopes = scopes,
+            pathByJarName = pathByJarName,
+            standing = OwnCodeAudit.standing(outputs),
+            allScans = scanByPath.values.toList() + outputScans.values,
+        )
+    }
+
+    fun audit(indicator: ProgressIndicator, computeSuggestions: Boolean = true): Result {
+        indicator.isIndeterminate = false
+        val set = buildScopes(indicator)
+        val scopes = set.scopes
+        val standing = set.standing
+        val pathByJarName = set.pathByJarName
         val platformMembers = PsiPlatformMembers(project)
         val merged = ScopedLinkage.run(
             scopes,
@@ -99,15 +116,37 @@ class ClasspathLinkageService(private val project: Project) {
                 indicator.fraction = SCAN_SHARE + (1 - SCAN_SHARE) * finished / total
             },
         )
-        val allScans = scanByPath.values.toList() + outputScans.values
         val suggestions = if (computeSuggestions) {
-            suggestionsFor(merged.report, allScans, pathByJarName, indicator)
+            suggestionsFor(merged.report, set.allScans, pathByJarName, indicator)
         } else {
             // The background watcher stays local-only: fix probes download
             // jars, and automatic work must never surprise the network.
             emptyMap()
         }
         return Result(merged.report, standing, suggestions, merged.moduleCount, merged.modulesByFinding, pathByJarName)
+    }
+
+    /**
+     * Rehearses upgrading [currentJar] to [candidateJar] against every scope.
+     * Null when the current jar is not actually on any scope's classpath —
+     * a rehearsal of a jar nobody resolves would answer a different question.
+     */
+    fun rehearseUpgrade(
+        indicator: ProgressIndicator,
+        currentJar: java.nio.file.Path,
+        candidateJar: java.nio.file.Path,
+    ): ImpactReport.Rehearsal? {
+        val currentScans = scansOf(currentJar) ?: return null
+        val replacement = JarScanner.scan(candidateJar) ?: return null
+        indicator.isIndeterminate = false
+        val set = buildScopes(indicator)
+        if (set.scopes.none { scope -> scope.jars.any { it.jarName == currentScans.jarName } }) return null
+        val platformMembers = PsiPlatformMembers(project)
+        val verdict = UpgradeRehearsal.rehearse(set.scopes, currentScans.jarName, replacement) { name, member ->
+            indicator.checkCanceled()
+            platformMembers.has(name, member)
+        }
+        return ImpactReport.Rehearsal(verdict.fixedLines, verdict.introducedLines)
     }
 
     /**

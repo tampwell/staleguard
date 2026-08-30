@@ -54,6 +54,39 @@ class ImpactDialog(private val project: Project, private val report: ImpactRepor
         val panel = JPanel(BorderLayout(0, JBUI.scale(8)))
         val header = Box.createVerticalBox()
         header.add(headline())
+        report.rehearsal?.let { rehearsal ->
+            if (rehearsal.changesNothing) {
+                header.add(
+                    JBLabel(
+                        StaleguardBundle.message("impact.rehearsal.clean"),
+                        AllIcons.General.InspectionsOK,
+                        JBLabel.LEADING,
+                    ),
+                )
+            } else {
+                if (rehearsal.fixed.isNotEmpty()) {
+                    header.add(
+                        JBLabel(
+                            StaleguardBundle.message("impact.rehearsal.fixes", rehearsal.fixed.size),
+                            AllIcons.General.InspectionsOK,
+                            JBLabel.LEADING,
+                        ),
+                    )
+                }
+                if (rehearsal.introduced.isNotEmpty()) {
+                    header.add(
+                        JBLabel(
+                            StaleguardBundle.message("impact.rehearsal.introduces", rehearsal.introduced.size),
+                            AllIcons.General.Warning,
+                            JBLabel.LEADING,
+                        ),
+                    )
+                    rehearsal.introduced.take(REHEARSAL_EXAMPLES).forEach { line ->
+                        header.add(JBLabel("        $line"))
+                    }
+                }
+            }
+        }
         if (report.searchTruncated) {
             header.add(
                 JBLabel(
@@ -154,5 +187,9 @@ class ImpactDialog(private val project: Project, private val report: ImpactRepor
 
     private class Navigable(private val label: String, val location: UsageLocation) {
         override fun toString(): String = label
+    }
+
+    private companion object {
+        const val REHEARSAL_EXAMPLES = 3
     }
 }
