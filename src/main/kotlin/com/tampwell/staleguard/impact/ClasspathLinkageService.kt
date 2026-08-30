@@ -91,6 +91,8 @@ class ClasspathLinkageService(private val project: Project) {
                 )
             }
         }
+        indicator.text2 = ""
+        indicator.fraction = SCAN_SHARE
         return ScopeSet(
             scopes = scopes,
             pathByJarName = pathByJarName,
@@ -125,7 +127,7 @@ class ClasspathLinkageService(private val project: Project) {
         }
         LinkageVerdictState.getInstance(project).record(
             merged.report,
-            identify = { jarName -> pathByJarName[jarName]?.let(JarCoordinates::identify)?.coordinates },
+            identify = { jarName -> pathByJarName[jarName]?.let(JarCoordinates::identify) },
             fixFor = { jarName -> (suggestions[jarName] as? FixSuggestions.Suggestion.FixedIn)?.version },
         )
         return Result(merged.report, standing, suggestions, merged.moduleCount, merged.modulesByFinding, pathByJarName)

@@ -13,8 +13,14 @@ import com.tampwell.staleguard.repository.Coordinates
  */
 object LinkageProblems {
 
-    fun problemFor(project: Project, coordinates: Coordinates): LinkageVerdictState.JarProblem? =
+    /**
+     * Version-exact on purpose: the warning describes the version the audit
+     * saw breaking, so a declaration the user already bumped must stop
+     * matching immediately rather than nagging until the next audit.
+     */
+    fun problemFor(project: Project, coordinates: Coordinates, resolvedVersion: String?): LinkageVerdictState.JarProblem? =
         LinkageVerdictState.getInstance(project).problems[coordinates]
+            ?.takeIf { resolvedVersion != null && it.version == resolvedVersion }
 
     fun message(problem: LinkageVerdictState.JarProblem): String {
         val callers = problem.callers.joinToString(", ")

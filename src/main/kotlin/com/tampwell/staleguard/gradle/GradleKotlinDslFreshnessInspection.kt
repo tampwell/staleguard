@@ -92,7 +92,7 @@ class GradleKotlinDslFreshnessInspection : LocalInspectionTool() {
                 )
             }
 
-            com.tampwell.staleguard.inspection.LinkageProblems.problemFor(project, coordinates)?.let { linkage ->
+            com.tampwell.staleguard.inspection.LinkageProblems.problemFor(project, coordinates, declared.version)?.let { linkage ->
                 problems += manager.createProblemDescriptor(
                     declared.anchor,
                     com.tampwell.staleguard.inspection.LinkageProblems.message(linkage),

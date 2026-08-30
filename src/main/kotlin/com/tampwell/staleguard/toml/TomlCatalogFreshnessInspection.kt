@@ -190,7 +190,7 @@ class TomlCatalogFreshnessInspection : LocalInspectionTool() {
             )
         }
 
-        com.tampwell.staleguard.inspection.LinkageProblems.problemFor(manager.project, coordinates)?.let { linkage ->
+        com.tampwell.staleguard.inspection.LinkageProblems.problemFor(manager.project, coordinates, checkable.version)?.let { linkage ->
             problems += manager.createProblemDescriptor(
                 checkable.anchor,
                 com.tampwell.staleguard.inspection.LinkageProblems.message(linkage),

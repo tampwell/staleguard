@@ -31,6 +31,8 @@ class LinkageVerdictState(private val project: Project) {
 
     /** One artifact whose RESOLVED version breaks other jars' calls. */
     data class JarProblem(
+        /** The version the audit saw breaking. A bumped declaration stops matching immediately. */
+        val version: String,
         val brokenCalls: Int,
         /** A few of the jars whose calls fail, for the message. */
         val callers: List<String>,
@@ -49,7 +51,7 @@ class LinkageVerdictState(private val project: Project) {
 
     fun record(
         report: LinkageAudit.Report,
-        identify: (jarName: String) -> com.tampwell.staleguard.repository.Coordinates? = { null },
+        identify: (jarName: String) -> JarCoordinates.Identified? = { null },
         fixFor: (jarName: String) -> String? = { null },
     ) {
         current = verdictOf(report, System.currentTimeMillis())
@@ -73,15 +75,16 @@ class LinkageVerdictState(private val project: Project) {
          */
         fun problemsOf(
             report: LinkageAudit.Report,
-            identify: (jarName: String) -> com.tampwell.staleguard.repository.Coordinates?,
+            identify: (jarName: String) -> JarCoordinates.Identified?,
             fixFor: (jarName: String) -> String?,
         ): Map<com.tampwell.staleguard.repository.Coordinates, JarProblem> =
             report.brokenMembers.filter { it.ownerJar != null }
                 .groupBy { it.ownerJar!! }
                 .entries
                 .mapNotNull { (jarName, broken) ->
-                    identify(jarName)?.let { coordinates ->
-                        coordinates to JarProblem(
+                    identify(jarName)?.let { identified ->
+                        identified.coordinates to JarProblem(
+                            version = identified.version,
                             brokenCalls = broken.size,
                             callers = broken.map { it.fromJar }.distinct().sorted().take(CALLERS_SHOWN),
                             fixVersion = fixFor(jarName),

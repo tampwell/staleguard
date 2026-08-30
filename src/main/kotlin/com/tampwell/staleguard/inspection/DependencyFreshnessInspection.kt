@@ -104,7 +104,7 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
 
             // --- Linkage: the resolved version breaks other jars' calls.
             // Reads the ambient audit verdict only; nothing is scanned here.
-            LinkageProblems.problemFor(project, coordinates)?.let { linkage ->
+            LinkageProblems.problemFor(project, coordinates, declared.resolvedVersion)?.let { linkage ->
                 val anchor = dom.version.xmlTag ?: dom.xmlTag
                 if (anchor != null) {
                     val target = FixTarget.of(declared.rawVersion)

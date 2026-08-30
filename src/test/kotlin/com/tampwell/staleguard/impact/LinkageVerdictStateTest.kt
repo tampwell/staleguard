@@ -51,11 +51,14 @@ class LinkageVerdictStateTest {
 
         val problems = LinkageVerdictState.problemsOf(
             report,
-            identify = { jarName -> coordinates.takeIf { jarName == "lib-1.0.jar" } },
+            identify = { jarName ->
+                JarCoordinates.Identified(coordinates, "1.0").takeIf { jarName == "lib-1.0.jar" }
+            },
             fixFor = { "2.0.0" },
         )
 
         val problem = problems.getValue(coordinates)
+        assertEquals("1.0", problem.version)
         assertEquals(2, problem.brokenCalls)
         assertEquals(listOf("caller-a.jar", "caller-b.jar"), problem.callers)
         assertEquals("2.0.0", problem.fixVersion)
