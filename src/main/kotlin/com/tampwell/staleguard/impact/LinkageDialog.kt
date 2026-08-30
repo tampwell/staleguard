@@ -21,20 +21,55 @@ import javax.swing.tree.DefaultTreeModel
  * the jar whose version has to move.
  */
 class LinkageDialog(
-    project: Project,
-    private val report: LinkageAudit.Report,
-    private val ownCode: OwnCodeAudit.Standing = OwnCodeAudit.Standing.NothingBuilt,
-    private val suggestions: Map<String, FixSuggestions.Suggestion> = emptyMap(),
-    private val moduleCount: Int = 1,
-    private val findingModules: Map<LinkageDelta.Key, List<String>> = emptyMap(),
+    private val project: Project,
+    private val result: ClasspathLinkageService.Result,
 ) : DialogWrapper(project) {
+
+    private val report get() = result.report
+    private val ownCode get() = result.ownCode
+    private val suggestions get() = result.suggestions
+    private val moduleCount get() = result.moduleCount
+    private val findingModules get() = result.findingModules
 
     init {
         title = StaleguardBundle.message("linkage.dialog.title")
         init()
     }
 
-    override fun createActions() = arrayOf(copyAction(), okAction)
+    override fun createActions() = listOfNotNull(applyAction(), copyAction(), okAction).toTypedArray()
+
+    /**
+     * Only offered when at least one fix is computable. Bumps and Maven pins
+     * are applied; Gradle constraint snippets land on the clipboard, because
+     * inserting text into someone's build script is a guess, not an edit.
+     */
+    private fun applyAction(): javax.swing.Action? {
+        if (suggestions.values.none { it is FixSuggestions.Suggestion.FixedIn }) return null
+        return object : DialogWrapperAction(StaleguardBundle.message("linkage.apply")) {
+            override fun doAction(e: java.awt.event.ActionEvent) {
+                val steps = LinkageFixPlan.plan(
+                    fixes = suggestions,
+                    identify = { name -> result.jarPaths[name]?.let(JarCoordinates::identify) },
+                    inputs = com.tampwell.staleguard.actions.UpgradeApplier.collectInputs(project),
+                    mavenBuild = org.jetbrains.idea.maven.project.MavenProjectsManager.getInstance(project)
+                        .hasProjects(),
+                )
+                val applied = LinkageFixApplier.apply(project, steps)
+                if (applied.snippets.isNotEmpty()) {
+                    java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(
+                        java.awt.datatransfer.StringSelection(applied.snippets.joinToString("\n\n")),
+                        null,
+                    )
+                }
+                close(OK_EXIT_CODE)
+                com.intellij.openapi.ui.Messages.showInfoMessage(
+                    project,
+                    applied.lines.joinToString("\n").ifEmpty { StaleguardBundle.message("linkage.apply.none") },
+                    StaleguardBundle.message("linkage.apply.title"),
+                )
+            }
+        }
+    }
 
     private fun copyAction(): javax.swing.Action = object : DialogWrapperAction(
         StaleguardBundle.message("impact.copy"),

@@ -107,16 +107,7 @@ class LinkageWatchService(private val project: Project) : Disposable {
                         }
 
                         override fun onSuccess() {
-                            full?.let {
-                                LinkageDialog(
-                                    project,
-                                    it.report,
-                                    it.ownCode,
-                                    it.suggestions,
-                                    it.moduleCount,
-                                    it.findingModules,
-                                ).show()
-                            }
+                            full?.let { LinkageDialog(project, it).show() }
                         }
                     }.queue()
                 },

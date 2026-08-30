@@ -32,6 +32,8 @@ class ClasspathLinkageService(private val project: Project) {
         val moduleCount: Int = 1,
         /** Which modules each finding holds in, by finding identity. */
         val findingModules: Map<LinkageDelta.Key, List<String>> = emptyMap(),
+        /** Where each scanned jar lives, so a fix can identify its coordinates. */
+        val jarPaths: Map<String, java.nio.file.Path> = emptyMap(),
     )
 
     fun audit(indicator: ProgressIndicator, computeSuggestions: Boolean = true): Result {
@@ -105,7 +107,7 @@ class ClasspathLinkageService(private val project: Project) {
             // jars, and automatic work must never surprise the network.
             emptyMap()
         }
-        return Result(merged.report, standing, suggestions, merged.moduleCount, merged.modulesByFinding)
+        return Result(merged.report, standing, suggestions, merged.moduleCount, merged.modulesByFinding, pathByJarName)
     }
 
     /**
