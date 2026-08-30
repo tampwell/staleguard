@@ -1,12 +1,27 @@
 # Staleguard
 
 An IntelliJ IDEA plugin that tells you which dependencies are out of date, which are
-vulnerable, and whether upgrading will break your code - directly in the editor.
+vulnerable, whether upgrading will break your code, and which version conflicts on your
+classpath will throw NoSuchMethodError at runtime - then fixes them - directly in the editor.
 
 **[Install from the JetBrains Marketplace](https://plugins.jetbrains.com/plugin/33571-staleguard)** - or in the IDE: Settings -> Plugins -> Marketplace -> search "Staleguard".
 
 ## What it does
 
+- **Classpath linkage doctor**: resolves every call every jar makes against what your real
+  per-module classpaths actually declare (production and tests separately, your own compiled
+  code included) and reports the `NoSuchMethodError` / `NoClassDefFoundError` a version
+  conflict will produce, before anything runs. Re-runs by itself after every dependency sync
+  and notifies only about NEW problems; the verdict lives in the status bar, at the broken
+  declaration in the editor, and survives restarts
+- **THE FIX, computed and applied**: finds the earliest released version that satisfies every
+  call on your classpath by probing real binaries, then one button bumps declared versions
+  where they are declared, pins Maven transitives via `dependencyManagement`, and puts the
+  exact Gradle `constraints` block on your clipboard
+- **Upgrade rehearsal**: before you upgrade, the impact check swaps the candidate jar into
+  every module's classpath and reports what gets fixed and what breaks, anywhere
+- **Shadowed class detection**: the same class in two jars with differing APIs, where
+  classpath order silently decides which copy runs
 - Warns on outdated dependency versions with major / minor / patch severity
 - Flags versions with known vulnerabilities, naming the CVE, its severity, and the first fixed version (data from the [OSV database](https://osv.dev))
 - **Upgrade impact analysis**: compares the two versions' bytecode and reports the removed
