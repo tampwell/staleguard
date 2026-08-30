@@ -18,8 +18,8 @@ object LinkageMarkdown {
             if (moduleCount <= 1) return ""
             val names = keys.flatMap { findingModules[it].orEmpty() }.distinct().sorted()
             if (names.isEmpty()) return ""
-            val listed = if (names.size == moduleCount) "every module" else names.joinToString(", ")
-            return " (in ${plural(names.size, "module")}: $listed)"
+            val listed = if (names.size == moduleCount) "every classpath" else names.joinToString(", ")
+            return " (in ${plural(names.size, "classpath")}: $listed)"
         }
         fun renderShadowed() {
             if (report.shadowedGroups.isEmpty()) return
@@ -47,7 +47,7 @@ object LinkageMarkdown {
         appendLine()
         if (report.clean) {
             val scopeClause =
-                if (moduleCount > 1) ", on each of $moduleCount modules' own classpaths" else ""
+                if (moduleCount > 1) ", on each of $moduleCount production and test classpaths" else ""
             appendLine(
                 "Every call across ${report.jarCount} classpath ${plural(report.jarCount, "entry", "entries")} resolves" +
                     "$scopeClause (${report.refCount} references checked). Nothing will fail to link.",

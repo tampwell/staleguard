@@ -36,7 +36,7 @@ class ClasspathLinkageService(private val project: Project) {
 
     fun audit(indicator: ProgressIndicator, computeSuggestions: Boolean = true): Result {
         val moduleScopes = ModuleScopes.collect(project)
-        val jars = moduleScopes.flatMap { it.jarPaths }.distinct()
+        val jars = moduleScopes.flatMap { it.productionJarPaths + it.testJarPaths }.distinct()
             .ifEmpty { ProjectClasspath.libraryJars(project) }
         indicator.isIndeterminate = false
 
@@ -61,17 +61,28 @@ class ClasspathLinkageService(private val project: Project) {
         val outputScans = outputs.mapNotNull { output ->
             output.scans?.takeIf { it.classes.isNotEmpty() }?.let { output.moduleName to it }
         }.toMap()
+        val testOutputScans = ModuleOutputs.collectTestScans(project)
 
         indicator.text2 = ""
         indicator.fraction = SCAN_SHARE
         val scopes = if (moduleScopes.isEmpty()) {
             listOf(ScopedLinkage.Scope(project.name, scanByPath.values.toList() + outputScans.values))
         } else {
-            moduleScopes.map { scope ->
-                ScopedLinkage.Scope(
-                    name = scope.moduleName,
-                    jars = scope.jarPaths.mapNotNull(scanByPath::get) +
-                        scope.closureModules.mapNotNull(outputScans::get),
+            moduleScopes.flatMap { scope ->
+                // A module's own test classes ride only its own test scope:
+                // test output is not a dependency any other module resolves.
+                listOf(
+                    ScopedLinkage.Scope(
+                        name = scope.moduleName,
+                        jars = scope.productionJarPaths.mapNotNull(scanByPath::get) +
+                            scope.productionClosure.mapNotNull(outputScans::get),
+                    ),
+                    ScopedLinkage.Scope(
+                        name = ModuleScopes.testScopeName(scope.moduleName),
+                        jars = scope.testJarPaths.mapNotNull(scanByPath::get) +
+                            scope.testClosure.mapNotNull(outputScans::get) +
+                            listOfNotNull(testOutputScans[scope.moduleName]),
+                    ),
                 )
             }
         }
