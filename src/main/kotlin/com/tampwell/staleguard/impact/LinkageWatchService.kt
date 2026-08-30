@@ -50,6 +50,13 @@ class LinkageWatchService(private val project: Project) : Disposable {
                 }
             },
         )
+        // The first verdict should not wait for the first sync: one quiet
+        // audit shortly after open makes the baseline and the ambient counts
+        // real. Delayed so project startup and indexing settle first; a sync
+        // arriving sooner simply replaces this request.
+        if (StaleguardSettings.getInstance().state.watchClasspath) {
+            alarm.addRequest({ runQuietAudit() }, STARTUP_DELAY_MS)
+        }
     }
 
     private fun runQuietAudit() {
@@ -121,5 +128,7 @@ class LinkageWatchService(private val project: Project) : Disposable {
         fun getInstance(project: Project): LinkageWatchService = project.service()
 
         const val DEBOUNCE_MS = 3_000
+
+        const val STARTUP_DELAY_MS = 15_000
     }
 }

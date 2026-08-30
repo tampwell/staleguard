@@ -73,8 +73,12 @@ class StaleguardStatsPanel(private val project: Project) :
             }
         })
 
-        project.messageBus.connect(this)
-            .subscribe(FreshnessListener.TOPIC, FreshnessListener { SwingUtilities.invokeLater { rebuild() } })
+        val connection = project.messageBus.connect(this)
+        connection.subscribe(FreshnessListener.TOPIC, FreshnessListener { SwingUtilities.invokeLater { rebuild() } })
+        connection.subscribe(
+            com.tampwell.staleguard.impact.LinkageVerdictListener.TOPIC,
+            com.tampwell.staleguard.impact.LinkageVerdictListener { SwingUtilities.invokeLater { rebuild() } },
+        )
 
         rebuild()
     }
@@ -143,6 +147,21 @@ class StaleguardStatsPanel(private val project: Project) :
                 )
             },
         )
+
+        // The doctor's last verdict rides along, so the classpath's health is
+        // visible without running anything. Absent until the first audit.
+        com.tampwell.staleguard.impact.LinkageVerdictState.getInstance(project).current?.let { verdict ->
+            root.add(
+                DefaultMutableTreeNode(
+                    when {
+                        verdict.clean -> StaleguardBundle.message("toolwindow.linkage.clean")
+                        verdict.shadowed == 0 -> StaleguardBundle.message("toolwindow.linkage.failing", verdict.failing)
+                        verdict.failing == 0 -> StaleguardBundle.message("toolwindow.linkage.shadowed", verdict.shadowed)
+                        else -> StaleguardBundle.message("toolwindow.linkage.both", verdict.failing, verdict.shadowed)
+                    },
+                ),
+            )
+        }
 
         val unresolvedCoordinates = mutableSetOf<Coordinates>()
         for (moduleStats in snapshot.stats) {

@@ -123,6 +123,7 @@ class ClasspathLinkageService(private val project: Project) {
             // jars, and automatic work must never surprise the network.
             emptyMap()
         }
+        LinkageVerdictState.getInstance(project).record(merged.report)
         return Result(merged.report, standing, suggestions, merged.moduleCount, merged.modulesByFinding, pathByJarName)
     }
 
