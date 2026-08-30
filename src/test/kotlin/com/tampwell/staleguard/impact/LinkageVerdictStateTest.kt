@@ -35,4 +35,42 @@ class LinkageVerdictStateTest {
 
         assertTrue(LinkageVerdictState.verdictOf(report, 0L).clean)
     }
+
+    @Test
+    fun `problems map broken jars to coordinates with callers and the fix`() {
+        val report = LinkageAudit.Report(
+            jarCount = 3, classCount = 10, refCount = 100,
+            brokenMembers = listOf(
+                LinkageAudit.BrokenRef("caller-a.jar", MemberRef("lib/Api", "gone", "()V"), "lib-1.0.jar"),
+                LinkageAudit.BrokenRef("caller-b.jar", MemberRef("lib/Api", "gone", "()V"), "lib-1.0.jar"),
+                LinkageAudit.BrokenRef("caller-a.jar", MemberRef("x/Y", "z", "()V"), ownerJar = null),
+            ),
+            evictedClasses = emptyList(),
+        )
+        val coordinates = com.tampwell.staleguard.repository.Coordinates("com.lib", "lib")
+
+        val problems = LinkageVerdictState.problemsOf(
+            report,
+            identify = { jarName -> coordinates.takeIf { jarName == "lib-1.0.jar" } },
+            fixFor = { "2.0.0" },
+        )
+
+        val problem = problems.getValue(coordinates)
+        assertEquals(2, problem.brokenCalls)
+        assertEquals(listOf("caller-a.jar", "caller-b.jar"), problem.callers)
+        assertEquals("2.0.0", problem.fixVersion)
+    }
+
+    @Test
+    fun `an unidentifiable jar never becomes an editor warning`() {
+        val report = LinkageAudit.Report(
+            jarCount = 1, classCount = 1, refCount = 1,
+            brokenMembers = listOf(
+                LinkageAudit.BrokenRef("caller.jar", MemberRef("lib/Api", "gone", "()V"), "mystery.jar"),
+            ),
+            evictedClasses = emptyList(),
+        )
+
+        assertTrue(LinkageVerdictState.problemsOf(report, identify = { null }, fixFor = { null }).isEmpty())
+    }
 }

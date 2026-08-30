@@ -102,6 +102,26 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                 }
             }
 
+            // --- Linkage: the resolved version breaks other jars' calls.
+            // Reads the ambient audit verdict only; nothing is scanned here.
+            LinkageProblems.problemFor(project, coordinates)?.let { linkage ->
+                val anchor = dom.version.xmlTag ?: dom.xmlTag
+                if (anchor != null) {
+                    val target = FixTarget.of(declared.rawVersion)
+                    val fixes = listOfNotNull(
+                        linkage.fixVersion?.takeIf { target != FixTarget.None }
+                            ?.let { BumpVersionQuickFix(it, target) },
+                    ).toTypedArray<com.intellij.codeInspection.LocalQuickFix>()
+                    problems += manager.createProblemDescriptor(
+                        anchor,
+                        LinkageProblems.message(linkage),
+                        isOnTheFly,
+                        fixes,
+                        ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+                    )
+                }
+            }
+
             val snapshot = lookup.peek(coordinates)
             if (snapshot == null) {
                 // Never resolved this session — resolve in background, repaint later.

@@ -92,6 +92,18 @@ class GradleKotlinDslFreshnessInspection : LocalInspectionTool() {
                 )
             }
 
+            com.tampwell.staleguard.inspection.LinkageProblems.problemFor(project, coordinates)?.let { linkage ->
+                problems += manager.createProblemDescriptor(
+                    declared.anchor,
+                    com.tampwell.staleguard.inspection.LinkageProblems.message(linkage),
+                    isOnTheFly,
+                    listOfNotNull(
+                        linkage.fixVersion?.let { declared.fix(it) },
+                    ).toTypedArray<LocalQuickFix>(),
+                    ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+                )
+            }
+
             val snapshot = lookup.peek(coordinates)
             if (snapshot == null) {
                 refresh.requestLookup(coordinates)

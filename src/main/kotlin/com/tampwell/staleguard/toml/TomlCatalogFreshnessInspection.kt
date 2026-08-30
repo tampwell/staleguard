@@ -190,6 +190,19 @@ class TomlCatalogFreshnessInspection : LocalInspectionTool() {
             )
         }
 
+        com.tampwell.staleguard.inspection.LinkageProblems.problemFor(manager.project, coordinates)?.let { linkage ->
+            problems += manager.createProblemDescriptor(
+                checkable.anchor,
+                com.tampwell.staleguard.inspection.LinkageProblems.message(linkage),
+                isOnTheFly,
+                listOfNotNull(
+                    linkage.fixVersion?.takeIf { checkable.fixable }
+                        ?.let { BumpTomlVersionQuickFix(it, checkable.referenceCount, checkable.versionKey) },
+                ).toTypedArray<LocalQuickFix>(),
+                ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
+            )
+        }
+
         val snapshot = lookup.peek(coordinates)
         if (snapshot == null) {
             refresh.requestLookup(coordinates)

@@ -29,12 +29,31 @@ class LinkageVerdictState(private val project: Project) {
         val clean: Boolean get() = failing == 0 && shadowed == 0
     }
 
+    /** One artifact whose RESOLVED version breaks other jars' calls. */
+    data class JarProblem(
+        val brokenCalls: Int,
+        /** A few of the jars whose calls fail, for the message. */
+        val callers: List<String>,
+        /** THE FIX, when the audit computed one; null on watcher runs. */
+        val fixVersion: String?,
+    )
+
     @Volatile
     var current: Verdict? = null
         private set
 
-    fun record(report: LinkageAudit.Report) {
+    /** Broken jars by coordinates, so the build-file inspections can warn at the declaration. */
+    @Volatile
+    var problems: Map<com.tampwell.staleguard.repository.Coordinates, JarProblem> = emptyMap()
+        private set
+
+    fun record(
+        report: LinkageAudit.Report,
+        identify: (jarName: String) -> com.tampwell.staleguard.repository.Coordinates? = { null },
+        fixFor: (jarName: String) -> String? = { null },
+    ) {
         current = verdictOf(report, System.currentTimeMillis())
+        problems = problemsOf(report, identify, fixFor)
         project.messageBus.syncPublisher(LinkageVerdictListener.TOPIC).verdictChanged()
     }
 
@@ -46,5 +65,31 @@ class LinkageVerdictState(private val project: Project) {
             shadowed = report.shadowedGroups.size,
             asOfMillis = asOfMillis,
         )
+
+        /**
+         * Only broken members map to a declared artifact: an evicted class's
+         * owning jar is by definition absent, so pinning its blame on a
+         * declaration would be a guess.
+         */
+        fun problemsOf(
+            report: LinkageAudit.Report,
+            identify: (jarName: String) -> com.tampwell.staleguard.repository.Coordinates?,
+            fixFor: (jarName: String) -> String?,
+        ): Map<com.tampwell.staleguard.repository.Coordinates, JarProblem> =
+            report.brokenMembers.filter { it.ownerJar != null }
+                .groupBy { it.ownerJar!! }
+                .entries
+                .mapNotNull { (jarName, broken) ->
+                    identify(jarName)?.let { coordinates ->
+                        coordinates to JarProblem(
+                            brokenCalls = broken.size,
+                            callers = broken.map { it.fromJar }.distinct().sorted().take(CALLERS_SHOWN),
+                            fixVersion = fixFor(jarName),
+                        )
+                    }
+                }
+                .toMap()
+
+        private const val CALLERS_SHOWN = 3
     }
 }

@@ -123,7 +123,11 @@ class ClasspathLinkageService(private val project: Project) {
             // jars, and automatic work must never surprise the network.
             emptyMap()
         }
-        LinkageVerdictState.getInstance(project).record(merged.report)
+        LinkageVerdictState.getInstance(project).record(
+            merged.report,
+            identify = { jarName -> pathByJarName[jarName]?.let(JarCoordinates::identify)?.coordinates },
+            fixFor = { jarName -> (suggestions[jarName] as? FixSuggestions.Suggestion.FixedIn)?.version },
+        )
         return Result(merged.report, standing, suggestions, merged.moduleCount, merged.modulesByFinding, pathByJarName)
     }
 
