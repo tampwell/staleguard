@@ -60,6 +60,9 @@ class LinkageWatchService(private val project: Project) : Disposable {
     }
 
     private fun runQuietAudit() {
+        // Re-checked at fire time: the startup request is armed at project
+        // open, and a user who turns the watch off in the meantime meant it.
+        if (!StaleguardSettings.getInstance().state.watchClasspath) return
         if (!running.compareAndSet(false, true)) return
         DumbService.getInstance(project).runWhenSmart {
             object : Task.Backgroundable(project, StaleguardBundle.message("linkage.watch.progress"), false) {
