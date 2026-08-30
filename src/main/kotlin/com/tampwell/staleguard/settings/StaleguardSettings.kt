@@ -36,6 +36,15 @@ class StaleguardSettings : PersistentStateComponent<StaleguardSettings.State> {
          * direct is exactly what breaks.
          */
         var useMavenMirrors: Boolean = true
+
+        /**
+         * Re-run the classpath linkage check automatically after a dependency
+         * change and notify on NEW breaks. Local work only: scans and
+         * resolution, never downloads. On by default because the measured
+         * noise floor is three findings in a million refs, and the whole
+         * point is catching the conflict the moment a sync introduces it.
+         */
+        var watchClasspath: Boolean = true
         var ignoredCoordinates: MutableList<String> = mutableListOf()
 
         /** Properties the user opted out of blast-radius confirmation for. */

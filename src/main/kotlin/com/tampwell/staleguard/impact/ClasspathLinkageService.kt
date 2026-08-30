@@ -31,7 +31,7 @@ class ClasspathLinkageService(private val project: Project) {
         val suggestions: Map<String, FixSuggestions.Suggestion> = emptyMap(),
     )
 
-    fun audit(indicator: ProgressIndicator): Result {
+    fun audit(indicator: ProgressIndicator, computeSuggestions: Boolean = true): Result {
         val jars = ProjectClasspath.libraryJars(project)
         indicator.isIndeterminate = false
 
@@ -58,7 +58,14 @@ class ClasspathLinkageService(private val project: Project) {
             indicator.checkCanceled()
             platformMembers.has(internalName, memberName)
         }
-        return Result(report, standing, suggestionsFor(report, scans, pathByJarName, indicator))
+        val suggestions = if (computeSuggestions) {
+            suggestionsFor(report, scans, pathByJarName, indicator)
+        } else {
+            // The background watcher stays local-only: fix probes download
+            // jars, and automatic work must never surprise the network.
+            emptyMap()
+        }
+        return Result(report, standing, suggestions)
     }
 
     /**

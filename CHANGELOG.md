@@ -4,6 +4,12 @@
 
 ## [Unreleased]
 
+## [2.3.0] - 2026-08-29
+
+### Added
+- The classpath check now watches. After a Maven or Gradle sync changes your dependencies, the linkage check re-runs by itself in the background and notifies you only when the change introduced a NEW break: a call that will fail at runtime which was fine before the sync. The first run after opening a project establishes a baseline silently, findings you already knew about never re-notify, and extra call sites for a known break stay quiet. One click on the notification opens the full report with fix suggestions.
+- Automatic means local. The background re-check scans and resolves, nothing more: fix-version probes download jars, so they stay behind your explicit click. The whole behavior sits behind one setting, on by default because the measured noise floor is three findings in a million references.
+
 ## [2.2.0] - 2026-08-29
 
 ### Added

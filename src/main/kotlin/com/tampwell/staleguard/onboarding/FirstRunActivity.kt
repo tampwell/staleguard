@@ -27,6 +27,7 @@ class FirstRunActivity : ProjectActivity {
         // Every project gets the first-scan watcher; only the first project
         // after install gets the welcome toast.
         FirstScanNotice.getInstance(project).start()
+        com.tampwell.staleguard.impact.LinkageWatchService.getInstance(project).start()
 
         val properties = PropertiesComponent.getInstance()
         if (properties.getBoolean(FLAG, false)) return

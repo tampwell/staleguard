@@ -40,6 +40,11 @@ class StaleguardConfigurable : BoundConfigurable(StaleguardBundle.message("setti
                 .comment(StaleguardBundle.message("settings.mirrors.comment"))
                 .bindSelected(settings::useMavenMirrors)
         }
+        row {
+            checkBox(StaleguardBundle.message("settings.watch"))
+                .comment(StaleguardBundle.message("settings.watch.comment"))
+                .bindSelected(settings::watchClasspath)
+        }
         lateinit var abandonmentBox: com.intellij.ui.dsl.builder.Cell<javax.swing.JCheckBox>
         row {
             abandonmentBox = checkBox(StaleguardBundle.message("settings.abandonment"))
