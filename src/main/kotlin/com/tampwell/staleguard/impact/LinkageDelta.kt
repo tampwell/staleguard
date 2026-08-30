@@ -21,16 +21,16 @@ object LinkageDelta {
         val count: Int get() = newBroken.size + newEvicted.size
     }
 
+    fun keyOf(finding: LinkageAudit.BrokenRef): Key =
+        Key(finding.fromJar, "${finding.ref.owner}#${finding.ref.name}${finding.ref.descriptor}")
+
+    fun keyOf(finding: LinkageAudit.EvictedClassRefs): Key = Key(finding.fromJar, finding.owner)
+
     fun fingerprint(report: LinkageAudit.Report): Set<Key> =
-        report.brokenMembers.mapTo(HashSet()) { Key(it.fromJar, it.ref.toStringKey()) } +
-            report.evictedClasses.mapTo(HashSet()) { Key(it.fromJar, it.owner) }
+        report.brokenMembers.mapTo(HashSet(), ::keyOf) + report.evictedClasses.mapTo(HashSet(), ::keyOf)
 
     fun newSince(previous: Set<Key>, current: LinkageAudit.Report): Delta = Delta(
-        newBroken = current.brokenMembers
-            .filter { Key(it.fromJar, it.ref.toStringKey()) !in previous }
-            .distinctBy { Key(it.fromJar, it.ref.toStringKey()) },
-        newEvicted = current.evictedClasses.filter { Key(it.fromJar, it.owner) !in previous },
+        newBroken = current.brokenMembers.filter { keyOf(it) !in previous }.distinctBy(::keyOf),
+        newEvicted = current.evictedClasses.filter { keyOf(it) !in previous },
     )
-
-    private fun MemberRef.toStringKey(): String = "$owner#$name$descriptor"
 }

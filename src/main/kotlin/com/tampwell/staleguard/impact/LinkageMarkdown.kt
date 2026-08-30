@@ -11,7 +11,16 @@ object LinkageMarkdown {
         report: LinkageAudit.Report,
         ownCode: OwnCodeAudit.Standing = OwnCodeAudit.Standing.NothingBuilt,
         suggestions: Map<String, FixSuggestions.Suggestion> = emptyMap(),
+        moduleCount: Int = 1,
+        findingModules: Map<LinkageDelta.Key, List<String>> = emptyMap(),
     ): String = buildString {
+        fun modulesSuffix(keys: List<LinkageDelta.Key>): String {
+            if (moduleCount <= 1) return ""
+            val names = keys.flatMap { findingModules[it].orEmpty() }.distinct().sorted()
+            if (names.isEmpty()) return ""
+            val listed = if (names.size == moduleCount) "every module" else names.joinToString(", ")
+            return " (in ${plural(names.size, "module")}: $listed)"
+        }
         appendLine("### Classpath linkage check")
         appendLine()
         when (ownCode) {
@@ -24,9 +33,11 @@ object LinkageMarkdown {
         }
         appendLine()
         if (report.clean) {
+            val scopeClause =
+                if (moduleCount > 1) ", on each of $moduleCount modules' own classpaths" else ""
             appendLine(
-                "Every call across ${report.jarCount} classpath ${plural(report.jarCount, "entry", "entries")} resolves " +
-                    "(${report.refCount} references checked). Nothing will fail to link.",
+                "Every call across ${report.jarCount} classpath ${plural(report.jarCount, "entry", "entries")} resolves" +
+                    "$scopeClause (${report.refCount} references checked). Nothing will fail to link.",
             )
         } else {
             appendLine(
@@ -36,7 +47,7 @@ object LinkageMarkdown {
             )
             appendLine()
             for ((fromJar, broken) in report.brokenMembers.groupBy { it.fromJar }) {
-                appendLine("- `$fromJar`")
+                appendLine("- `$fromJar`${modulesSuffix(broken.map(LinkageDelta::keyOf))}")
                 for (entry in broken.groupBy { it.ref }.entries.sortedByDescending { it.value.size }) {
                     val ownerJar = entry.value.first().ownerJar ?: "?"
                     appendLine("  - `${entry.key.display()}` missing from the resolved `$ownerJar`")
@@ -45,7 +56,8 @@ object LinkageMarkdown {
             for (evicted in report.evictedClasses.sortedByDescending { it.refCount }) {
                 appendLine(
                     "- `${evicted.owner.replace('/', '.')}` is not on the classpath " +
-                        "(${evicted.refCount} ${plural(evicted.refCount, "reference")} from `${evicted.fromJar}`)",
+                        "(${evicted.refCount} ${plural(evicted.refCount, "reference")} from `${evicted.fromJar}`)" +
+                        modulesSuffix(listOf(LinkageDelta.keyOf(evicted))),
                 )
             }
             if (suggestions.isNotEmpty()) {

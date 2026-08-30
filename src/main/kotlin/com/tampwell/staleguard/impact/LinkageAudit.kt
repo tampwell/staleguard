@@ -130,6 +130,6 @@ object LinkageAudit {
     private fun packageOf(internalName: String): String =
         internalName.substringBeforeLast('/', "")
 
-    private fun isGroovyRuntime(internalName: String): Boolean =
+    internal fun isGroovyRuntime(internalName: String): Boolean =
         internalName.startsWith("org/codehaus/groovy/") || internalName.startsWith("groovy/")
 }

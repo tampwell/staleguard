@@ -4,6 +4,15 @@
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-08-30
+
+### Added
+- The classpath check now audits each module's REAL classpath, not a project-wide union. A union is a set no JVM ever loads: it stays silent when a class is missing from the module that needs it but happens to sit on a sibling module's classpath, and it can resolve duplicate versions in a combination no module actually runs with. Every module is now resolved against exactly its own jars and the module outputs that ride along at its runtime, and findings name the modules they hold in.
+- Merged honestly, priced sensibly. The same break appearing in several modules is one finding listing its modules, not several, so reports, the background watcher and fix suggestions keep their shape and a known break appearing in one more module never re-notifies. Modules sharing a classpath are audited once, jars are scanned once however many modules use them, and a single-module project reads exactly as before.
+
+### Changed
+- The clean verdict in a multi-module project now says what was actually proven: every call resolves on each module's own classpath, which is a strictly stronger statement than the union check ever made.
+
 ## [2.3.0] - 2026-08-29
 
 ### Added

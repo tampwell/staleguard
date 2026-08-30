@@ -29,43 +29,72 @@ class ClasspathLinkageService(private val project: Project) {
         val ownCode: OwnCodeAudit.Standing,
         /** Per broken jar: the earliest version that fixes it, when computable. */
         val suggestions: Map<String, FixSuggestions.Suggestion> = emptyMap(),
+        val moduleCount: Int = 1,
+        /** Which modules each finding holds in, by finding identity. */
+        val findingModules: Map<LinkageDelta.Key, List<String>> = emptyMap(),
     )
 
     fun audit(indicator: ProgressIndicator, computeSuggestions: Boolean = true): Result {
-        val jars = ProjectClasspath.libraryJars(project)
+        val moduleScopes = ModuleScopes.collect(project)
+        val jars = moduleScopes.flatMap { it.jarPaths }.distinct()
+            .ifEmpty { ProjectClasspath.libraryJars(project) }
         indicator.isIndeterminate = false
 
         val pathByJarName = HashMap<String, java.nio.file.Path>()
-        val scans = jars.mapIndexedNotNull { index, jar ->
+        val scanByPath = HashMap<java.nio.file.Path, LinkageAudit.JarScans>()
+        jars.forEachIndexed { index, jar ->
             indicator.checkCanceled()
             indicator.fraction = index.toDouble() / jars.size * SCAN_SHARE
             indicator.text2 = jar.fileName.toString()
-            scansOf(jar)?.also { pathByJarName.putIfAbsent(it.jarName, jar) }
-        }.toMutableList()
+            scansOf(jar)?.also {
+                scanByPath[jar] = it
+                pathByJarName.putIfAbsent(it.jarName, jar)
+            }
+        }
 
-        // The user's own compiled classes join as one more scan set. Their
-        // calls into the classpath are where a conflict actually bites, and
-        // OwnCodeAudit.standing is what keeps a stale or partial build from
-        // turning into a false promise.
+        // The user's own compiled classes join each scope where they run.
+        // Their calls into the classpath are where a conflict actually bites,
+        // and OwnCodeAudit.standing is what keeps a stale or partial build
+        // from turning into a false promise.
         val outputs = ModuleOutputs.collect(project)
         val standing = OwnCodeAudit.standing(outputs)
-        scans += OwnCodeAudit.auditableScans(outputs)
+        val outputScans = outputs.mapNotNull { output ->
+            output.scans?.takeIf { it.classes.isNotEmpty() }?.let { output.moduleName to it }
+        }.toMap()
 
         indicator.text2 = ""
         indicator.fraction = SCAN_SHARE
-        val platformMembers = PsiPlatformMembers(project)
-        val report = LinkageAudit.run(scans) { internalName, memberName ->
-            indicator.checkCanceled()
-            platformMembers.has(internalName, memberName)
+        val scopes = if (moduleScopes.isEmpty()) {
+            listOf(ScopedLinkage.Scope(project.name, scanByPath.values.toList() + outputScans.values))
+        } else {
+            moduleScopes.map { scope ->
+                ScopedLinkage.Scope(
+                    name = scope.moduleName,
+                    jars = scope.jarPaths.mapNotNull(scanByPath::get) +
+                        scope.closureModules.mapNotNull(outputScans::get),
+                )
+            }
         }
+        val platformMembers = PsiPlatformMembers(project)
+        val merged = ScopedLinkage.run(
+            scopes,
+            platformMembers = { internalName, memberName ->
+                indicator.checkCanceled()
+                platformMembers.has(internalName, memberName)
+            },
+            onScopeDone = { finished, total ->
+                indicator.fraction = SCAN_SHARE + (1 - SCAN_SHARE) * finished / total
+            },
+        )
+        val allScans = scanByPath.values.toList() + outputScans.values
         val suggestions = if (computeSuggestions) {
-            suggestionsFor(report, scans, pathByJarName, indicator)
+            suggestionsFor(merged.report, allScans, pathByJarName, indicator)
         } else {
             // The background watcher stays local-only: fix probes download
             // jars, and automatic work must never surprise the network.
             emptyMap()
         }
-        return Result(report, standing, suggestions)
+        return Result(merged.report, standing, suggestions, merged.moduleCount, merged.modulesByFinding)
     }
 
     /**

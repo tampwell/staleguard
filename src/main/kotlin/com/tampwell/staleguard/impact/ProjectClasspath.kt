@@ -20,14 +20,7 @@ import java.util.zip.ZipFile
 object ProjectClasspath {
 
     fun libraryJars(project: Project): List<Path> = inReadAction {
-        OrderEnumerator.orderEntries(project)
-            .librariesOnly()
-            .classes()
-            .roots
-            .mapNotNull { root -> VfsUtilCore.getVirtualFileForJar(root) ?: root.takeIf { !it.isDirectory } }
-            .mapNotNull { file -> runCatching { Path.of(file.path) }.getOrNull() }
-            .filter { it.fileName.toString().endsWith(".jar") }
-            .distinct()
+        OrderEnumerator.orderEntries(project).jarPaths()
     }
 
     /**
@@ -43,6 +36,16 @@ object ProjectClasspath {
         return jars.firstOrNull { it.toString().replace('\\', '/').contains(pathFragment) }
     }
 }
+
+/** Caller must already hold a read action. */
+internal fun OrderEnumerator.jarPaths(): List<Path> =
+    librariesOnly()
+        .classes()
+        .roots
+        .mapNotNull { root -> VfsUtilCore.getVirtualFileForJar(root) ?: root.takeIf { !it.isDirectory } }
+        .mapNotNull { file -> runCatching { Path.of(file.path) }.getOrNull() }
+        .filter { it.fileName.toString().endsWith(".jar") }
+        .distinct()
 
 /**
  * Read action helper.

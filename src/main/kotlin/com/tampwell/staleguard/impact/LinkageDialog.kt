@@ -25,6 +25,8 @@ class LinkageDialog(
     private val report: LinkageAudit.Report,
     private val ownCode: OwnCodeAudit.Standing = OwnCodeAudit.Standing.NothingBuilt,
     private val suggestions: Map<String, FixSuggestions.Suggestion> = emptyMap(),
+    private val moduleCount: Int = 1,
+    private val findingModules: Map<LinkageDelta.Key, List<String>> = emptyMap(),
 ) : DialogWrapper(project) {
 
     init {
@@ -39,7 +41,9 @@ class LinkageDialog(
     ) {
         override fun doAction(e: java.awt.event.ActionEvent) {
             java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(
-                java.awt.datatransfer.StringSelection(LinkageMarkdown.render(report, ownCode, suggestions)),
+                java.awt.datatransfer.StringSelection(
+                    LinkageMarkdown.render(report, ownCode, suggestions, moduleCount, findingModules),
+                ),
                 null,
             )
             close(OK_EXIT_CODE)
@@ -78,6 +82,19 @@ class LinkageDialog(
         )
     }
 
+    /**
+     * Which modules a set of findings holds in — worth a line only when the
+     * project has more than one, because "in the only module" says nothing.
+     */
+    private fun modulesLine(keys: List<LinkageDelta.Key>): String? {
+        if (moduleCount <= 1) return null
+        val names = keys.flatMap { findingModules[it].orEmpty() }.distinct().sorted()
+        if (names.isEmpty()) return null
+        val listed =
+            if (names.size == moduleCount) StaleguardBundle.message("linkage.modules.all") else names.joinToString(", ")
+        return StaleguardBundle.message("linkage.in.modules", names.size, listed)
+    }
+
     private fun suggestionLine(jarName: String?): String? =
         when (val suggestion = suggestions[jarName ?: return null]) {
             is FixSuggestions.Suggestion.FixedIn ->
@@ -91,7 +108,16 @@ class LinkageDialog(
         val panel = JPanel(BorderLayout(0, JBUI.scale(8)))
         val headline = if (report.clean) {
             JBLabel(
-                StaleguardBundle.message("linkage.verdict.clean", report.jarCount, report.refCount),
+                if (moduleCount > 1) {
+                    StaleguardBundle.message(
+                        "linkage.verdict.clean.modules",
+                        moduleCount,
+                        report.jarCount,
+                        report.refCount,
+                    )
+                } else {
+                    StaleguardBundle.message("linkage.verdict.clean", report.jarCount, report.refCount)
+                },
                 AllIcons.General.InspectionsOK,
                 JBLabel.LEADING,
             )
@@ -119,6 +145,7 @@ class LinkageDialog(
             )
             suggestionLine(broken.firstNotNullOfOrNull { it.ownerJar })
                 ?.let { jarNode.add(DefaultMutableTreeNode(it)) }
+            modulesLine(broken.map(LinkageDelta::keyOf))?.let { jarNode.add(DefaultMutableTreeNode(it)) }
             for (entry in broken.groupBy { it.ref }.entries.sortedByDescending { it.value.size }) {
                 jarNode.add(
                     DefaultMutableTreeNode(
@@ -140,16 +167,14 @@ class LinkageDialog(
             }
         }
         for (evicted in report.evictedClasses.sortedByDescending { it.refCount }) {
-            root.add(
-                DefaultMutableTreeNode(
-                    StaleguardBundle.message(
-                        "linkage.tree.evicted",
-                        evicted.owner.replace('/', '.'),
-                        evicted.refCount,
-                        evicted.fromJar,
-                    ),
-                ),
+            val base = StaleguardBundle.message(
+                "linkage.tree.evicted",
+                evicted.owner.replace('/', '.'),
+                evicted.refCount,
+                evicted.fromJar,
             )
+            val suffix = modulesLine(listOf(LinkageDelta.keyOf(evicted)))?.let { ", $it" } ?: ""
+            root.add(DefaultMutableTreeNode(base + suffix))
         }
         val tree = Tree(DefaultTreeModel(root))
         tree.isRootVisible = true
