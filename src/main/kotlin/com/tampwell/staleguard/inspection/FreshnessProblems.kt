@@ -59,6 +59,8 @@ object FreshnessProblems {
         MeasuredImpact.Clean -> " " + StaleguardBundle.message("impact.measured.clean")
         is MeasuredImpact.Breaks ->
             " " + StaleguardBundle.message("impact.measured.breaks", measured.members, measured.callSites)
+        is MeasuredImpact.BreaksLinkage ->
+            " " + StaleguardBundle.message("impact.measured.linkage", measured.problems)
     }
 
     /** Appended when steering could not find a clean target — empty otherwise. */

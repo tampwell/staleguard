@@ -54,8 +54,13 @@ class ImpactMemory {
          */
         fun classify(report: ImpactReport): MeasuredImpact = when {
             report.incomplete != null || report.searchTruncated -> MeasuredImpact.Unknown
-            report.usages.isEmpty() -> MeasuredImpact.Clean
-            else -> MeasuredImpact.Breaks(report.usages.size, report.affectedCallSites)
+            report.usages.isNotEmpty() -> MeasuredImpact.Breaks(report.usages.size, report.affectedCallSites)
+            // My own calls survive, but the rehearsal saw the wider classpath
+            // break. A missing rehearsal stays Clean: absence of a check is
+            // not evidence, and the member analysis itself DID complete.
+            (report.rehearsal?.introduced?.size ?: 0) > 0 ->
+                MeasuredImpact.BreaksLinkage(report.rehearsal!!.introduced.size)
+            else -> MeasuredImpact.Clean
         }
     }
 }

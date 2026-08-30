@@ -84,6 +84,10 @@ class BatchUpdateDialog(private val project: Project, private val plan: UpgradeP
                         box.isSelected = false
                         box.text = withVerdict(box.text, StaleguardBundle.message("toolwindow.impact.breaks", measured.members))
                     }
+                    is com.tampwell.staleguard.plan.MeasuredImpact.BreaksLinkage -> {
+                        box.isSelected = false
+                        box.text = withVerdict(box.text, StaleguardBundle.message("toolwindow.impact.linkage", measured.problems))
+                    }
                     com.tampwell.staleguard.plan.MeasuredImpact.Clean ->
                         box.text = withVerdict(box.text, StaleguardBundle.message("toolwindow.impact.clean"))
                     com.tampwell.staleguard.plan.MeasuredImpact.Unknown -> Unit

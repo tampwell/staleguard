@@ -233,6 +233,8 @@ class StaleguardStatsPanel(private val project: Project) :
                         .measured(it.coordinates.toString(), it.currentVersion.value, it.suggestedVersion.value)) {
                         is com.tampwell.staleguard.plan.MeasuredImpact.Breaks ->
                             "  " + StaleguardBundle.message("toolwindow.impact.breaks", m.members)
+                        is com.tampwell.staleguard.plan.MeasuredImpact.BreaksLinkage ->
+                            "  " + StaleguardBundle.message("toolwindow.impact.linkage", m.problems)
                         com.tampwell.staleguard.plan.MeasuredImpact.Clean ->
                             "  " + StaleguardBundle.message("toolwindow.impact.clean")
                         com.tampwell.staleguard.plan.MeasuredImpact.Unknown -> ""

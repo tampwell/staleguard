@@ -79,7 +79,8 @@ class ImpactMemoryRecordingTest {
         removedTotal: Int = 0,
         incomplete: ImpactReport.Incomplete? = null,
         truncated: Boolean = false,
-    ) = ImpactReport("g:a", "1.0", "2.0", removedTotal, usages, incomplete, truncated)
+        rehearsal: ImpactReport.Rehearsal? = null,
+    ) = ImpactReport("g:a", "1.0", "2.0", removedTotal, usages, incomplete, truncated, rehearsal)
 
     private val usage = RemovedUsage(
         MemberRef("a/B", "gone", "()V"),
@@ -112,5 +113,29 @@ class ImpactMemoryRecordingTest {
     @Test
     fun `a truncated search claims nothing, because absence of findings proves nothing there`() {
         assertEquals(MeasuredImpact.Unknown, classify(report(removedTotal = 90000, truncated = true)))
+    }
+
+    @Test
+    fun `a rehearsal that introduces problems downgrades an otherwise clean verdict`() {
+        val rehearsal = ImpactReport.Rehearsal(fixed = emptyList(), introduced = listOf("x.jar: y.Z#gone()"))
+
+        assertEquals(MeasuredImpact.BreaksLinkage(1), classify(report(removedTotal = 5, rehearsal = rehearsal)))
+    }
+
+    @Test
+    fun `my own broken calls outrank the rehearsal in the verdict`() {
+        val rehearsal = ImpactReport.Rehearsal(fixed = emptyList(), introduced = listOf("x.jar: y.Z#gone()"))
+
+        assertEquals(
+            MeasuredImpact.Breaks(1, 2),
+            classify(report(usages = listOf(usage), rehearsal = rehearsal)),
+        )
+    }
+
+    @Test
+    fun `a rehearsal that only fixes problems stays clean`() {
+        val rehearsal = ImpactReport.Rehearsal(fixed = listOf("x.jar: y.Z#gone()"), introduced = emptyList())
+
+        assertEquals(MeasuredImpact.Clean, classify(report(rehearsal = rehearsal)))
     }
 }

@@ -19,4 +19,11 @@ sealed interface MeasuredImpact {
 
     /** Compared: this project calls [members] removed members, at [callSites] places. */
     data class Breaks(val members: Int, val callSites: Int) : MeasuredImpact
+
+    /**
+     * My code's calls survive, but the classpath rehearsal shows the upgrade
+     * introduces linkage problems elsewhere: breaks between other jars that
+     * only this version change exposes.
+     */
+    data class BreaksLinkage(val problems: Int) : MeasuredImpact
 }

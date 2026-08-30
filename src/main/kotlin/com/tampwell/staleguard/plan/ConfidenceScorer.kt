@@ -61,6 +61,7 @@ object ConfidenceScorer {
         when (measured) {
             MeasuredImpact.Clean -> add("confidence.factor.impact.clean", +25)
             is MeasuredImpact.Breaks -> add("confidence.factor.impact.breaks", -50)
+            is MeasuredImpact.BreaksLinkage -> add("confidence.factor.impact.linkage", -40)
             MeasuredImpact.Unknown -> Unit
         }
 
@@ -68,7 +69,8 @@ object ConfidenceScorer {
         // evidence that this project calls something the new version deletes,
         // and no combination of age and severity should be able to talk that
         // back up into a confident-looking number.
-        val ceiling = if (measured is MeasuredImpact.Breaks) BREAKS_CEILING else 100
+        val ceiling =
+            if (measured is MeasuredImpact.Breaks || measured is MeasuredImpact.BreaksLinkage) BREAKS_CEILING else 100
         return UpdateConfidence(score.coerceIn(0, ceiling), factors)
     }
 }
