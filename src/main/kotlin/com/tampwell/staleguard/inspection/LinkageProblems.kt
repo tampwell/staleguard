@@ -24,10 +24,15 @@ object LinkageProblems {
 
     fun message(problem: LinkageVerdictState.JarProblem): String {
         val callers = problem.callers.joinToString(", ")
-        return if (problem.fixVersion != null) {
+        val base = if (problem.fixVersion != null) {
             StaleguardBundle.message("inspection.linkage.message.fix", problem.brokenCalls, callers, problem.fixVersion)
         } else {
             StaleguardBundle.message("inspection.linkage.message", problem.brokenCalls, callers)
         }
+        // One path is a tooltip's worth of provenance; the dialog has them all.
+        val via = problem.provenance.firstOrNull()
+            ?.let { StaleguardBundle.message("inspection.linkage.via", it) }
+            .orEmpty()
+        return base + via
     }
 }

@@ -77,7 +77,9 @@ class LinkageDialog(
         override fun doAction(e: java.awt.event.ActionEvent) {
             java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(
                 java.awt.datatransfer.StringSelection(
-                    LinkageMarkdown.render(report, ownCode, suggestions, moduleCount, findingModules),
+                    LinkageMarkdown.render(
+                        report, ownCode, suggestions, moduleCount, findingModules, result.provenance,
+                    ),
                 ),
                 null,
             )
@@ -193,6 +195,11 @@ class LinkageDialog(
             suggestionLine(broken.firstNotNullOfOrNull { it.ownerJar })
                 ?.let { jarNode.add(DefaultMutableTreeNode(it)) }
             modulesLine(broken.map(LinkageDelta::keyOf))?.let { jarNode.add(DefaultMutableTreeNode(it)) }
+            broken.firstNotNullOfOrNull { it.ownerJar }?.let { ownerJar ->
+                result.provenance[ownerJar].orEmpty().forEach { path ->
+                    jarNode.add(DefaultMutableTreeNode(StaleguardBundle.message("linkage.via", path)))
+                }
+            }
             for (entry in broken.groupBy { it.ref }.entries.sortedByDescending { it.value.size }) {
                 jarNode.add(
                     DefaultMutableTreeNode(

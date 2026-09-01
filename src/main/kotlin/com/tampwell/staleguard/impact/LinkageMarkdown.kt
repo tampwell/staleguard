@@ -13,6 +13,7 @@ object LinkageMarkdown {
         suggestions: Map<String, FixSuggestions.Suggestion> = emptyMap(),
         moduleCount: Int = 1,
         findingModules: Map<LinkageDelta.Key, List<String>> = emptyMap(),
+        provenance: Map<String, List<String>> = emptyMap(),
     ): String = buildString {
         fun modulesSuffix(keys: List<LinkageDelta.Key>): String {
             if (moduleCount <= 1) return ""
@@ -65,6 +66,9 @@ object LinkageMarkdown {
                 for (entry in broken.groupBy { it.ref }.entries.sortedByDescending { it.value.size }) {
                     val ownerJar = entry.value.first().ownerJar ?: "?"
                     appendLine("  - `${entry.key.display()}` missing from the resolved `$ownerJar`")
+                }
+                broken.firstNotNullOfOrNull { it.ownerJar }?.let { ownerJar ->
+                    provenance[ownerJar].orEmpty().forEach { path -> appendLine("  - via $path") }
                 }
             }
             for (evicted in report.evictedClasses.sortedByDescending { it.refCount }) {

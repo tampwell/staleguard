@@ -50,6 +50,8 @@ class LinkageVerdictState(private val project: Project) : PersistentStateCompone
         val callers: List<String>,
         /** THE FIX, when the audit computed one; null on watcher runs. */
         val fixVersion: String?,
+        /** The first dependency path that brings this version in; empty when unknown. */
+        val provenance: List<String> = emptyList(),
     )
 
     @Volatile
@@ -65,9 +67,10 @@ class LinkageVerdictState(private val project: Project) : PersistentStateCompone
         report: LinkageAudit.Report,
         identify: (jarName: String) -> JarCoordinates.Identified? = { null },
         fixFor: (jarName: String) -> String? = { null },
+        provenanceFor: (jarName: String) -> List<String> = { emptyList() },
     ) {
         current = verdictOf(report, System.currentTimeMillis())
-        problems = problemsOf(report, identify, fixFor)
+        problems = problemsOf(report, identify, fixFor, provenanceFor)
         project.messageBus.syncPublisher(LinkageVerdictListener.TOPIC).verdictChanged()
     }
 
@@ -88,6 +91,7 @@ class LinkageVerdictState(private val project: Project) : PersistentStateCompone
         var brokenCalls: Int = 0
         var callers: String = ""
         var fixVersion: String? = null
+        var provenance: MutableList<String> = mutableListOf()
     }
 
     override fun getState(): Bean = Bean().also { bean ->
@@ -105,6 +109,7 @@ class LinkageVerdictState(private val project: Project) : PersistentStateCompone
                 it.brokenCalls = problem.brokenCalls
                 it.callers = problem.callers.joinToString("|")
                 it.fixVersion = problem.fixVersion
+                it.provenance = problem.provenance.toMutableList()
             }
         }
     }
@@ -119,6 +124,7 @@ class LinkageVerdictState(private val project: Project) : PersistentStateCompone
                 brokenCalls = bean.brokenCalls,
                 callers = bean.callers.split('|').filter { it.isNotEmpty() },
                 fixVersion = bean.fixVersion,
+                provenance = bean.provenance.toList(),
             )
         }
     }
@@ -141,6 +147,7 @@ class LinkageVerdictState(private val project: Project) : PersistentStateCompone
             report: LinkageAudit.Report,
             identify: (jarName: String) -> JarCoordinates.Identified?,
             fixFor: (jarName: String) -> String?,
+            provenanceFor: (jarName: String) -> List<String> = { emptyList() },
         ): Map<com.tampwell.staleguard.repository.Coordinates, JarProblem> =
             report.brokenMembers.filter { it.ownerJar != null }
                 .groupBy { it.ownerJar!! }
@@ -152,6 +159,7 @@ class LinkageVerdictState(private val project: Project) : PersistentStateCompone
                             brokenCalls = broken.size,
                             callers = broken.map { it.fromJar }.distinct().sorted().take(CALLERS_SHOWN),
                             fixVersion = fixFor(jarName),
+                            provenance = provenanceFor(jarName),
                         )
                     }
                 }

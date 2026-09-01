@@ -34,6 +34,8 @@ class ClasspathLinkageService(private val project: Project) {
         val findingModules: Map<LinkageDelta.Key, List<String>> = emptyMap(),
         /** Where each scanned jar lives, so a fix can identify its coordinates. */
         val jarPaths: Map<String, java.nio.file.Path> = emptyMap(),
+        /** Rendered dependency paths per blamed jar: why that version is here. Maven only. */
+        val provenance: Map<String, List<String>> = emptyMap(),
     )
 
     private class ScopeSet(
@@ -125,12 +127,41 @@ class ClasspathLinkageService(private val project: Project) {
             // jars, and automatic work must never surprise the network.
             emptyMap()
         }
+        val provenance = provenanceFor(merged.report, pathByJarName)
         LinkageVerdictState.getInstance(project).record(
             merged.report,
             identify = { jarName -> pathByJarName[jarName]?.let(JarCoordinates::identify) },
             fixFor = { jarName -> (suggestions[jarName] as? FixSuggestions.Suggestion.FixedIn)?.version },
+            provenanceFor = { jarName -> provenance[jarName].orEmpty() },
         )
-        return Result(merged.report, standing, suggestions, merged.moduleCount, merged.modulesByFinding, pathByJarName)
+        return Result(
+            merged.report, standing, suggestions,
+            merged.moduleCount, merged.modulesByFinding, pathByJarName, provenance,
+        )
+    }
+
+    /**
+     * Why each blamed jar's version is on the classpath: dependency paths from
+     * the IDE's own Maven resolution. Empty for Gradle builds — no resolved
+     * tree exists in the IDE, and a guessed path is worse than none.
+     */
+    private fun provenanceFor(
+        report: LinkageAudit.Report,
+        pathByJarName: Map<String, java.nio.file.Path>,
+    ): Map<String, List<String>> {
+        val blamed = (
+            report.brokenMembers.mapNotNull { it.ownerJar } +
+                report.shadowedGroups.flatMap { it.shadowedJars + it.winnerJar }
+            ).distinct()
+        if (blamed.isEmpty()) return emptyMap()
+        val roots = MavenProvenance.nodesFor(project)
+        if (roots.isEmpty()) return emptyMap()
+        return blamed.mapNotNull { jarName ->
+            val coordinates = pathByJarName[jarName]?.let(JarCoordinates::identify)?.coordinates
+                ?: return@mapNotNull null
+            val paths = ProvenanceTrace.trace(roots, coordinates.groupId, coordinates.artifactId)
+            paths.takeIf { it.isNotEmpty() }?.let { jarName to it.map(ProvenanceTrace.Path::render) }
+        }.toMap()
     }
 
     /**
