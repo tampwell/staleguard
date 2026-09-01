@@ -90,7 +90,10 @@ class StaleguardStatsPanel(private val project: Project) :
         val plan: UpgradePlan,
         val stats: List<ModuleStats>,
         val summary: ModuleStats,
+        val transitiveVulns: List<TransitiveVulnRow> = emptyList(),
     )
+
+    private class TransitiveVulnRow(val coordinate: String, val advisoryLine: String, val via: String)
 
     fun rebuild() {
         ReadAction.nonBlocking<Snapshot> { computeSnapshot() }
@@ -119,7 +122,27 @@ class StaleguardStatsPanel(private val project: Project) :
             inputs, plan, thresholdMs, now,
             com.tampwell.staleguard.services.VulnerabilityService.getInstance().advisoryCounter(),
         )
-        return Snapshot(rows, plan, stats, StatsCalculator.summary(stats))
+        // Transitive CVE sweep: every artifact the resolved Maven tree pulls
+        // in beyond the declared ones, checked against the same warm OSV
+        // cache the inspections use. Unknowns enqueue and repaint later.
+        val transitiveVulns = com.tampwell.staleguard.impact.TransitiveVulnScan
+            .candidates(com.tampwell.staleguard.impact.MavenProvenance.nodesFor(project))
+            .mapNotNull { candidate ->
+                val advisories = com.tampwell.staleguard.inspection.VulnerabilityProblems.advisoriesFor(
+                    project,
+                    Coordinates(candidate.groupId, candidate.artifactId),
+                    candidate.version,
+                )
+                advisories?.takeIf { it.isNotEmpty() }?.let { found ->
+                    val worst = com.tampwell.staleguard.inspection.VulnerabilityProblems.worst(found)
+                    TransitiveVulnRow(
+                        coordinate = "${candidate.groupId}:${candidate.artifactId}:${candidate.version}",
+                        advisoryLine = "${worst.displayId} (${worst.severity?.lowercase() ?: StaleguardBundle.message("severity.vuln.unknown")})",
+                        via = candidate.via,
+                    )
+                }
+            }
+        return Snapshot(rows, plan, stats, StatsCalculator.summary(stats), transitiveVulns)
     }
 
     private fun applySnapshot(snapshot: Snapshot) {
@@ -161,6 +184,23 @@ class StaleguardStatsPanel(private val project: Project) :
                     },
                 ),
             )
+        }
+
+        if (snapshot.transitiveVulns.isNotEmpty()) {
+            val vulnNode = DefaultMutableTreeNode(
+                StaleguardBundle.message("toolwindow.transitive.vulns", snapshot.transitiveVulns.size),
+            )
+            for (row in snapshot.transitiveVulns) {
+                vulnNode.add(
+                    DefaultMutableTreeNode(
+                        StaleguardBundle.message(
+                            "toolwindow.transitive.vuln.row",
+                            row.coordinate, row.advisoryLine, row.via,
+                        ),
+                    ),
+                )
+            }
+            root.add(vulnNode)
         }
 
         val unresolvedCoordinates = mutableSetOf<Coordinates>()
