@@ -34,7 +34,7 @@ object ProvenanceTrace {
     fun trace(roots: List<Node>, groupId: String, artifactId: String): List<Path> {
         val found = mutableListOf<Path>()
         fun walk(node: Node, trail: List<Hop>) {
-            if (found.size >= HARD_STOP) return
+            if (found.size >= HARD_STOP || trail.size >= MAX_DEPTH) return
             val hop = Hop(label(node))
             val path = trail + hop
             if (node.groupId == groupId && node.artifactId == artifactId) {
@@ -59,4 +59,9 @@ object ProvenanceTrace {
 
     private const val MAX_PATHS = 4
     private const val HARD_STOP = 64
+
+    // Maven trees can carry cycles (MavenArtifactState.CYCLE exists for a
+    // reason); a depth cap turns a cyclic input into a short walk instead of
+    // a stack overflow. Real dependency chains are nowhere near this deep.
+    private const val MAX_DEPTH = 64
 }

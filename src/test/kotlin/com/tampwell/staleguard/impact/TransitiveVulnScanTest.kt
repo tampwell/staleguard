@@ -41,6 +41,19 @@ class TransitiveVulnScanTest {
     }
 
     @Test
+    fun `a cyclic tree terminates instead of overflowing`() {
+        // Maven marks CYCLE nodes for a reason; children sharing a mutable
+        // list makes a genuinely cyclic Node graph.
+        val children = mutableListOf<ProvenanceTrace.Node>()
+        val cyclic = ProvenanceTrace.Node("g", "self", "1.0", children)
+        children += cyclic
+
+        val candidates = TransitiveVulnScan.candidates(listOf(cyclic))
+
+        assertTrue(candidates.isNotEmpty()) // it returned at all, capped by depth
+    }
+
+    @Test
     fun `two versions of the same artifact are separate candidates`() {
         val roots = listOf(
             node("a", children = listOf(node("dup", version = "1.0"))),

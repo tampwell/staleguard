@@ -25,7 +25,7 @@ object TransitiveVulnScan {
     fun candidates(roots: List<ProvenanceTrace.Node>): List<Candidate> {
         val best = LinkedHashMap<String, Pair<Int, Candidate>>()
         fun walk(node: ProvenanceTrace.Node, trail: List<String>, depth: Int) {
-            if (!node.winner) return
+            if (!node.winner || depth > MAX_DEPTH) return
             val path = trail + "${node.artifactId}:${node.version}"
             if (depth >= 2) {
                 val key = "${node.groupId}:${node.artifactId}:${node.version}"
@@ -40,4 +40,8 @@ object TransitiveVulnScan {
         roots.forEach { walk(it, emptyList(), 1) }
         return best.values.map { it.second }
     }
+
+    // Same cycle insurance as ProvenanceTrace: Maven marks CYCLE nodes, and
+    // a depth cap beats a stack overflow on any input shaped like one.
+    private const val MAX_DEPTH = 64
 }

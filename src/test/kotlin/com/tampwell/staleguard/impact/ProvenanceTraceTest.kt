@@ -66,4 +66,15 @@ class ProvenanceTraceTest {
 
         assertTrue(ProvenanceTrace.trace(listOf(tree), "com.example", "absent").isEmpty())
     }
+
+    @org.junit.Test
+    fun `a cyclic tree terminates instead of overflowing`() {
+        val children = mutableListOf<ProvenanceTrace.Node>()
+        val cyclic = ProvenanceTrace.Node("g", "self", "1.0", children)
+        children += cyclic
+
+        val paths = ProvenanceTrace.trace(listOf(cyclic), "g", "missing")
+
+        org.junit.Assert.assertTrue(paths.isEmpty()) // walked, capped, returned
+    }
 }

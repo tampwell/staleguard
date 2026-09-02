@@ -15,18 +15,22 @@ object MavenProvenance {
 
     fun nodesFor(project: Project): List<ProvenanceTrace.Node> = inReadAction {
         MavenProjectsManager.getInstance(project).projects.flatMap { mavenProject ->
-            mavenProject.dependencyTree.map(::toNode)
+            mavenProject.dependencyTree.map { toNode(it, depth = 0) }
         }
     }
 
-    private fun toNode(node: MavenArtifactNode): ProvenanceTrace.Node = ProvenanceTrace.Node(
+    private fun toNode(node: MavenArtifactNode, depth: Int): ProvenanceTrace.Node = ProvenanceTrace.Node(
         groupId = node.artifact.groupId,
         artifactId = node.artifact.artifactId,
         version = node.artifact.version,
-        children = node.dependencies.map(::toNode),
+        // The depth cap is cycle insurance at the conversion boundary, so a
+        // CYCLE-shaped tree can never build an infinite Node graph.
+        children = if (depth >= MAX_DEPTH) emptyList() else node.dependencies.map { toNode(it, depth + 1) },
         premanagedVersion = node.premanagedVersion,
         // ADDED is the copy resolution kept; CONFLICT and DUPLICATE mark the
         // occurrences another version or another path beat.
         winner = node.state == MavenArtifactState.ADDED,
     )
+
+    private const val MAX_DEPTH = 64
 }
