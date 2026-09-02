@@ -4,12 +4,16 @@
 
 ## [Unreleased]
 
+## [2.4.0] - 2026-09-02
+
+### Added
+- Transitive vulnerability sweep. Every artifact your resolved Maven tree pulls in beyond the declared dependencies is checked against the OSV database, and each hit appears in the tool window with the path that brings it in, so a vulnerable transitive names the dependency to change. Same 24 hour cache and offline behavior as the declared checks, evicted versions are skipped because a CVE claim about a jar you do not run is noise, and Gradle builds are excluded honestly rather than guessed at.
+
 ## [2.3.0] - 2026-09-01
 
 ### Added
 - Provenance: every problem now explains where it came from. When the classpath check blames a jar, the finding carries the dependency path that brought that version in, root to artifact, with the exact dependencyManagement pin that decided the version called out by name and evicted occurrences labeled. Maven projects get the full tree from the IDE's own resolution; Gradle builds get an honest pointer to gradle dependencies instead of a guess, because a provenance line that is sometimes wrong is worse than none.
 - Winner paths sort first and paths are capped at four, because two paths explain a conflict and forty restate it.
-- Transitive vulnerability sweep. Every artifact your resolved Maven tree pulls in beyond the declared dependencies is checked against the OSV database, and each hit appears in the tool window with the path that brings it in, so a vulnerable transitive names the dependency to change. Same 24 hour cache and offline behavior as the declared checks, evicted versions are skipped because a CVE claim about a jar you do not run is noise, and Gradle builds are excluded honestly rather than guessed at.
 
 ## [2.2.0] - 2026-08-30
 
