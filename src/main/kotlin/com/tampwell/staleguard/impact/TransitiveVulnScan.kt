@@ -26,8 +26,11 @@ object TransitiveVulnScan {
         val best = LinkedHashMap<String, Pair<Int, Candidate>>()
         fun walk(node: ProvenanceTrace.Node, trail: List<String>, depth: Int) {
             if (!node.winner || depth > MAX_DEPTH) return
-            val path = trail + "${node.artifactId}:${node.version}"
-            if (depth >= 2) {
+            val hop = if (node.version.isEmpty()) node.artifactId else "${node.artifactId}:${node.version}"
+            val path = trail + hop
+            // Module hops (empty group) are walked but never candidates:
+            // there is no coordinate to ask OSV about.
+            if (depth >= 2 && node.groupId.isNotEmpty()) {
                 val key = "${node.groupId}:${node.artifactId}:${node.version}"
                 val existing = best[key]
                 if (existing == null || existing.first > path.size) {

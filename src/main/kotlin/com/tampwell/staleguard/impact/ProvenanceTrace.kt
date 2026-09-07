@@ -18,6 +18,8 @@ object ProvenanceTrace {
         val premanagedVersion: String? = null,
         /** False when resolution evicted this occurrence in favor of another. */
         val winner: Boolean = true,
+        /** A build tool's own explanation for this hop (Gradle's selection reason). */
+        val note: String? = null,
     )
 
     data class Hop(val label: String)
@@ -48,10 +50,12 @@ object ProvenanceTrace {
     }
 
     private fun label(node: Node): String {
-        val base = "${node.artifactId}:${node.version}"
+        // A module hop has no version worth printing.
+        val base = if (node.version.isEmpty()) node.artifactId else "${node.artifactId}:${node.version}"
         return when {
             node.premanagedVersion != null ->
                 "$base (pinned from ${node.premanagedVersion} by dependencyManagement)"
+            node.note != null -> "$base (${node.note})"
             !node.winner -> "$base (evicted)"
             else -> base
         }

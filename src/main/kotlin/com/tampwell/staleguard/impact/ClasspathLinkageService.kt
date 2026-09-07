@@ -34,7 +34,7 @@ class ClasspathLinkageService(private val project: Project) {
         val findingModules: Map<LinkageDelta.Key, List<String>> = emptyMap(),
         /** Where each scanned jar lives, so a fix can identify its coordinates. */
         val jarPaths: Map<String, java.nio.file.Path> = emptyMap(),
-        /** Rendered dependency paths per blamed jar: why that version is here. Maven only. */
+        /** Rendered dependency paths per blamed jar: why that version is here. */
         val provenance: Map<String, List<String>> = emptyMap(),
     )
 
@@ -141,9 +141,10 @@ class ClasspathLinkageService(private val project: Project) {
     }
 
     /**
-     * Why each blamed jar's version is on the classpath: dependency paths from
-     * the IDE's own Maven resolution. Empty for Gradle builds — no resolved
-     * tree exists in the IDE, and a guessed path is worse than none.
+     * Why each blamed jar's version is on the classpath: dependency paths
+     * from the IDE's own resolution — Maven's tree and, since 2.5, Gradle's
+     * sync graph. A build whose graph was not collected contributes nothing,
+     * because a guessed path is worse than none.
      */
     private fun provenanceFor(
         report: LinkageAudit.Report,
@@ -154,7 +155,7 @@ class ClasspathLinkageService(private val project: Project) {
                 report.shadowedGroups.flatMap { it.shadowedJars + it.winnerJar }
             ).distinct()
         if (blamed.isEmpty()) return emptyMap()
-        val roots = MavenProvenance.nodesFor(project)
+        val roots = Provenance.nodesFor(project)
         if (roots.isEmpty()) return emptyMap()
         return blamed.mapNotNull { jarName ->
             val coordinates = pathByJarName[jarName]?.let(JarCoordinates::identify)?.coordinates

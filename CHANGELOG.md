@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+## [2.5.0] - 2026-09-07
+
+### Added
+- Gradle catches up. Provenance and the transitive vulnerability sweep now work for Gradle builds, from the resolved dependency graph the Gradle sync already collects (the same data behind the IDE's own Dependency Analyzer). Every "via" line shows the path your build actually resolved, with Gradle's own selection reason on a hop when it explains a conflict, and library paths through sibling modules are followed. When a sync has not collected the graph the lines are simply absent, because a guessed path is worse than none.
+
 ## [2.4.0] - 2026-09-02
 
 ### Added

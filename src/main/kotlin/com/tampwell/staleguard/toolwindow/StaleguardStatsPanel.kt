@@ -122,11 +122,12 @@ class StaleguardStatsPanel(private val project: Project) :
             inputs, plan, thresholdMs, now,
             com.tampwell.staleguard.services.VulnerabilityService.getInstance().advisoryCounter(),
         )
-        // Transitive CVE sweep: every artifact the resolved Maven tree pulls
-        // in beyond the declared ones, checked against the same warm OSV
-        // cache the inspections use. Unknowns enqueue and repaint later.
+        // Transitive CVE sweep: every artifact the resolved dependency trees
+        // (Maven and Gradle) pull in beyond the declared ones, checked against
+        // the same warm OSV cache the inspections use. Unknowns enqueue and
+        // repaint later.
         val transitiveVulns = com.tampwell.staleguard.impact.TransitiveVulnScan
-            .candidates(com.tampwell.staleguard.impact.MavenProvenance.nodesFor(project))
+            .candidates(com.tampwell.staleguard.impact.Provenance.nodesFor(project))
             .mapNotNull { candidate ->
                 val advisories = com.tampwell.staleguard.inspection.VulnerabilityProblems.advisoriesFor(
                     project,
