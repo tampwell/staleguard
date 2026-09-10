@@ -84,4 +84,60 @@ class LockfileTest {
 
         assertTrue(Lockfile.drift(locked, emptyList()).isEmpty())
     }
+
+    @Test
+    fun `locate classifies the three single file names`() {
+        val module = Lockfile.locate("/repo/app/gradle.lockfile")
+        assertEquals(Lockfile.Located("/repo/app", null, driftEligible = true), module)
+
+        val settings = Lockfile.locate("/repo/settings-gradle.lockfile")
+        assertEquals(Lockfile.Located("/repo", null, driftEligible = false), settings)
+
+        val buildscript = Lockfile.locate("/repo/buildscript-gradle.lockfile")
+        assertEquals(Lockfile.Located("/repo", null, driftEligible = false), buildscript)
+    }
+
+    @Test
+    fun `locate maps a legacy file to its module and configuration`() {
+        val located = Lockfile.locate("/repo/app/gradle/dependency-locks/compileClasspath.lockfile")
+
+        assertEquals(Lockfile.Located("/repo/app", "compileClasspath", driftEligible = true), located)
+    }
+
+    @Test
+    fun `locate rejects a lockfile-suffixed file outside the known shapes`() {
+        assertEquals(null, Lockfile.locate("/repo/app/notes/mine.lockfile"))
+        assertEquals(null, Lockfile.locate("/repo/app/build.gradle"))
+    }
+
+    @Test
+    fun `driftAcross matches each lockfile to its own directory's declarations`() {
+        val appLock = Lockfile.Located("/repo/app", null, driftEligible = true) to
+            listOf(Lockfile.Locked("g", "a", "1.0", listOf("compileClasspath")))
+        val libLock = Lockfile.Located("/repo/lib", null, driftEligible = true) to
+            listOf(Lockfile.Locked("g", "a", "1.0", listOf("compileClasspath")))
+        val settingsLock = Lockfile.Located("/repo", null, driftEligible = false) to
+            listOf(Lockfile.Locked("g", "a", "0.9", listOf("classpath")))
+        val declaredByDir = mapOf(
+            "/repo/app" to listOf(Lockfile.Declared("g", "a", "1.1")),
+            "/repo/lib" to listOf(Lockfile.Declared("g", "a", "1.0")),
+        )
+
+        val drifts = Lockfile.driftAcross(listOf(appLock, libLock, settingsLock), declaredByDir)
+
+        assertEquals(listOf(Lockfile.Drift("g", "a", "1.0", "1.1")), drifts)
+    }
+
+    @Test
+    fun `driftAcross collapses identical findings from sibling legacy files`() {
+        val compile = Lockfile.Located("/repo/app", "compileClasspath", driftEligible = true) to
+            listOf(Lockfile.Locked("g", "a", "1.0", listOf("compileClasspath")))
+        val runtime = Lockfile.Located("/repo/app", "runtimeClasspath", driftEligible = true) to
+            listOf(Lockfile.Locked("g", "a", "1.0", listOf("runtimeClasspath")))
+        val declaredByDir = mapOf("/repo/app" to listOf(Lockfile.Declared("g", "a", "2.0")))
+
+        val drifts = Lockfile.driftAcross(listOf(compile, runtime), declaredByDir)
+
+        assertEquals(1, drifts.size)
+    }
 }

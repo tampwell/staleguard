@@ -43,6 +43,43 @@ object Lockfile {
 
     val SINGLE_FILE_NAMES = setOf("gradle.lockfile", "settings-gradle.lockfile", "buildscript-gradle.lockfile")
 
+    /**
+     * What a lockfile's path says about how to read it. [moduleDir] is the
+     * directory whose build file governs the same dependencies; only
+     * `gradle.lockfile` and the legacy per-configuration files compare
+     * against declarations ([driftEligible]) - the settings and buildscript
+     * locks pin plugin classpaths no build-file declaration describes.
+     */
+    data class Located(
+        val moduleDir: String,
+        val fallbackConfiguration: String?,
+        val driftEligible: Boolean,
+    )
+
+    /** [path] uses forward slashes. Returns null for files that are not Gradle locks. */
+    fun locate(path: String): Located? {
+        val segments = path.split('/')
+        val name = segments.lastOrNull() ?: return null
+        if (name in SINGLE_FILE_NAMES) {
+            return Located(
+                moduleDir = segments.dropLast(1).joinToString("/"),
+                fallbackConfiguration = null,
+                driftEligible = name == "gradle.lockfile",
+            )
+        }
+        // Legacy format: <module>/gradle/dependency-locks/<configuration>.lockfile
+        if (name.endsWith(".lockfile") && segments.size >= 4 &&
+            segments[segments.size - 2] == "dependency-locks" && segments[segments.size - 3] == "gradle"
+        ) {
+            return Located(
+                moduleDir = segments.dropLast(3).joinToString("/"),
+                fallbackConfiguration = name.removeSuffix(".lockfile"),
+                driftEligible = true,
+            )
+        }
+        return null
+    }
+
     private val COORDINATE = Regex("""^([^:#=\s]+):([^:=\s]+):([^:=\s]+?)(?:=(.*))?$""")
 
     fun parse(text: String, fallbackConfiguration: String? = null): List<Locked> {
@@ -73,6 +110,24 @@ object Lockfile {
         version.endsWith('+') ||
             version.startsWith("latest.") ||
             version.any { it in "[]()," }
+
+    /**
+     * Drift across many lockfiles: each drift-eligible file compares against
+     * the declarations of the build file in its own directory, and identical
+     * findings from sibling legacy files collapse to one.
+     */
+    fun driftAcross(
+        files: List<Pair<Located, List<Locked>>>,
+        declaredByDir: Map<String, List<Declared>>,
+    ): List<Drift> =
+        files
+            .filter { it.first.driftEligible }
+            .groupBy { it.first.moduleDir }
+            .flatMap { (moduleDir, moduleFiles) ->
+                val declared = declaredByDir[moduleDir] ?: return@flatMap emptyList()
+                drift(moduleFiles.flatMap { it.second }, declared)
+            }
+            .distinct()
 
     fun drift(locked: List<Locked>, declared: List<Declared>): List<Drift> {
         val declaredByCoordinate = declared

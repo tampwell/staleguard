@@ -70,6 +70,13 @@
                          enabledByDefault="true"
                          level="WARNING"
                          implementationClass="com.tampwell.staleguard.inspection.DependencyFreshnessInspection"/>
+        <localInspection language="TEXT"
+                         bundle="messages.StaleguardBundle"
+                         key="inspection.lockfile.display.name"
+                         groupKey="inspection.group"
+                         enabledByDefault="true"
+                         level="WARNING"
+                         implementationClass="com.tampwell.staleguard.gradle.LockfileInspection"/>
         <applicationConfigurable parentId="tools"
                                  id="com.tampwell.staleguard.settings"
                                  instance="com.tampwell.staleguard.settings.StaleguardConfigurable"

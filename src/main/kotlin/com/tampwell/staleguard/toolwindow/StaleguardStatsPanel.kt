@@ -91,9 +91,15 @@ class StaleguardStatsPanel(private val project: Project) :
         val stats: List<ModuleStats>,
         val summary: ModuleStats,
         val transitiveVulns: List<TransitiveVulnRow> = emptyList(),
+        val lockDrifts: List<LockDriftRow> = emptyList(),
+        val lockedVulns: List<LockedVulnRow> = emptyList(),
     )
 
     private class TransitiveVulnRow(val coordinate: String, val advisoryLine: String, val via: String)
+
+    private class LockDriftRow(val coordinate: String, val lockedVersion: String, val declaredVersion: String)
+
+    private class LockedVulnRow(val coordinate: String, val advisoryLine: String, val configurations: String)
 
     fun rebuild() {
         ReadAction.nonBlocking<Snapshot> { computeSnapshot() }
@@ -143,7 +149,51 @@ class StaleguardStatsPanel(private val project: Project) :
                     )
                 }
             }
-        return Snapshot(rows, plan, stats, StatsCalculator.summary(stats), transitiveVulns)
+        // Gradle lockfiles: what dependency locking actually pinned. Drift
+        // compares each lock against the declarations of the build file in
+        // the same directory; the vulnerability check runs on the LOCKED
+        // versions, the most exact input OSV can get. Anything the main
+        // table or the transitive sweep already reports is not repeated.
+        val lockEntries = com.tampwell.staleguard.gradle.LockfileScan.collect(project)
+        var lockDrifts = emptyList<LockDriftRow>()
+        var lockedVulns = emptyList<LockedVulnRow>()
+        if (lockEntries.isNotEmpty()) {
+            val gradleDeclared = inputs.mapNotNull { input ->
+                val groupId = input.declared.groupId ?: return@mapNotNull null
+                val artifactId = input.declared.artifactId ?: return@mapNotNull null
+                val version = input.declared.resolvedVersion ?: return@mapNotNull null
+                Triple(input.moduleId.replace('\\', '/').substringBeforeLast('/'), groupId to artifactId, version)
+            }
+            val declaredByDir = gradleDeclared
+                .groupBy({ it.first }, { com.tampwell.staleguard.gradle.Lockfile.Declared(it.second.first, it.second.second, it.third) })
+            lockDrifts = com.tampwell.staleguard.gradle.LockfileScan.drifts(lockEntries, declaredByDir)
+                .map { LockDriftRow("${it.group}:${it.name}", it.lockedVersion, it.declaredVersion) }
+
+            val alreadyReported = transitiveVulns.map { it.coordinate }.toSet() +
+                gradleDeclared.map { "${it.second.first}:${it.second.second}:${it.third}" }
+            lockedVulns = lockEntries.asSequence()
+                .flatMap { it.locked }
+                .distinctBy { "${it.group}:${it.name}:${it.version}" }
+                .mapNotNull { locked ->
+                    val coordinate = "${locked.group}:${locked.name}:${locked.version}"
+                    if (coordinate in alreadyReported) return@mapNotNull null
+                    val advisories = com.tampwell.staleguard.inspection.VulnerabilityProblems.advisoriesFor(
+                        project,
+                        Coordinates(locked.group, locked.name),
+                        locked.version,
+                    )
+                    advisories?.takeIf { it.isNotEmpty() }?.let { found ->
+                        val worst = com.tampwell.staleguard.inspection.VulnerabilityProblems.worst(found)
+                        LockedVulnRow(
+                            coordinate = coordinate,
+                            advisoryLine = "${worst.displayId} (${worst.severity?.lowercase() ?: StaleguardBundle.message("severity.vuln.unknown")})",
+                            configurations = locked.configurations.joinToString(", ").ifEmpty { "-" },
+                        )
+                    }
+                }
+                .toList()
+        }
+        return Snapshot(rows, plan, stats, StatsCalculator.summary(stats), transitiveVulns, lockDrifts, lockedVulns)
     }
 
     private fun applySnapshot(snapshot: Snapshot) {
@@ -202,6 +252,40 @@ class StaleguardStatsPanel(private val project: Project) :
                 )
             }
             root.add(vulnNode)
+        }
+
+        if (snapshot.lockDrifts.isNotEmpty()) {
+            val driftNode = DefaultMutableTreeNode(
+                StaleguardBundle.message("toolwindow.lockfile.drift", snapshot.lockDrifts.size),
+            )
+            for (row in snapshot.lockDrifts) {
+                driftNode.add(
+                    DefaultMutableTreeNode(
+                        StaleguardBundle.message(
+                            "toolwindow.lockfile.drift.row",
+                            row.coordinate, row.lockedVersion, row.declaredVersion,
+                        ),
+                    ),
+                )
+            }
+            root.add(driftNode)
+        }
+
+        if (snapshot.lockedVulns.isNotEmpty()) {
+            val lockedNode = DefaultMutableTreeNode(
+                StaleguardBundle.message("toolwindow.lockfile.vulns", snapshot.lockedVulns.size),
+            )
+            for (row in snapshot.lockedVulns) {
+                lockedNode.add(
+                    DefaultMutableTreeNode(
+                        StaleguardBundle.message(
+                            "toolwindow.lockfile.vuln.row",
+                            row.coordinate, row.advisoryLine, row.configurations,
+                        ),
+                    ),
+                )
+            }
+            root.add(lockedNode)
         }
 
         val unresolvedCoordinates = mutableSetOf<Coordinates>()
