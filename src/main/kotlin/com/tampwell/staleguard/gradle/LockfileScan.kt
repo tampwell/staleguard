@@ -17,15 +17,17 @@ object LockfileScan {
     data class Entry(
         val file: VirtualFile,
         val located: Lockfile.Located,
-        val locked: List<Lockfile.Locked>,
-    )
+        val lines: List<Lockfile.Line>,
+    ) {
+        val locked: List<Lockfile.Locked> get() = lines.map { it.locked }
+    }
 
     fun collect(project: Project): List<Entry> =
         FilenameIndex.getAllFilesByExt(project, "lockfile", GlobalSearchScope.projectScope(project))
             .mapNotNull { file ->
                 val located = Lockfile.locate(file.path.replace('\\', '/')) ?: return@mapNotNull null
                 val text = runCatching { VfsUtilCore.loadText(file) }.getOrNull() ?: return@mapNotNull null
-                Entry(file, located, Lockfile.parse(text, located.fallbackConfiguration))
+                Entry(file, located, Lockfile.parseLines(text, located.fallbackConfiguration))
             }
 
     /**

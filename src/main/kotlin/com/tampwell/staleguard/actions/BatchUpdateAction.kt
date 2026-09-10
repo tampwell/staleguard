@@ -54,6 +54,8 @@ class BatchUpdateAction : AnAction() {
         if (selected.isEmpty()) return
 
         val applied = UpgradeApplier.applyCandidates(project, selected)
-        UpgradeApplier.notify(project, StaleguardBundle.message("batch.applied", applied), NotificationType.INFORMATION)
+        val content = StaleguardBundle.message("batch.applied", applied) +
+            (UpgradeApplier.relockAdvice(selected)?.let { "\n$it" } ?: "")
+        UpgradeApplier.notify(project, content, NotificationType.INFORMATION)
     }
 }

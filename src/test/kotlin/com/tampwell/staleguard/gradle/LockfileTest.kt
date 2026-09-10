@@ -86,6 +86,17 @@ class LockfileTest {
     }
 
     @Test
+    fun `parseLines reports the exact text range of each entry line`() {
+        val text = "# header\ng:a:1.0=compileClasspath\n\ng:b:2.0=runtimeClasspath\n"
+
+        val lines = Lockfile.parseLines(text)
+
+        assertEquals(2, lines.size)
+        assertEquals("g:a:1.0=compileClasspath", text.substring(lines[0].range.first, lines[0].range.last + 1))
+        assertEquals("g:b:2.0=runtimeClasspath", text.substring(lines[1].range.first, lines[1].range.last + 1))
+    }
+
+    @Test
     fun `locate classifies the three single file names`() {
         val module = Lockfile.locate("/repo/app/gradle.lockfile")
         assertEquals(Lockfile.Located("/repo/app", null, driftEligible = true), module)

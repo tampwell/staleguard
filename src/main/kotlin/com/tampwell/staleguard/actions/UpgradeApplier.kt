@@ -190,6 +190,26 @@ object UpgradeApplier {
         return applied
     }
 
+    /**
+     * A bump in a module that uses Gradle dependency locking makes the lock
+     * out of step the moment it is applied - the exact footgun the lockfile
+     * checks warn about, so the applier that caused it says so up front.
+     * Returns the advice line, or null when no touched module is locked.
+     */
+    fun relockAdvice(selected: List<UpgradeCandidate>): String? {
+        val lockedModules = selected.asSequence()
+            .map { it.moduleId }
+            .distinct()
+            .filter { isGradlePath(it) }
+            .mapNotNull { LocalFileSystem.getInstance().findFileByPath(it)?.parent }
+            .filter { dir ->
+                dir.findChild("gradle.lockfile") != null ||
+                    dir.findChild("gradle")?.findChild("dependency-locks") != null
+            }
+            .count()
+        return if (lockedModules == 0) null else StaleguardBundle.message("batch.relock", lockedModules)
+    }
+
     fun notify(project: Project, content: String, type: NotificationType) {
         NotificationGroupManager.getInstance()
             .getNotificationGroup("Staleguard")

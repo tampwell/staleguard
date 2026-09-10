@@ -97,9 +97,21 @@ class StaleguardStatsPanel(private val project: Project) :
 
     private class TransitiveVulnRow(val coordinate: String, val advisoryLine: String, val via: String)
 
-    private class LockDriftRow(val coordinate: String, val lockedVersion: String, val declaredVersion: String)
+    private class LockDriftRow(
+        val coordinate: String,
+        val lockedVersion: String,
+        val declaredVersion: String,
+        val file: VirtualFile?,
+        val offset: Int,
+    )
 
-    private class LockedVulnRow(val coordinate: String, val advisoryLine: String, val configurations: String)
+    private class LockedVulnRow(
+        val coordinate: String,
+        val advisoryLine: String,
+        val configurations: String,
+        val file: VirtualFile?,
+        val offset: Int,
+    )
 
     fun rebuild() {
         ReadAction.nonBlocking<Snapshot> { computeSnapshot() }
@@ -167,14 +179,28 @@ class StaleguardStatsPanel(private val project: Project) :
             val declaredByDir = gradleDeclared
                 .groupBy({ it.first }, { com.tampwell.staleguard.gradle.Lockfile.Declared(it.second.first, it.second.second, it.third) })
             lockDrifts = com.tampwell.staleguard.gradle.LockfileScan.drifts(lockEntries, declaredByDir)
-                .map { LockDriftRow("${it.group}:${it.name}", it.lockedVersion, it.declaredVersion) }
+                .map { drift ->
+                    // The line that pinned the drifted version - double-click lands on it.
+                    val nav = lockEntries.firstNotNullOfOrNull { entry ->
+                        if (!entry.located.driftEligible) return@firstNotNullOfOrNull null
+                        entry.lines.firstOrNull {
+                            it.locked.group == drift.group && it.locked.name == drift.name &&
+                                it.locked.version == drift.lockedVersion
+                        }?.let { entry.file to it.range.first }
+                    }
+                    LockDriftRow(
+                        "${drift.group}:${drift.name}", drift.lockedVersion, drift.declaredVersion,
+                        nav?.first, nav?.second ?: 0,
+                    )
+                }
 
             val alreadyReported = transitiveVulns.map { it.coordinate }.toSet() +
                 gradleDeclared.map { "${it.second.first}:${it.second.second}:${it.third}" }
             lockedVulns = lockEntries.asSequence()
-                .flatMap { it.locked }
-                .distinctBy { "${it.group}:${it.name}:${it.version}" }
-                .mapNotNull { locked ->
+                .flatMap { entry -> entry.lines.asSequence().map { entry.file to it } }
+                .distinctBy { (_, line) -> "${line.locked.group}:${line.locked.name}:${line.locked.version}" }
+                .mapNotNull { (file, line) ->
+                    val locked = line.locked
                     val coordinate = "${locked.group}:${locked.name}:${locked.version}"
                     if (coordinate in alreadyReported) return@mapNotNull null
                     val advisories = com.tampwell.staleguard.inspection.VulnerabilityProblems.advisoriesFor(
@@ -188,6 +214,8 @@ class StaleguardStatsPanel(private val project: Project) :
                             coordinate = coordinate,
                             advisoryLine = "${worst.displayId} (${worst.severity?.lowercase() ?: StaleguardBundle.message("severity.vuln.unknown")})",
                             configurations = locked.configurations.joinToString(", ").ifEmpty { "-" },
+                            file = file,
+                            offset = line.range.first,
                         )
                     }
                 }
@@ -259,13 +287,12 @@ class StaleguardStatsPanel(private val project: Project) :
                 StaleguardBundle.message("toolwindow.lockfile.drift", snapshot.lockDrifts.size),
             )
             for (row in snapshot.lockDrifts) {
+                val label = StaleguardBundle.message(
+                    "toolwindow.lockfile.drift.row",
+                    row.coordinate, row.lockedVersion, row.declaredVersion,
+                )
                 driftNode.add(
-                    DefaultMutableTreeNode(
-                        StaleguardBundle.message(
-                            "toolwindow.lockfile.drift.row",
-                            row.coordinate, row.lockedVersion, row.declaredVersion,
-                        ),
-                    ),
+                    DefaultMutableTreeNode(row.file?.let { NavTarget(it, row.offset, label) } ?: label),
                 )
             }
             root.add(driftNode)
@@ -276,13 +303,12 @@ class StaleguardStatsPanel(private val project: Project) :
                 StaleguardBundle.message("toolwindow.lockfile.vulns", snapshot.lockedVulns.size),
             )
             for (row in snapshot.lockedVulns) {
+                val label = StaleguardBundle.message(
+                    "toolwindow.lockfile.vuln.row",
+                    row.coordinate, row.advisoryLine, row.configurations,
+                )
                 lockedNode.add(
-                    DefaultMutableTreeNode(
-                        StaleguardBundle.message(
-                            "toolwindow.lockfile.vuln.row",
-                            row.coordinate, row.advisoryLine, row.configurations,
-                        ),
-                    ),
+                    DefaultMutableTreeNode(row.file?.let { NavTarget(it, row.offset, label) } ?: label),
                 )
             }
             root.add(lockedNode)

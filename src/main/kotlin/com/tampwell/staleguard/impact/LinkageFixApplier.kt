@@ -35,6 +35,7 @@ object LinkageFixApplier {
             if (applied < bumps.size) {
                 lines += StaleguardBundle.message("linkage.apply.partial", bumps.size - applied)
             }
+            UpgradeApplier.relockAdvice(bumps.map { it.candidate })?.let { lines += it }
         }
 
         for (step in steps.filterIsInstance<LinkageFixPlan.Step.Manage>()) {

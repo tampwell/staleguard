@@ -48,6 +48,8 @@ class ApplyAllPatchAction : AnAction() {
         }
 
         val applied = UpgradeApplier.applyCandidates(project, patches)
-        UpgradeApplier.notify(project, StaleguardBundle.message("patchall.applied", applied), NotificationType.INFORMATION)
+        val content = StaleguardBundle.message("patchall.applied", applied) +
+            (UpgradeApplier.relockAdvice(patches)?.let { "\n$it" } ?: "")
+        UpgradeApplier.notify(project, content, NotificationType.INFORMATION)
     }
 }

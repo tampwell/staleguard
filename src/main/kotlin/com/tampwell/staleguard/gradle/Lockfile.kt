@@ -82,9 +82,18 @@ object Lockfile {
 
     private val COORDINATE = Regex("""^([^:#=\s]+):([^:=\s]+):([^:=\s]+?)(?:=(.*))?$""")
 
-    fun parse(text: String, fallbackConfiguration: String? = null): List<Locked> {
-        val locked = mutableListOf<Locked>()
+    /** A parsed entry plus where its line sits in the file - for navigation and highlighting. */
+    data class Line(val locked: Locked, val range: IntRange)
+
+    fun parse(text: String, fallbackConfiguration: String? = null): List<Locked> =
+        parseLines(text, fallbackConfiguration).map { it.locked }
+
+    fun parseLines(text: String, fallbackConfiguration: String? = null): List<Line> {
+        val lines = mutableListOf<Line>()
+        var offset = 0
         for (raw in text.lineSequence()) {
+            val lineStart = offset
+            offset += raw.length + 1 // +1 for the newline
             val line = raw.trim()
             if (line.isEmpty() || line.startsWith('#')) continue
             // "empty=confA,confB" records configurations that locked nothing.
@@ -96,9 +105,9 @@ object Lockfile {
                 fallbackConfiguration != null -> listOf(fallbackConfiguration)
                 else -> emptyList()
             }
-            locked += Locked(group, name, version, configurations)
+            lines += Line(Locked(group, name, version, configurations), lineStart until (lineStart + raw.length))
         }
-        return locked
+        return lines
     }
 
     /**

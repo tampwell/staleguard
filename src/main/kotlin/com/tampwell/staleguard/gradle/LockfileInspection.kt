@@ -40,11 +40,8 @@ class LockfileInspection : LocalInspectionTool() {
 
         val policy = com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(manager.project)
         val problems = mutableListOf<ProblemDescriptor>()
-        var offset = 0
-        for (line in file.text.lineSequence()) {
-            val lineRange = TextRange(offset, offset + line.length)
-            offset += line.length + 1
-            val locked = Lockfile.parse(line, located.fallbackConfiguration).firstOrNull() ?: continue
+        for ((locked, range) in Lockfile.parseLines(file.text, located.fallbackConfiguration)) {
+            val lineRange = TextRange(range.first, range.last + 1)
             if (policy.isIgnored(locked.group, locked.name)) continue
 
             val declaration = declaredByCoordinate[locked.group to locked.name]
