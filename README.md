@@ -22,6 +22,16 @@ classpath will throw NoSuchMethodError at runtime - then fixes them - directly i
   every module's classpath and reports what gets fixed and what breaks, anywhere
 - **Shadowed class detection**: the same class in two jars with differing APIs, where
   classpath order silently decides which copy runs
+- **Provenance on every finding**: the dependency path that actually brought the blamed
+  version in, root to artifact, straight from your build tool's own resolution - Maven and
+  Gradle both - with `dependencyManagement` pins and Gradle selection reasons called out
+- **Transitive CVE sweep**: every artifact your resolved tree pulls in beyond the declared
+  ones is checked against OSV, and each hit shows the path that pulled it in
+- **Lockfile aware**: with Gradle dependency locking, every lockfile is read (single-file
+  and legacy per-configuration formats), drift between a lock and the declarations is
+  flagged on the exact line, and the vulnerability check runs on the locked versions - the
+  exact things your build runs. Applying an update in a locked module tells you about the
+  `--write-locks` follow-up itself. Staleguard never edits a lockfile
 - Warns on outdated dependency versions with major / minor / patch severity
 - Flags versions with known vulnerabilities, naming the CVE, its severity, and the first fixed version (data from the [OSV database](https://osv.dev))
 - **Upgrade impact analysis**: compares the two versions' bytecode and reports the removed
@@ -43,7 +53,7 @@ classpath will throw NoSuchMethodError at runtime - then fixes them - directly i
 - Version pins and ceilings in `.staleguard.toml`, honored by every surface including batch updates
 - Generates runnable try-out scripts (Java, JBang, Kotlin, JShell, Groovy) for any library
 
-Supported build files: `pom.xml`, `build.gradle`, `build.gradle.kts`, `gradle/libs.versions.toml`, `gradle.properties`, and `buildSrc` version constants. Gradle `plugins {}` blocks, parent POMs, and `platform()`/scope=import BOMs are checked too.
+Supported build files: `pom.xml`, `build.gradle`, `build.gradle.kts`, `gradle/libs.versions.toml`, `gradle.properties`, `gradle.lockfile` (and the legacy `gradle/dependency-locks/`), and `buildSrc` version constants. Gradle `plugins {}` blocks, parent POMs, and `platform()`/scope=import BOMs are checked too.
 
 Suggests stable releases only by default. Prereleases are available behind a setting.
 
