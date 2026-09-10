@@ -7,7 +7,7 @@
 ## [2.6.0] - 2026-09-09
 
 ### Added
-- The lockfile is the truth. When a project uses Gradle dependency locking, Staleguard now reads every lockfile (current single-file format and the legacy per-configuration directory both), warns when a lock is out of step with what the build files declare (the forgot-to-relock footgun), and runs the vulnerability check on the LOCKED versions, the most exact input it can get. The tool window shows both: drift rows with the honest fix (re-run Gradle with --write-locks) and vulnerable locked versions with the configurations they pin. Staleguard never edits a lockfile.
+- The lockfile is the truth. When a project uses Gradle dependency locking, Staleguard now reads every lockfile (current single-file format and the legacy per-configuration directory both), warns when a lock is out of step with what the build files declare (the forgot-to-relock footgun), and runs the vulnerability check on the LOCKED versions, the most exact input it can get. The tool window shows both, and every row double-clicks straight to the exact lockfile line. Because applying an update in a locked module creates that drift the moment it lands, the batch applier now says so itself and names the --write-locks follow-up. Staleguard never edits a lockfile.
 
 ## [2.5.0] - 2026-09-07
 
