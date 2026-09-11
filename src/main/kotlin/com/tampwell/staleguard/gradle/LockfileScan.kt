@@ -22,13 +22,34 @@ object LockfileScan {
         val locked: List<Lockfile.Locked> get() = lines.map { it.locked }
     }
 
-    fun collect(project: Project): List<Entry> =
-        FilenameIndex.getAllFilesByExt(project, "lockfile", GlobalSearchScope.projectScope(project))
+    // Rebuilds fire on every freshness event, and a lockfile can be hundreds
+    // of kilobytes - re-parse only when the VFS says the content changed.
+    private class Parsed(val stamp: Long, val lines: List<Lockfile.Line>)
+
+    private val cache = java.util.concurrent.ConcurrentHashMap<String, Parsed>()
+
+    fun collect(project: Project): List<Entry> {
+        // Keys carry the project so two open projects never evict each other.
+        val prefix = "${project.locationHash}:"
+        val seen = mutableSetOf<String>()
+        val entries = FilenameIndex.getAllFilesByExt(project, "lockfile", GlobalSearchScope.projectScope(project))
             .mapNotNull { file ->
                 val located = Lockfile.locate(file.path.replace('\\', '/')) ?: return@mapNotNull null
-                val text = runCatching { VfsUtilCore.loadText(file) }.getOrNull() ?: return@mapNotNull null
-                Entry(file, located, Lockfile.parseLines(text, located.fallbackConfiguration))
+                val key = prefix + file.path
+                seen += key
+                val cached = cache[key]
+                val lines = if (cached != null && cached.stamp == file.modificationStamp) {
+                    cached.lines
+                } else {
+                    val text = runCatching { VfsUtilCore.loadText(file) }.getOrNull() ?: return@mapNotNull null
+                    Lockfile.parseLines(text, located.fallbackConfiguration)
+                        .also { cache[key] = Parsed(file.modificationStamp, it) }
+                }
+                Entry(file, located, lines)
             }
+        cache.keys.removeAll { it.startsWith(prefix) && it !in seen }
+        return entries
+    }
 
     /**
      * Drift between each drift-eligible lockfile and the declarations of the

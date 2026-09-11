@@ -236,17 +236,24 @@ class StaleguardStatsPanel(private val project: Project) :
         // Positive empty state: an empty-looking tree reads as "broken".
         val allFresh = summary.totalUpdates == 0 && summary.unresolved == 0 &&
             summary.abandoned == 0 && summary.vulnerable == 0
+        val summaryText = when {
+            allFresh -> StaleguardBundle.message("toolwindow.allfresh", summary.totalDependencies)
+            summary.vulnerable > 0 -> StaleguardBundle.message(
+                "toolwindow.summary.vulnerable",
+                summary.totalDependencies, summary.totalUpdates, summary.abandoned, summary.vulnerable,
+            )
+            else -> StaleguardBundle.message(
+                "toolwindow.summary",
+                summary.totalDependencies, summary.totalUpdates, summary.abandoned,
+            )
+        }
+        // Drift belongs in the headline: "all fresh" with a stale lock would
+        // be a false all-clear, since the build runs the lock, not the files.
         val root = DefaultMutableTreeNode(
-            when {
-                allFresh -> StaleguardBundle.message("toolwindow.allfresh", summary.totalDependencies)
-                summary.vulnerable > 0 -> StaleguardBundle.message(
-                    "toolwindow.summary.vulnerable",
-                    summary.totalDependencies, summary.totalUpdates, summary.abandoned, summary.vulnerable,
-                )
-                else -> StaleguardBundle.message(
-                    "toolwindow.summary",
-                    summary.totalDependencies, summary.totalUpdates, summary.abandoned,
-                )
+            if (snapshot.lockDrifts.isEmpty()) {
+                summaryText
+            } else {
+                summaryText + StaleguardBundle.message("toolwindow.summary.lockdrift", snapshot.lockDrifts.size)
             },
         )
 
