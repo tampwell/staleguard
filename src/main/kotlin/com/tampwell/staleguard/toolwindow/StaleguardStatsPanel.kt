@@ -522,6 +522,15 @@ class StaleguardStatsPanel(private val project: Project) :
 
         override fun actionPerformed(e: AnActionEvent) {
             val snapshot = lastSnapshot ?: return
+            // Collection reads indexes and walks resolved trees - off the
+            // EDT; only the save dialog and the file write come back to it.
+            ReadAction.nonBlocking<SbomPayload> { collectPayload(snapshot) }
+                .expireWith(this@StaleguardStatsPanel)
+                .finishOnUiThread(ModalityState.defaultModalityState()) { payload -> saveSbom(payload) }
+                .submit(AppExecutorUtil.getAppExecutorService())
+        }
+
+        private fun collectPayload(snapshot: Snapshot): SbomPayload {
             val vulnerabilities = com.tampwell.staleguard.services.VulnerabilityService.getInstance()
             val lookup = com.tampwell.staleguard.services.VersionLookupService.getInstance()
 
@@ -576,7 +585,11 @@ class StaleguardStatsPanel(private val project: Project) :
                 purlByKey[key]?.let { it to children.mapNotNull(purlByKey::get) }
             }.toMap()
             val rootDependsOn = graph.rootDependsOn.mapNotNull(purlByKey::get) + declaredExtra.map { it.purl }
-            if (components.isEmpty()) {
+            return SbomPayload(components, dependsOn, rootDependsOn)
+        }
+
+        private fun saveSbom(payload: SbomPayload) {
+            if (payload.components.isEmpty()) {
                 Messages.showInfoMessage(
                     StaleguardBundle.message("sbom.nothing"),
                     StaleguardBundle.message("toolwindow.export.sbom"),
@@ -592,15 +605,21 @@ class StaleguardStatsPanel(private val project: Project) :
             val content = CycloneDxWriter.write(
                 projectName = project.name,
                 toolVersion = StaleguardVersion.current(),
-                components = components,
+                components = payload.components,
                 serialUuid = UUID.randomUUID().toString(),
                 timestampMillis = System.currentTimeMillis(),
-                dependsOn = dependsOn,
-                rootDependsOn = rootDependsOn,
+                dependsOn = payload.dependsOn,
+                rootDependsOn = payload.rootDependsOn,
             )
             Files.writeString(wrapper.file.toPath(), content)
         }
     }
+
+    private class SbomPayload(
+        val components: List<CycloneDxWriter.Component>,
+        val dependsOn: Map<String, List<String>>,
+        val rootDependsOn: List<String>,
+    )
 
     /** A tree row that can jump to its declaration on double-click. */
     private class NavTarget(val file: VirtualFile, val offset: Int, private val label: String) {
