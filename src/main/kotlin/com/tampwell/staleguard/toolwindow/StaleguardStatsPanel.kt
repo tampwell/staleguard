@@ -93,7 +93,10 @@ class StaleguardStatsPanel(private val project: Project) :
         val transitiveVulns: List<TransitiveVulnRow> = emptyList(),
         val lockDrifts: List<LockDriftRow> = emptyList(),
         val lockedVulns: List<LockedVulnRow> = emptyList(),
+        val relockRows: List<RelockRow> = emptyList(),
     )
+
+    private class RelockRow(val label: String, val file: VirtualFile?)
 
     private class TransitiveVulnRow(val coordinate: String, val advisoryLine: String, val via: String)
 
@@ -221,7 +224,55 @@ class StaleguardStatsPanel(private val project: Project) :
                 }
                 .toList()
         }
-        return Snapshot(rows, plan, stats, StatsCalculator.summary(stats), transitiveVulns, lockDrifts, lockedVulns)
+        // The relock story: what the most recent lockfile regeneration
+        // actually moved, with the advisories it fixed or introduced.
+        val history = com.tampwell.staleguard.gradle.LockHistoryState.getInstance(project)
+        history.update(lockEntries)
+        val fileByPath = lockEntries.associate { it.file.path.replace('\\', '/') to it.file }
+        fun advisoryIds(group: String, name: String, version: String): Set<String> =
+            com.tampwell.staleguard.inspection.VulnerabilityProblems
+                .advisoriesFor(project, Coordinates(group, name), version)
+                ?.map { it.displayId }?.toSet().orEmpty()
+        val multipleFiles = history.lastRelocks.size > 1
+        val relockRows = history.lastRelocks.flatMap { relock ->
+            val file = fileByPath[relock.filePath]
+            val prefix = if (multipleFiles) "${relock.filePath.substringAfterLast('/')}: " else ""
+            relock.delta.changed.map { movement ->
+                val fromIds = advisoryIds(movement.group, movement.name, movement.from)
+                val toIds = advisoryIds(movement.group, movement.name, movement.to)
+                val fixed = fromIds - toIds
+                val introduced = toIds - fromIds
+                val suffix = buildString {
+                    if (fixed.isNotEmpty()) append(StaleguardBundle.message("toolwindow.relock.fixes", fixed.joinToString(", ")))
+                    if (introduced.isNotEmpty()) append(StaleguardBundle.message("toolwindow.relock.introduces", introduced.joinToString(", ")))
+                }
+                RelockRow(
+                    prefix + StaleguardBundle.message(
+                        "toolwindow.relock.changed.row",
+                        "${movement.group}:${movement.name}", movement.from, movement.to, suffix,
+                    ),
+                    file,
+                )
+            } + relock.delta.added.map { locked ->
+                RelockRow(
+                    prefix + StaleguardBundle.message(
+                        "toolwindow.relock.added.row", "${locked.group}:${locked.name}", locked.version,
+                    ),
+                    file,
+                )
+            } + relock.delta.removed.map { locked ->
+                RelockRow(
+                    prefix + StaleguardBundle.message(
+                        "toolwindow.relock.removed.row", "${locked.group}:${locked.name}", locked.version,
+                    ),
+                    file,
+                )
+            }
+        }.take(RELOCK_ROW_CAP)
+        return Snapshot(
+            rows, plan, stats, StatsCalculator.summary(stats),
+            transitiveVulns, lockDrifts, lockedVulns, relockRows,
+        )
     }
 
     private fun applySnapshot(snapshot: Snapshot) {
@@ -303,6 +354,18 @@ class StaleguardStatsPanel(private val project: Project) :
                 )
             }
             root.add(driftNode)
+        }
+
+        if (snapshot.relockRows.isNotEmpty()) {
+            val relockNode = DefaultMutableTreeNode(
+                StaleguardBundle.message("toolwindow.relock", snapshot.relockRows.size),
+            )
+            for (row in snapshot.relockRows) {
+                relockNode.add(
+                    DefaultMutableTreeNode(row.file?.let { NavTarget(it, 0, row.label) } ?: row.label),
+                )
+            }
+            root.add(relockNode)
         }
 
         if (snapshot.lockedVulns.isNotEmpty()) {
@@ -624,5 +687,10 @@ class StaleguardStatsPanel(private val project: Project) :
     /** A tree row that can jump to its declaration on double-click. */
     private class NavTarget(val file: VirtualFile, val offset: Int, private val label: String) {
         override fun toString(): String = label
+    }
+
+    private companion object {
+        /** A giant relock stays readable: the newest movements speak for the rest. */
+        const val RELOCK_ROW_CAP = 25
     }
 }
