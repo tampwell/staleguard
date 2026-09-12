@@ -53,7 +53,7 @@ classpath will throw NoSuchMethodError at runtime - then fixes them - directly i
 - Version pins and ceilings in `.staleguard.toml`, honored by every surface including batch updates
 - Generates runnable try-out scripts (Java, JBang, Kotlin, JShell, Groovy) for any library
 
-Supported build files: `pom.xml`, `build.gradle`, `build.gradle.kts`, `gradle/libs.versions.toml`, `gradle.properties`, `gradle.lockfile` (and the legacy `gradle/dependency-locks/`), and `buildSrc` version constants. Gradle `plugins {}` blocks, parent POMs, and `platform()`/scope=import BOMs are checked too.
+Supported build files: `pom.xml`, `build.gradle`, `build.gradle.kts`, `gradle/libs.versions.toml`, `gradle.properties`, `gradle.lockfile` (and the legacy `gradle/dependency-locks/`), and `buildSrc` version constants (readable and writable). Kotlin Multiplatform source-set blocks (`commonMain.dependencies { }` and the `by getting` idiom) are covered. Gradle `plugins {}` blocks, parent POMs, and `platform()`/scope=import BOMs are checked too.
 
 Suggests stable releases only by default. Prereleases are available behind a setting.
 

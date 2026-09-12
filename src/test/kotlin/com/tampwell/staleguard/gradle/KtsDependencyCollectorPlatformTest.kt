@@ -39,6 +39,33 @@ class KtsDependencyCollectorPlatformTest : BasePlatformTestCase() {
         assertFalse(declared.isPlatform)
     }
 
+    fun `test kmp source set dependencies blocks collect in both idioms`() {
+        val file = KtPsiFactory(project).createFile(
+            "build.gradle.kts",
+            """
+            kotlin {
+                sourceSets {
+                    commonMain.dependencies {
+                        implementation("com.squareup.okio:okio:3.9.0")
+                    }
+                    val jvmMain by getting {
+                        dependencies {
+                            implementation("com.google.code.gson:gson:2.10.1")
+                        }
+                    }
+                }
+            }
+            """.trimIndent(),
+        )
+
+        val declared = KtsDependencyCollector.collect(file, VersionCatalog.EMPTY, null)
+
+        assertEquals(
+            setOf("okio" to "3.9.0", "gson" to "2.10.1"),
+            declared.map { it.name to it.version }.toSet(),
+        )
+    }
+
     fun `test platform wrapper is unwrapped and flagged`() {
         val declared = collect(
             """implementation(platform("org.springframework.boot:spring-boot-dependencies:3.2.0"))""",
