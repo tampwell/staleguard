@@ -46,7 +46,9 @@ classpath will throw NoSuchMethodError at runtime - then fixes them - directly i
 - Batch update dialog with per-dependency confidence scores; security fixes come preselected
 - Checks parent POM freshness, since one edit there updates every managed dependency
 - Statistics and timeline tool window with license visibility, vulnerability counts, and Markdown/CSV/PNG export
-- CycloneDX 1.5 SBOM export, validated against the official schema, ready for Dependency-Track
+- CycloneDX 1.5 SBOM export of the FULL resolved bill: transitives included, the dependency
+  graph rooted at your project, lockfile-verified versions, OSV advisories attached -
+  validated against the official schema, ready for Dependency-Track
 - Private repositories: credentials for Nexus and Artifactory live in the IDE password safe,
   are sent only to hosts you list, and can be imported from `~/.m2/settings.xml`; Maven
   mirrors from settings.xml are routed exactly as Maven would
