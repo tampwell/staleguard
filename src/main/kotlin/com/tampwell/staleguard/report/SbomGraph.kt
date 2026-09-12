@@ -66,8 +66,10 @@ object SbomGraph {
             // belong to the winning occurrence, which is walked elsewhere.
             if (!node.winner) return emptyList()
             // A module hop is a pass-through: its library children attach to
-            // whatever depended on the module.
-            if (node.groupId.isEmpty()) {
+            // whatever depended on the module. A node with no version gets
+            // the same treatment - "pkg:maven/g/a@" is not a component, and
+            // its children still arrived through whatever declared it.
+            if (node.groupId.isEmpty() || node.version.isEmpty()) {
                 return node.children.flatMap { walk(it, depth + 1) }
             }
             val artifact = resolvedArtifact(node)

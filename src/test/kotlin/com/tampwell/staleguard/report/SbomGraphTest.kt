@@ -116,6 +116,18 @@ class SbomGraphTest {
     }
 
     @Test
+    fun `a versionless artifact node never becomes a component`() {
+        val roots = listOf(
+            ProvenanceTrace.Node("g", "no-version", "", listOf(node("g:child:1.0"))),
+        )
+
+        val result = SbomGraph.collect(roots)
+
+        assertEquals(listOf("g:child:1.0"), result.artifacts.map { it.key })
+        assertEquals(listOf("g:child:1.0"), result.rootDependsOn)
+    }
+
+    @Test
     fun `a cyclic graph terminates`() {
         val children = mutableListOf<ProvenanceTrace.Node>()
         val cyclic = ProvenanceTrace.Node("g", "cycle", "1.0", children)
