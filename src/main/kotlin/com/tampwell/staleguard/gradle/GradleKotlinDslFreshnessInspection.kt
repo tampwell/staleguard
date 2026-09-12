@@ -32,8 +32,9 @@ import org.jetbrains.kotlin.psi.KtFile
  * (optional dependency).
  *
  * Same warm-cache invariant as every other Staleguard inspection. String
- * templates with interpolation (`"${'$'}{Versions.gson}"`) are skipped —
- * buildSrc constant resolution is a documented later milestone.
+ * templates with one simple interpolation resolve from gradle.properties or
+ * a buildSrc Versions constant, and the Alt+Enter fix edits whichever file
+ * owns the value; anything more expressive stays skipped.
  */
 class GradleKotlinDslFreshnessInspection : LocalInspectionTool() {
 

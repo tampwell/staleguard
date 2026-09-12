@@ -212,11 +212,15 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
         /** Set when the version comes from gradle.properties — fixes edit there. */
         val propertyKey: String? = null,
         val propertiesPath: String? = null,
+        /** The declaring build file, for locating buildSrc at apply time. */
+        val buildFilePath: String? = null,
     ) {
         fun bumpFix(newVersion: String): com.intellij.codeInspection.LocalQuickFix? = when {
             propertyKey != null && propertiesPath != null ->
                 UpdateGradlePropertyQuickFix(propertyKey, newVersion, propertiesPath)
-            propertyKey != null -> null // buildSrc constant: resolved read-only
+            propertyKey != null && buildFilePath != null ->
+                UpdateBuildSrcVersionQuickFix(propertyKey, newVersion, buildFilePath)
+            propertyKey != null -> null
             else -> GradleBumpVersionQuickFix(newVersion, fixMode)
         }
     }
@@ -267,8 +271,9 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
                 continue
             }
             // GStrings with one simple property in version position resolve
-            // from gradle.properties (editable) or a buildSrc Versions
-            // constant (read-only); anything more expressive stays skipped.
+            // from gradle.properties or a buildSrc Versions constant; the
+            // fix edits whichever file owns the value. Anything more
+            // expressive stays skipped.
             if (literal is GrString) {
                 val match = INTERPOLATED_NOTATION.matchEntire(literal.text) ?: continue
                 val key = match.groupValues[2].ifEmpty { match.groupValues[3] }
@@ -280,6 +285,7 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
                         coordinate[0], coordinate[1], version, literal,
                         GradleBumpVersionQuickFix.Mode.NOTATION, isPlatform,
                         propertyKey = key, propertiesPath = editablePath,
+                        buildFilePath = file.virtualFile?.path,
                     ),
                 )
             }

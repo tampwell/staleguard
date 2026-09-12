@@ -126,9 +126,10 @@ internal object KtsDependencyCollector {
 
     /**
      * "g:a:${'$'}{libVersion}" with exactly one simple-name template entry after a
-     * literal "g:a:" prefix, resolved from gradle.properties. Anything more
-     * expressive (rootProject.extra, string math) stays skipped — resolving
-     * it wrong is worse than staying quiet. The fix edits gradle.properties.
+     * literal "g:a:" prefix, resolved from gradle.properties or a buildSrc
+     * Versions constant. Anything more expressive (rootProject.extra, string
+     * math) stays skipped — resolving it wrong is worse than staying quiet.
+     * The fix edits whichever file actually owns the value.
      */
     private fun interpolatedNotation(
         template: KtStringTemplateExpression,
@@ -146,8 +147,8 @@ internal object KtsDependencyCollector {
         }
         val name = when (expression) {
             is KtNameReferenceExpression -> expression.getReferencedName()
-            // buildSrc constants come through as Versions.x — resolved
-            // read-only, so the fix stays null below.
+            // buildSrc constants come through as Versions.x and get their
+            // own fix that edits the constant.
             is KtDotQualifiedExpression ->
                 expression.text.takeIf { Regex("""^Versions\.[A-Za-z0-9_]+$""").matches(it) }
             else -> null
@@ -156,9 +157,15 @@ internal object KtsDependencyCollector {
         val parts = prefix.dropLast(1).split(':')
         if (parts.size != 2 || parts.any { it.isEmpty() }) return null
         val version = properties[name] ?: return null
-        val editablePath = propertiesPath.takeUnless { name.startsWith("Versions.") }
+        // The buildSrc file is located at APPLY time, so highlighting pays
+        // nothing; the build file's own path is all the fix needs to carry.
+        val buildFilePath = template.containingFile?.virtualFile?.path
         return KtsDeclared(parts[0], parts[1], version, template, isPlatform) { newVersion ->
-            editablePath?.let { UpdateGradlePropertyQuickFix(name, newVersion, it) }
+            when {
+                name.startsWith("Versions.") ->
+                    buildFilePath?.let { UpdateBuildSrcVersionQuickFix(name, newVersion, it) }
+                else -> propertiesPath?.let { UpdateGradlePropertyQuickFix(name, newVersion, it) }
+            }
         }
     }
 
