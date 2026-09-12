@@ -227,12 +227,33 @@ class StaleguardStatsPanel(private val project: Project) :
         // The relock story: what the most recent lockfile regeneration
         // actually moved, with the advisories it fixed or introduced.
         val history = com.tampwell.staleguard.gradle.LockHistoryState.getInstance(project)
-        history.update(lockEntries)
+        val newRelocks = history.update(lockEntries)
         val fileByPath = lockEntries.associate { it.file.path.replace('\\', '/') to it.file }
         fun advisoryIds(group: String, name: String, version: String): Set<String> =
             com.tampwell.staleguard.inspection.VulnerabilityProblems
                 .advisoriesFor(project, Coordinates(group, name), version)
                 ?.map { it.displayId }?.toSet().orEmpty()
+        // A relock that introduces a known vulnerability is the one relock
+        // outcome that deserves a sound. Baselines advanced with the return
+        // value, so a restarted rebuild cannot notify twice.
+        for (relock in newRelocks) {
+            val introduced = relock.delta.changed.flatMap { movement ->
+                (advisoryIds(movement.group, movement.name, movement.to) -
+                    advisoryIds(movement.group, movement.name, movement.from))
+                    .map { advisory -> "$advisory via ${movement.group}:${movement.name} ${movement.from} -> ${movement.to}" }
+            }
+            if (introduced.isNotEmpty()) {
+                com.tampwell.staleguard.actions.UpgradeApplier.notify(
+                    project,
+                    StaleguardBundle.message(
+                        "notification.relock.introduces",
+                        relock.filePath.substringAfterLast('/'),
+                        introduced.joinToString("; "),
+                    ),
+                    com.intellij.notification.NotificationType.WARNING,
+                )
+            }
+        }
         val multipleFiles = history.lastRelocks.size > 1
         val relockRows = history.lastRelocks.flatMap { relock ->
             val file = fileByPath[relock.filePath]

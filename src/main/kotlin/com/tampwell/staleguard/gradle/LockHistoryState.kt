@@ -31,10 +31,13 @@ class LockHistoryState : PersistentStateComponent<LockHistoryState.Bean> {
      * Feed a fresh scan. Diffs each file against its stored baseline,
      * retains one latest relock per file, and advances the baselines.
      * Synchronized because concurrent snapshot rebuilds may race here.
+     * Returns the relocks NEWLY recorded by this call - the baseline
+     * advances with them, so a repeated or restarted scan returns none.
      */
     @Synchronized
-    fun update(entries: List<LockfileScan.Entry>, nowMillis: Long = System.currentTimeMillis()) {
+    fun update(entries: List<LockfileScan.Entry>, nowMillis: Long = System.currentTimeMillis()): List<Relock> {
         val relocks = lastRelocks.associateBy { it.filePath }.toMutableMap()
+        val recorded = mutableListOf<Relock>()
         for (entry in entries) {
             val path = entry.file.path.replace('\\', '/')
             val keys = entry.locked.map { "${it.group}:${it.name}:${it.version}" }
@@ -42,9 +45,14 @@ class LockHistoryState : PersistentStateComponent<LockHistoryState.Bean> {
             baselines[path] = keys
             if (stored == null || stored == keys) continue
             val delta = LockfileDiff.diff(stored.mapNotNull(::lockedFromKey), entry.locked)
-            if (!delta.isEmpty) relocks[path] = Relock(path, delta, nowMillis)
+            if (!delta.isEmpty) {
+                val relock = Relock(path, delta, nowMillis)
+                relocks[path] = relock
+                recorded += relock
+            }
         }
         lastRelocks = relocks.values.sortedByDescending { it.atMillis }.take(MAX_RELOCKS)
+        return recorded
     }
 
     private fun lockedFromKey(key: String): Lockfile.Locked? {

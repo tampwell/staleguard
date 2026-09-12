@@ -21,21 +21,22 @@ class LockHistoryStatePlatformTest : BasePlatformTestCase() {
         val state = LockHistoryState()
         val before = entry("g:a:1.0=compileClasspath\n")
 
-        state.update(listOf(before), nowMillis = 1_000)
+        assertTrue(state.update(listOf(before), nowMillis = 1_000).isEmpty())
         assertTrue(state.lastRelocks.isEmpty())
 
         val after = LockfileScan.Entry(
             before.file, before.located,
             Lockfile.parseLines("g:a:1.1=compileClasspath\ng:new:2.0=compileClasspath\n"),
         )
-        state.update(listOf(after), nowMillis = 2_000)
+        // The new relock is returned exactly once - the caller's cue to notify.
+        assertEquals(1, state.update(listOf(after), nowMillis = 2_000).size)
 
         val relock = state.lastRelocks.single()
         assertEquals(listOf(LockfileDiff.Movement("g", "a", "1.0", "1.1")), relock.delta.changed)
         assertEquals(listOf("new"), relock.delta.added.map { it.name })
 
-        // An unchanged rescan keeps the story instead of erasing it.
-        state.update(listOf(after), nowMillis = 3_000)
+        // An unchanged rescan keeps the story, returns nothing new.
+        assertTrue(state.update(listOf(after), nowMillis = 3_000).isEmpty())
         assertEquals(1, state.lastRelocks.size)
         assertEquals(2_000, state.lastRelocks.single().atMillis)
     }
