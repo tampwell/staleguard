@@ -49,8 +49,8 @@ object UpgradeApplier {
         }
         // Gradle rows share the tool window's collector; their moduleId is the
         // build file path, which is how applyCandidates tells them apart.
-        // buildSrc-resolved versions stay out: a dialog row that cannot be
-        // applied would be a lie with a checkbox.
+        // A readOnlySource row would be a lie with a checkbox, so it stays
+        // out; today nothing sets the flag (buildSrc constants are editable).
         inputs += BuildFileRows.collect(project).filterNot { it.readOnlySource }.map { it.input }
         return inputs
     }
@@ -126,6 +126,7 @@ object UpgradeApplier {
 
             val catalogEdits = mutableMapOf<String, String>() // versionKey -> new version
             val propertyEdits = mutableMapOf<String, String>() // gradle.properties key -> new version
+            val buildSrcEdits = mutableMapOf<String, Pair<String, String>>() // Versions.key -> (old, new)
             val notationEdits = mutableListOf<Triple<Int, Int, String>>() // start, end, replacement
 
             for (candidate in wanted) {
@@ -145,9 +146,18 @@ object UpgradeApplier {
                         }
                         applied++
                     }
-                    // buildSrc constants are read-only everywhere, batch included.
+                    // buildSrc Versions constants edit by text range, exactly
+                    // like the catalog: same regex reads and writes, the
+                    // document is re-located at apply time, and if several
+                    // selected candidates share a constant the highest
+                    // suggestion wins (a constant has exactly one value).
+                    propertyKey != null && propertyKey.startsWith("Versions.") -> {
+                        buildSrcEdits.merge(propertyKey, hit.version to candidate.suggestedVersion.value) { a, b ->
+                            if (MavenVersion(a.second) >= MavenVersion(b.second)) a else b
+                        }
+                        applied++
+                    }
                     propertyKey != null -> {
-                        if (propertyKey.startsWith("Versions.")) continue
                         propertyEdits.merge(propertyKey, candidate.suggestedVersion.value) { a, b ->
                             maxOf(MavenVersion(a), MavenVersion(b)).value
                         }
@@ -184,6 +194,17 @@ object UpgradeApplier {
                 for ((key, newVersion) in propertyEdits) {
                     val range = com.tampwell.staleguard.gradle.GradleProperties.valueRange(propertiesDocument.text, key) ?: continue
                     propertiesDocument.replaceString(range.first, range.last + 1, newVersion)
+                }
+            }
+            for ((key, versions) in buildSrcEdits) {
+                val (oldVersion, newVersion) = versions
+                val versionsFile = com.tampwell.staleguard.gradle.BuildSrcVersions.fileFor(buildFile, key) ?: continue
+                val versionsDocument = FileDocumentManager.getInstance().getDocument(versionsFile) ?: continue
+                val range = com.tampwell.staleguard.gradle.BuildSrcVersions.valueRange(versionsDocument.text, key) ?: continue
+                // The document may have moved since the dialog opened; only
+                // replace the value the user was actually shown.
+                if (versionsDocument.text.substring(range.first, range.last + 1) == oldVersion) {
+                    versionsDocument.replaceString(range.first, range.last + 1, newVersion)
                 }
             }
         }

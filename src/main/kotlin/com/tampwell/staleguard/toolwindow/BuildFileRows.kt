@@ -96,7 +96,11 @@ internal object BuildFileRows {
                             ),
                             file = buildFile,
                             offset = dep.offset,
-                            readOnlySource = dep.propertyKey?.startsWith("Versions.") == true,
+                            // Versions constants are batch-editable since the
+                            // buildSrc write path landed; nothing is read-only
+                            // any more, and the flag stays for the next idiom
+                            // that genuinely is.
+                            readOnlySource = false,
                         )
                     }
                 }

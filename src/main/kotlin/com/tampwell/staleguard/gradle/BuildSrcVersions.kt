@@ -4,11 +4,11 @@ import com.intellij.openapi.vfs.VirtualFile
 
 /**
  * The pre-catalog idiom: an `object Versions { const val gson = "2.10.1" }`
- * in buildSrc, referenced as `"g:a:${'$'}{Versions.gson}"`. Resolved read-only —
- * freshness warnings fire, quick fixes stay off (editing buildSrc Kotlin from
- * a text range is a stronger promise than a v1 should make). Keys come back
+ * in buildSrc, referenced as `"g:a:${'$'}{Versions.gson}"`. Keys come back
  * as `Versions.<name>` so they merge into the same resolution map as
- * gradle.properties without colliding.
+ * gradle.properties without colliding. Since 2.7.0 the constants are also
+ * WRITABLE through [valueRange]: the same regex that reads a value locates
+ * the exact text span to replace, so scan and edit can never disagree.
  */
 object BuildSrcVersions {
 
@@ -18,6 +18,49 @@ object BuildSrcVersions {
     fun parse(text: String): Map<String, String> {
         val body = VERSIONS_OBJECT.find(text)?.groupValues?.get(1) ?: return emptyMap()
         return CONST_VAL.findAll(body).associate { "Versions.${it.groupValues[1]}" to it.groupValues[2] }
+    }
+
+    /**
+     * The edit for a buildSrc constant bump: the exact text range of the
+     * quoted value of `const val <name>` inside the Versions object, in file
+     * offsets. Pure and regex-identical to [parse], so what the scan read is
+     * what the write replaces. [key] accepts `Versions.name` or bare `name`.
+     */
+    fun valueRange(text: String, key: String): IntRange? {
+        val name = key.removePrefix("Versions.")
+        val objectMatch = VERSIONS_OBJECT.find(text) ?: return null
+        val bodyGroup = objectMatch.groups[1] ?: return null
+        for (match in CONST_VAL.findAll(bodyGroup.value)) {
+            if (match.groupValues[1] != name) continue
+            val valueGroup = match.groups[2] ?: return null
+            return (bodyGroup.range.first + valueGroup.range.first)..(bodyGroup.range.first + valueGroup.range.last)
+        }
+        return null
+    }
+
+    /**
+     * The buildSrc source file declaring [key], for the write path. The
+     * caller re-locates the range in the file's DOCUMENT text at apply time,
+     * because an unsaved editor change must win over what disk says.
+     */
+    fun fileFor(buildFile: VirtualFile?, key: String): VirtualFile? {
+        var dir = buildFile?.parent
+        var depth = 0
+        while (dir != null && depth < 6) {
+            val kotlinDir = dir.findChild("buildSrc")
+                ?.findChild("src")?.findChild("main")?.findChild("kotlin")
+            if (kotlinDir != null) {
+                val files = mutableListOf<VirtualFile>()
+                collectKtFiles(kotlinDir, files, remaining = intArrayOf(25))
+                return files.firstOrNull { file ->
+                    val text = runCatching { String(file.contentsToByteArray()) }.getOrNull()
+                    text != null && "object Versions" in text && valueRange(text, key) != null
+                }
+            }
+            dir = dir.parent
+            depth++
+        }
+        return null
     }
 
     /**
