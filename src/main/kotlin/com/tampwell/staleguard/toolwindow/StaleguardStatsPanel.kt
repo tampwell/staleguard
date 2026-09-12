@@ -548,13 +548,17 @@ class StaleguardStatsPanel(private val project: Project) :
                         .orEmpty(),
                 )
             }
-            val graphKeys = graph.artifacts.map { it.key }.toSet()
+            // The graph is authoritative for every coordinate it knows: a
+            // declared version that mediation replaced must NOT ride along as
+            // a second component, so the exclusion is by coordinate, not by
+            // exact version.
+            val graphCoordinates = graph.artifacts.map { it.groupId to it.artifactId }.toSet()
             val declaredExtra = snapshot.rows.mapNotNull { row ->
                 val declared = row.input.declared
                 val groupId = declared.groupId ?: return@mapNotNull null
                 val artifactId = declared.artifactId ?: return@mapNotNull null
                 val version = declared.resolvedVersion ?: return@mapNotNull null
-                if ("$groupId:$artifactId:$version" in graphKeys) return@mapNotNull null
+                if (groupId to artifactId in graphCoordinates) return@mapNotNull null
                 CycloneDxWriter.Component(
                     groupId = groupId,
                     artifactId = artifactId,
