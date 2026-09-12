@@ -37,8 +37,11 @@ internal object ProjectSummary {
                 VulnerabilityService.getInstance().advisoryCounter(),
             ),
         )
-        val drifts = com.tampwell.staleguard.gradle.LockfileScan
-            .driftsFor(com.tampwell.staleguard.gradle.LockfileScan.collect(project), inputs)
+        val lockEntries = com.tampwell.staleguard.gradle.LockfileScan.collect(project)
+        // The status bar recompute is the always-alive surface, so relock
+        // detection (and its introduces-warning) rides along here too.
+        com.tampwell.staleguard.gradle.RelockNotifier.process(project, lockEntries)
+        val drifts = com.tampwell.staleguard.gradle.LockfileScan.driftsFor(lockEntries, inputs)
         return WithDrift(stats, drifts.size)
     }
 }
