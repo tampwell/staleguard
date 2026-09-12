@@ -65,12 +65,15 @@ class StaleguardStatusBarWidget(private val project: Project) :
     }
 
     private fun recompute() {
-        ReadAction.nonBlocking<Triple<Int, Int, Int>> {
-                val summary = com.tampwell.staleguard.toolwindow.ProjectSummary.compute(project)
-                Triple(summary.totalUpdates, summary.abandoned, summary.vulnerable)
+        ReadAction.nonBlocking<com.tampwell.staleguard.toolwindow.ProjectSummary.WithDrift> {
+                com.tampwell.staleguard.toolwindow.ProjectSummary.computeWithDrift(project)
             }
             .expireWith(this)
-            .finishOnUiThread(com.intellij.openapi.application.ModalityState.any()) { (updates, abandoned, vulnerable) ->
+            .finishOnUiThread(com.intellij.openapi.application.ModalityState.any()) { computed ->
+                val summary = computed.stats
+                val updates = summary.totalUpdates
+                val abandoned = summary.abandoned
+                val vulnerable = summary.vulnerable
                 // Linkage state joins the count: a classpath that will fail at
                 // runtime is at least as actionable as an outdated version.
                 val verdict = com.tampwell.staleguard.impact.LinkageVerdictState.getInstance(project).current
@@ -81,10 +84,18 @@ class StaleguardStatusBarWidget(private val project: Project) :
                         StaleguardBundle.message("statusbar.text.vulnerable", updates, abandoned, vulnerable)
                     else -> StaleguardBundle.message("statusbar.text", updates, abandoned)
                 }
-                text = when {
+                val withLinkage = when {
                     linkage == 0 -> base
                     base.isEmpty() -> StaleguardBundle.message("statusbar.text.linkageonly", linkage)
                     else -> base + StaleguardBundle.message("statusbar.text.linkage", linkage)
+                }
+                // A stale lock is ambient truth too: the build runs the lock,
+                // so an all-clear over drift would be a false one.
+                text = when {
+                    computed.lockDrifts == 0 -> withLinkage
+                    withLinkage.isEmpty() ->
+                        StaleguardBundle.message("statusbar.text.driftonly", computed.lockDrifts)
+                    else -> withLinkage + StaleguardBundle.message("statusbar.text.drift", computed.lockDrifts)
                 }
                 statusBar?.updateWidget(ID())
             }

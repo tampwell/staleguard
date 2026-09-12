@@ -61,4 +61,23 @@ object LockfileScan {
         declaredByDir: Map<String, List<Lockfile.Declared>>,
     ): List<Lockfile.Drift> =
         Lockfile.driftAcross(entries.map { it.located to it.locked }, declaredByDir)
+
+    /**
+     * Drift straight from planner inputs - the one declaration-to-directory
+     * mapping every surface (tool window, status bar) must agree on: a
+     * declaration belongs to the directory of the build file that owns it.
+     */
+    fun driftsFor(
+        entries: List<Entry>,
+        inputs: List<com.tampwell.staleguard.plan.PlannerInput>,
+    ): List<Lockfile.Drift> {
+        if (entries.isEmpty()) return emptyList()
+        val declaredByDir = inputs.mapNotNull { input ->
+            val groupId = input.declared.groupId ?: return@mapNotNull null
+            val artifactId = input.declared.artifactId ?: return@mapNotNull null
+            val version = input.declared.resolvedVersion ?: return@mapNotNull null
+            Triple(input.moduleId.replace('\\', '/').substringBeforeLast('/'), groupId to artifactId, version)
+        }.groupBy({ it.first }, { Lockfile.Declared(it.second.first, it.second.second, it.third) })
+        return drifts(entries, declaredByDir)
+    }
 }

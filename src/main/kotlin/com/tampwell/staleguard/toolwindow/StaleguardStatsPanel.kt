@@ -173,15 +173,13 @@ class StaleguardStatsPanel(private val project: Project) :
         var lockDrifts = emptyList<LockDriftRow>()
         var lockedVulns = emptyList<LockedVulnRow>()
         if (lockEntries.isNotEmpty()) {
-            val gradleDeclared = inputs.mapNotNull { input ->
+            val declaredVersions = inputs.mapNotNull { input ->
                 val groupId = input.declared.groupId ?: return@mapNotNull null
                 val artifactId = input.declared.artifactId ?: return@mapNotNull null
                 val version = input.declared.resolvedVersion ?: return@mapNotNull null
-                Triple(input.moduleId.replace('\\', '/').substringBeforeLast('/'), groupId to artifactId, version)
+                "$groupId:$artifactId:$version"
             }
-            val declaredByDir = gradleDeclared
-                .groupBy({ it.first }, { com.tampwell.staleguard.gradle.Lockfile.Declared(it.second.first, it.second.second, it.third) })
-            lockDrifts = com.tampwell.staleguard.gradle.LockfileScan.drifts(lockEntries, declaredByDir)
+            lockDrifts = com.tampwell.staleguard.gradle.LockfileScan.driftsFor(lockEntries, inputs)
                 .map { drift ->
                     // The line that pinned the drifted version - double-click lands on it.
                     val nav = lockEntries.firstNotNullOfOrNull { entry ->
@@ -197,8 +195,7 @@ class StaleguardStatsPanel(private val project: Project) :
                     )
                 }
 
-            val alreadyReported = transitiveVulns.map { it.coordinate }.toSet() +
-                gradleDeclared.map { "${it.second.first}:${it.second.second}:${it.third}" }
+            val alreadyReported = transitiveVulns.map { it.coordinate }.toSet() + declaredVersions
             lockedVulns = lockEntries.asSequence()
                 .flatMap { entry -> entry.lines.asSequence().map { entry.file to it } }
                 .distinctBy { (_, line) -> "${line.locked.group}:${line.locked.name}:${line.locked.version}" }

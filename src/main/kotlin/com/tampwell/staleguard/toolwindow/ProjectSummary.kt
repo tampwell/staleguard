@@ -16,7 +16,12 @@ import java.util.concurrent.TimeUnit
  */
 internal object ProjectSummary {
 
-    fun compute(project: Project, nowMillis: Long = System.currentTimeMillis()): ModuleStats {
+    class WithDrift(val stats: ModuleStats, val lockDrifts: Int)
+
+    fun compute(project: Project, nowMillis: Long = System.currentTimeMillis()): ModuleStats =
+        computeWithDrift(project, nowMillis).stats
+
+    fun computeWithDrift(project: Project, nowMillis: Long = System.currentTimeMillis()): WithDrift {
         val settings = StaleguardSettings.getInstance()
         val thresholdMs = TimeUnit.DAYS.toMillis(365L * settings.state.abandonmentYears)
         val inputs = BuildFileRows.collect(project).map { it.input }
@@ -26,11 +31,14 @@ internal object ProjectSummary {
             versionAllowed = policy::versionAllowed,
             measuredImpact = com.tampwell.staleguard.impact.ImpactMemory.getInstance(project).lookup(),
         )
-        return StatsCalculator.summary(
+        val stats = StatsCalculator.summary(
             StatsCalculator.compute(
                 inputs, plan, thresholdMs, nowMillis,
                 VulnerabilityService.getInstance().advisoryCounter(),
             ),
         )
+        val drifts = com.tampwell.staleguard.gradle.LockfileScan
+            .driftsFor(com.tampwell.staleguard.gradle.LockfileScan.collect(project), inputs)
+        return WithDrift(stats, drifts.size)
     }
 }
