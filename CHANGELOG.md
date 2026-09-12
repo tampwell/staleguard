@@ -4,6 +4,11 @@
 
 ## [Unreleased]
 
+## [2.7.0] - 2026-09-12
+
+### Added
+- The SBOM tells the whole truth. The CycloneDX export now lists every artifact your build actually ships, transitives included, straight from the resolved dependency trees, and writes the CycloneDX dependency graph (who pulls whom, rooted at your project) that Dependency-Track renders. When Gradle dependency locking is active the locked version wins over the graph's answer, because the lock is what runs, and the graph's version survives as a component property so the drift stays visible in the export too. Declared dependencies remain in the bill even when a resolved graph is unavailable.
+
 ## [2.6.0] - 2026-09-09
 
 ### Added

@@ -523,11 +523,38 @@ class StaleguardStatsPanel(private val project: Project) :
         override fun actionPerformed(e: AnActionEvent) {
             val snapshot = lastSnapshot ?: return
             val vulnerabilities = com.tampwell.staleguard.services.VulnerabilityService.getInstance()
-            val components = snapshot.rows.mapNotNull { row ->
+            val lookup = com.tampwell.staleguard.services.VersionLookupService.getInstance()
+
+            // The whole truth: every artifact the resolved trees ship, with
+            // lockfile-pinned versions winning over the graph's answer. The
+            // declared rows ride along as a superset guarantee for build
+            // files whose resolved graph is not available.
+            val locked = com.tampwell.staleguard.gradle.LockfileScan.collect(project).flatMap { it.locked }
+            val graph = com.tampwell.staleguard.report.SbomGraph.collect(
+                com.tampwell.staleguard.impact.Provenance.nodesFor(project),
+                locked,
+            )
+            val graphComponents = graph.artifacts.map { artifact ->
+                CycloneDxWriter.Component(
+                    groupId = artifact.groupId,
+                    artifactId = artifact.artifactId,
+                    version = artifact.version,
+                    licenses = lookup.peek(Coordinates(artifact.groupId, artifact.artifactId))
+                        ?.value?.licenses.orEmpty(),
+                    advisories = vulnerabilities.peek(Coordinates(artifact.groupId, artifact.artifactId), artifact.version)
+                        ?.advisories.orEmpty(),
+                    properties = artifact.graphVersion
+                        ?.let { listOf("staleguard:graph-version" to it) }
+                        .orEmpty(),
+                )
+            }
+            val graphKeys = graph.artifacts.map { it.key }.toSet()
+            val declaredExtra = snapshot.rows.mapNotNull { row ->
                 val declared = row.input.declared
                 val groupId = declared.groupId ?: return@mapNotNull null
                 val artifactId = declared.artifactId ?: return@mapNotNull null
                 val version = declared.resolvedVersion ?: return@mapNotNull null
+                if ("$groupId:$artifactId:$version" in graphKeys) return@mapNotNull null
                 CycloneDxWriter.Component(
                     groupId = groupId,
                     artifactId = artifactId,
@@ -537,6 +564,14 @@ class StaleguardStatsPanel(private val project: Project) :
                         ?.advisories.orEmpty(),
                 )
             }
+            val components = graphComponents + declaredExtra
+            val purlByKey = graph.artifacts.zip(graphComponents).associate { (artifact, component) ->
+                artifact.key to component.purl
+            }
+            val dependsOn = graph.dependsOn.entries.mapNotNull { (key, children) ->
+                purlByKey[key]?.let { it to children.mapNotNull(purlByKey::get) }
+            }.toMap()
+            val rootDependsOn = graph.rootDependsOn.mapNotNull(purlByKey::get) + declaredExtra.map { it.purl }
             if (components.isEmpty()) {
                 Messages.showInfoMessage(
                     StaleguardBundle.message("sbom.nothing"),
@@ -556,6 +591,8 @@ class StaleguardStatsPanel(private val project: Project) :
                 components = components,
                 serialUuid = UUID.randomUUID().toString(),
                 timestampMillis = System.currentTimeMillis(),
+                dependsOn = dependsOn,
+                rootDependsOn = rootDependsOn,
             )
             Files.writeString(wrapper.file.toPath(), content)
         }

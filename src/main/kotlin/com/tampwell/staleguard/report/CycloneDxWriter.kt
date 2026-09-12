@@ -25,6 +25,8 @@ object CycloneDxWriter {
         val version: String,
         val licenses: List<String> = emptyList(),
         val advisories: List<OsvAdvisory> = emptyList(),
+        /** CycloneDX component properties, e.g. the graph version a lock overrode. */
+        val properties: List<Pair<String, String>> = emptyList(),
     ) {
         val purl: String get() = "pkg:maven/${encode(groupId)}/${encode(artifactId)}@${encode(version)}"
     }
@@ -35,6 +37,10 @@ object CycloneDxWriter {
         components: List<Component>,
         serialUuid: String,
         timestampMillis: Long,
+        /** component purl -> purls it depends on; rendered as the CycloneDX dependency graph. */
+        dependsOn: Map<String, List<String>> = emptyMap(),
+        /** The project's direct dependencies, as purls. */
+        rootDependsOn: List<String> = emptyList(),
     ): String {
         // Same g:a:v can be declared in several modules; a BOM lists it once.
         val unique = components.distinctBy { it.purl }.sortedBy { it.purl }
@@ -54,6 +60,7 @@ object CycloneDxWriter {
         metadata.add("tools", JsonArray().apply { add(tool) })
         val subject = JsonObject()
         subject.addProperty("type", "application")
+        subject.addProperty("bom-ref", projectName)
         subject.addProperty("name", projectName)
         metadata.add("component", subject)
         root.add("metadata", metadata)
@@ -78,9 +85,38 @@ object CycloneDxWriter {
                 }
                 json.add("licenses", licenseArray)
             }
+            if (component.properties.isNotEmpty()) {
+                val propertyArray = JsonArray()
+                for ((name, value) in component.properties) {
+                    val property = JsonObject()
+                    property.addProperty("name", name)
+                    property.addProperty("value", value)
+                    propertyArray.add(property)
+                }
+                json.add("properties", propertyArray)
+            }
             componentArray.add(json)
         }
         root.add("components", componentArray)
+
+        // The dependency graph: who pulls whom, rooted at the project itself.
+        // Dependency-Track and friends use this to tell direct from transitive.
+        if (rootDependsOn.isNotEmpty() || dependsOn.isNotEmpty()) {
+            val dependencyArray = JsonArray()
+            fun entry(ref: String, children: List<String>) {
+                val json = JsonObject()
+                json.addProperty("ref", ref)
+                val depends = JsonArray()
+                for (child in children) depends.add(child)
+                json.add("dependsOn", depends)
+                dependencyArray.add(json)
+            }
+            entry(projectName, rootDependsOn.distinct())
+            for (component in unique) {
+                entry(component.purl, dependsOn[component.purl].orEmpty().distinct())
+            }
+            root.add("dependencies", dependencyArray)
+        }
 
         val vulnerabilityArray = vulnerabilities(unique)
         if (!vulnerabilityArray.isEmpty) root.add("vulnerabilities", vulnerabilityArray)

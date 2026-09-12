@@ -117,4 +117,48 @@ class CycloneDxWriterTest {
         assertEquals(write(log4j), write(log4j))
         assertFalse(write(log4j).contains("\\u003"))
     }
+
+    @Test
+    fun `dependency graph is rooted at the project and lists every component`() {
+        val direct = CycloneDxWriter.Component("g", "direct", "1.0")
+        val transitive = CycloneDxWriter.Component("g", "transitive", "2.0")
+        val document = CycloneDxWriter.write(
+            projectName = "demo",
+            toolVersion = "1.6.0",
+            components = listOf(direct, transitive),
+            serialUuid = "00000000-0000-4000-8000-000000000000",
+            timestampMillis = 1_755_000_000_000,
+            dependsOn = mapOf(direct.purl to listOf(transitive.purl)),
+            rootDependsOn = listOf(direct.purl),
+        )
+        val root = JsonParser.parseString(document).asJsonObject
+
+        assertEquals("demo", root.getAsJsonObject("metadata").getAsJsonObject("component").get("bom-ref").asString)
+        val dependencies = root.getAsJsonArray("dependencies")
+        assertEquals(3, dependencies.size()) // project + both components
+        val projectEntry = dependencies[0].asJsonObject
+        assertEquals("demo", projectEntry.get("ref").asString)
+        assertEquals(direct.purl, projectEntry.getAsJsonArray("dependsOn")[0].asString)
+        val directEntry = dependencies.first { it.asJsonObject.get("ref").asString == direct.purl }.asJsonObject
+        assertEquals(transitive.purl, directEntry.getAsJsonArray("dependsOn")[0].asString)
+    }
+
+    @Test
+    fun `no graph input means no dependencies section`() {
+        val root = JsonParser.parseString(write(log4j)).asJsonObject
+        assertNull(root.get("dependencies"))
+    }
+
+    @Test
+    fun `component properties are written as name value pairs`() {
+        val overridden = CycloneDxWriter.Component(
+            "g", "a", "1.0",
+            properties = listOf("staleguard:graph-version" to "1.1"),
+        )
+        val component = JsonParser.parseString(write(overridden)).asJsonObject
+            .getAsJsonArray("components")[0].asJsonObject
+        val property = component.getAsJsonArray("properties")[0].asJsonObject
+        assertEquals("staleguard:graph-version", property.get("name").asString)
+        assertEquals("1.1", property.get("value").asString)
+    }
 }
