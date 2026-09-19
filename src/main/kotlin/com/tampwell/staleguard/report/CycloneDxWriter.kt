@@ -41,6 +41,14 @@ object CycloneDxWriter {
         dependsOn: Map<String, List<String>> = emptyMap(),
         /** The project's direct dependencies, as purls. */
         rootDependsOn: List<String> = emptyList(),
+        /**
+         * Extra name/value properties for one vulnerability on one affected
+         * component, by (purl, advisory id). Staleguard's reachability verdict
+         * travels this way, as information, never as a CycloneDX analysis
+         * state: "not_affected" would let a consumer suppress the finding on
+         * the strength of a static analysis.
+         */
+        vulnerabilityProperties: (purl: String, advisoryId: String) -> List<Pair<String, String>> = { _, _ -> emptyList() },
     ): String {
         // Same g:a:v can be declared in several modules; a BOM lists it once.
         val unique = components.distinctBy { it.purl }.sortedBy { it.purl }
@@ -118,14 +126,17 @@ object CycloneDxWriter {
             root.add("dependencies", dependencyArray)
         }
 
-        val vulnerabilityArray = vulnerabilities(unique)
+        val vulnerabilityArray = vulnerabilities(unique, vulnerabilityProperties)
         if (!vulnerabilityArray.isEmpty) root.add("vulnerabilities", vulnerabilityArray)
 
         return GsonBuilder().setPrettyPrinting().disableHtmlEscaping().create().toJson(root)
     }
 
     /** One entry per advisory id, with `affects` collecting every component that carries it. */
-    private fun vulnerabilities(components: List<Component>): JsonArray {
+    private fun vulnerabilities(
+        components: List<Component>,
+        propertiesFor: (String, String) -> List<Pair<String, String>>,
+    ): JsonArray {
         val affectedBy = linkedMapOf<String, Pair<OsvAdvisory, MutableList<String>>>()
         for (component in components) {
             for (advisory in component.advisories) {
@@ -160,6 +171,17 @@ object CycloneDxWriter {
                 affects.add(affected)
             }
             json.add("affects", affects)
+            val properties = refs.distinct().flatMap { ref -> propertiesFor(ref, advisory.id) }
+            if (properties.isNotEmpty()) {
+                val propertyArray = JsonArray()
+                for ((name, value) in properties) {
+                    val property = JsonObject()
+                    property.addProperty("name", name)
+                    property.addProperty("value", value)
+                    propertyArray.add(property)
+                }
+                json.add("properties", propertyArray)
+            }
             array.add(json)
         }
         return array

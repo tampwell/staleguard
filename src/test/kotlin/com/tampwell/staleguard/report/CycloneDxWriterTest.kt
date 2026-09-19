@@ -150,6 +150,33 @@ class CycloneDxWriterTest {
     }
 
     @Test
+    fun `reachability travels as a vulnerability property, never as an analysis state`() {
+        val document = CycloneDxWriter.write(
+            projectName = "demo",
+            toolVersion = "2.8.0",
+            components = listOf(log4j),
+            serialUuid = "00000000-0000-4000-8000-000000000000",
+            timestampMillis = 1_755_000_000_000,
+            vulnerabilityProperties = { purl, advisoryId ->
+                if (advisoryId == "GHSA-jfh8-c2jp-5v3q") listOf("staleguard:reachability" to "$purl reached: App.handle -> JndiLookup.lookup") else emptyList()
+            },
+        )
+        val vulnerability = JsonParser.parseString(document).asJsonObject.getAsJsonArray("vulnerabilities")[0].asJsonObject
+
+        val property = vulnerability.getAsJsonArray("properties")[0].asJsonObject
+        assertEquals("staleguard:reachability", property.get("name").asString)
+        assertEquals("${log4j.purl} reached: App.handle -> JndiLookup.lookup", property.get("value").asString)
+        // A consumer may suppress findings on "analysis"; a static verdict must never cause that.
+        assertNull(vulnerability.get("analysis"))
+    }
+
+    @Test
+    fun `a vulnerability without reachability data carries no properties`() {
+        val vulnerability = JsonParser.parseString(write(log4j)).asJsonObject.getAsJsonArray("vulnerabilities")[0].asJsonObject
+        assertNull(vulnerability.get("properties"))
+    }
+
+    @Test
     fun `component properties are written as name value pairs`() {
         val overridden = CycloneDxWriter.Component(
             "g", "a", "1.0",

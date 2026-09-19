@@ -8,6 +8,13 @@ classpath will throw NoSuchMethodError at runtime - then fixes them - directly i
 
 ## What it does
 
+- **Vulnerability reachability, on your machine**: for each vulnerable dependency, Staleguard
+  compares the vulnerable release with its fix method by method, then walks every method your
+  compiled code can reach across the whole classpath (library interfaces, lambdas, static
+  initializers, JDK callbacks, ServiceLoader providers, Spring auto-configuration) and tells you
+  whether your code reaches what the fix changed, with the call path. No source upload, no
+  account. Reflection is outside a static check, so "not reached" demotes an advisory and never
+  hides it
 - **Classpath linkage doctor**: resolves every call every jar makes against what your real
   per-module classpaths actually declare (production and tests separately, your own compiled
   code included) and reports the `NoSuchMethodError` / `NoClassDefFoundError` a version
@@ -66,6 +73,11 @@ build files: version data from Maven Central, Google's Maven repository, and the
 Plugin Portal, and vulnerability data from osv.dev. Everything is cached on disk for 24
 hours and revalidated with ETags. Vulnerability checks have their own switch in settings,
 and an offline mode disables all network contact.
+
+Reachability is computed entirely locally; no code leaves your machine. When you run Check
+Vulnerability Reachability, the fixed release of each vulnerable artifact is downloaded once
+from your configured repositories to learn what the fix changed, and that comparison is cached
+permanently, so later checks are offline. Nothing downloads unless you run the check.
 
 ## Requirements
 

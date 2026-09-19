@@ -16,6 +16,7 @@ import com.tampwell.staleguard.repository.Coordinates
 import com.tampwell.staleguard.security.AdvisoryPeek
 import com.tampwell.staleguard.security.OsvAdvisory
 import com.tampwell.staleguard.services.FreshnessRefreshService
+import com.tampwell.staleguard.services.VersionLookupService
 import com.tampwell.staleguard.services.VulnerabilityService
 import com.tampwell.staleguard.settings.StaleguardSettings
 import java.nio.file.Files
@@ -96,7 +97,7 @@ class ReachabilityService(private val project: Project) {
                         verdicts[key(finding, advisory)] = ReachVerdict.Unknown(ReachVerdict.Reason.NO_FIX_VERSION)
                         null
                     }
-                    else -> fixDiff(finding, fixed, indicator)?.touched.also {
+                    else -> touchedFor(finding, fixed, indicator).also {
                         if (it == null) verdicts[key(finding, advisory)] = ReachVerdict.Unknown(ReachVerdict.Reason.FIX_NOT_FETCHED)
                     }
                 }
@@ -221,19 +222,53 @@ class ReachabilityService(private val project: Project) {
         return findings to cold
     }
 
-    private fun fixDiff(finding: Finding, fixed: String, indicator: ProgressIndicator): FixDiff.Result? {
-        cache.read(finding.coordinates, finding.version, fixed)?.let { return it }
+    /**
+     * What the fix changed, as methods of the project's version. The narrow
+     * window (last stable release before the fix vs the fix) when it maps
+     * onto the project's version; otherwise the project's version against
+     * the fix, which also counts unrelated changes and so errs toward
+     * "reached", never toward a false "not reached".
+     */
+    private fun touchedFor(finding: Finding, fixed: String, indicator: ProgressIndicator): Set<MemberRef>? {
+        val lookup = VersionLookupService.getInstance()
+        val versions = lookup.peek(finding.coordinates)?.value?.versions
+        if (versions == null) FreshnessRefreshService.getInstance(project).requestLookup(finding.coordinates)
+        val baseline = FixWindow.baseline(versions.orEmpty(), finding.version, fixed)
+        if (baseline != null) {
+            val window = diff(finding.coordinates, baseline, fixed, localFrom = null, indicator)
+            val mapped = window?.let { result ->
+                ClasspathClassSource.open(listOf(finding.jars.first())).use { FixWindow.mapOnto(result.touched, it) }
+            }
+            if (mapped != null) return mapped
+        }
+        return diff(finding.coordinates, finding.version, fixed, localFrom = finding.jars.first(), indicator)?.touched
+    }
+
+    /**
+     * The diff between two releases, cached forever once computed. [localFrom]
+     * is the project's own copy of [from] when it has one; anything missing
+     * is downloaded through the shared fetcher, never in offline mode.
+     */
+    private fun diff(
+        coordinates: Coordinates,
+        from: String,
+        to: String,
+        localFrom: Path?,
+        indicator: ProgressIndicator,
+    ): FixDiff.Result? {
+        cache.read(coordinates, from, to)?.let { return it }
         if (StaleguardSettings.getInstance().state.offlineMode) return null
-        val vulnerableJar = finding.jars.first()
         val workspace = Files.createTempDirectory("staleguard-reach")
         try {
-            val fixedJar = ArtifactJars.fetch(finding.coordinates, fixed, workspace.resolve("fixed.jar")) {
-                indicator.isCanceled
-            } ?: return null
-            val result = ClasspathClassSource.open(listOf(vulnerableJar)).use { before ->
-                ClasspathClassSource.open(listOf(fixedJar)).use { after -> FixDiff.compare(before, after) }
+            val fromJar = localFrom
+                ?: ArtifactJars.fetch(coordinates, from, workspace.resolve("from.jar")) { indicator.isCanceled }
+                ?: return null
+            val toJar = ArtifactJars.fetch(coordinates, to, workspace.resolve("to.jar")) { indicator.isCanceled }
+                ?: return null
+            val result = ClasspathClassSource.open(listOf(fromJar)).use { before ->
+                ClasspathClassSource.open(listOf(toJar)).use { after -> FixDiff.compare(before, after) }
             }
-            cache.write(finding.coordinates, finding.version, fixed, result)
+            cache.write(coordinates, from, to, result)
             return result
         } finally {
             runCatching {

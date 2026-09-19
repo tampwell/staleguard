@@ -686,7 +686,29 @@ class StaleguardStatsPanel(private val project: Project) :
                 purlByKey[key]?.let { it to children.mapNotNull(purlByKey::get) }
             }.toMap()
             val rootDependsOn = graph.rootDependsOn.mapNotNull(purlByKey::get) + declaredExtra.map { it.purl }
-            return SbomPayload(components, dependsOn, rootDependsOn)
+
+            // The last reachability check, as information on each affected
+            // component. Never an analysis state: see CycloneDxWriter.
+            val reachState = com.tampwell.staleguard.reach.ReachabilityState.getInstance(project)
+            val reachability = HashMap<Pair<String, String>, List<Pair<String, String>>>()
+            for (component in components) {
+                for (advisory in component.advisories) {
+                    val verdict = reachState.verdictFor(
+                        Coordinates(component.groupId, component.artifactId), component.version, advisory.id,
+                    ) ?: continue
+                    val text = when (verdict) {
+                        is com.tampwell.staleguard.reach.ReachVerdict.Reached ->
+                            (if (verdict.inProduction) "reached: " else "reached only from tests: ") +
+                                verdict.path.joinToString(" -> ")
+                        is com.tampwell.staleguard.reach.ReachVerdict.NotReached ->
+                            "not reached by any static path (reflection excluded)"
+                        is com.tampwell.staleguard.reach.ReachVerdict.Unknown ->
+                            "undetermined: " + com.tampwell.staleguard.reach.ReachMessages.reason(verdict.reason)
+                    }
+                    reachability[component.purl to advisory.id] = listOf("staleguard:reachability" to "${component.purl} $text")
+                }
+            }
+            return SbomPayload(components, dependsOn, rootDependsOn, reachability)
         }
 
         private fun saveSbom(payload: SbomPayload) {
@@ -711,6 +733,7 @@ class StaleguardStatsPanel(private val project: Project) :
                 timestampMillis = System.currentTimeMillis(),
                 dependsOn = payload.dependsOn,
                 rootDependsOn = payload.rootDependsOn,
+                vulnerabilityProperties = { purl, advisoryId -> payload.reachability[purl to advisoryId].orEmpty() },
             )
             Files.writeString(wrapper.file.toPath(), content)
         }
@@ -720,6 +743,8 @@ class StaleguardStatsPanel(private val project: Project) :
         val components: List<CycloneDxWriter.Component>,
         val dependsOn: Map<String, List<String>>,
         val rootDependsOn: List<String>,
+        /** (purl, advisory id) to the reachability property that vulnerability carries for that component. */
+        val reachability: Map<Pair<String, String>, List<Pair<String, String>>>,
     )
 
     /** A tree row that can jump to its declaration on double-click. */
