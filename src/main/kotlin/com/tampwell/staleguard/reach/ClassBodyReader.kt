@@ -3,6 +3,7 @@ package com.tampwell.staleguard.reach
 import com.tampwell.staleguard.impact.ClassFormatException
 import com.tampwell.staleguard.impact.MemberKey
 import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 
 /** How the JVM picks the method a call site actually runs. */
 enum class Dispatch {
@@ -181,6 +182,186 @@ object ClassBodyReader {
         return ClassBodies(header, methods, localOrAnonymous)
     }
 
+    /** A method's identity with the constant-pool layout factored out: equal means the JVM does the same thing. */
+    class Fingerprint internal constructor(private val digest: ByteArray) {
+        override fun equals(other: Any?): Boolean = other is Fingerprint && digest.contentEquals(other.digest)
+        override fun hashCode(): Int = digest.contentHashCode()
+    }
+
+    class ClassFingerprints(val header: ClassHeader, val methods: Map<MemberKey, Fingerprint>)
+
+    /**
+     * Per-method fingerprints, for comparing two releases of one class.
+     *
+     * Raw bytecode cannot be compared across releases: constant-pool indices
+     * shift whenever anything is added anywhere in the class, so an untouched
+     * method's bytes change anyway. Here every constant-pool operand becomes
+     * the constant it names; branch targets become instruction indices,
+     * because ldc turns into ldc_w once the pool passes 255 entries and moves
+     * every later offset; and short forms (iload_0) fold into their long
+     * forms. Access flags and the exception table stay part of the identity,
+     * because a fix can live in either. SHA-256, because a collision here
+     * would hide a change, which is the one failure this must never have.
+     */
+    fun fingerprints(data: ByteArray): ClassFingerprints {
+        val cursor = Cursor(data)
+        val pool = readPool(cursor, { it })
+        val header = readHeaderAfterPool(cursor, pool)
+        skipMembers(cursor) // fields
+
+        class Pending(val key: MemberKey, var access: Int) {
+            var code: Code? = null
+            var exceptionTable = -1
+        }
+        val pending = ArrayList<Pending>()
+        repeat(cursor.u2()) {
+            val access = cursor.u2()
+            val entry = Pending(MemberKey(pool.utf8(cursor.u2()), pool.utf8(cursor.u2())), access)
+            repeat(cursor.u2()) {
+                val attributeName = pool.utf8(cursor.u2())
+                val length = cursor.u4()
+                val end = cursor.position + length
+                when (attributeName) {
+                    "Code" -> {
+                        cursor.u2() // max_stack
+                        cursor.u2() // max_locals
+                        val codeLength = cursor.u4()
+                        entry.code = Code(cursor.bytes, cursor.position, codeLength)
+                        entry.exceptionTable = cursor.position + codeLength
+                    }
+                    "Synthetic" -> entry.access = entry.access or ACC_SYNTHETIC
+                }
+                cursor.seek(end)
+            }
+            pending += entry
+        }
+
+        var bootstraps: List<Bootstrap> = emptyList()
+        repeat(cursor.u2()) {
+            val attributeName = pool.utf8(cursor.u2())
+            val length = cursor.u4()
+            val end = cursor.position + length
+            if (attributeName == "BootstrapMethods") {
+                bootstraps = List(cursor.u2()) {
+                    val methodRef = cursor.u2()
+                    Bootstrap(methodRef, IntArray(cursor.u2()) { cursor.u2() })
+                }
+            }
+            cursor.seek(end)
+        }
+
+        val methods = LinkedHashMap<MemberKey, Fingerprint>(pending.size)
+        for (entry in pending) {
+            methods[entry.key] = fingerprint(entry.access, entry.code, entry.exceptionTable, pool, bootstraps)
+        }
+        return ClassFingerprints(header, methods)
+    }
+
+    private fun fingerprint(
+        access: Int,
+        code: Code?,
+        exceptionTable: Int,
+        pool: Pool,
+        bootstraps: List<Bootstrap>,
+    ): Fingerprint {
+        val digest = MessageDigest.getInstance("SHA-256")
+        fun emit(token: String) {
+            digest.update(token.toByteArray(StandardCharsets.UTF_8))
+            digest.update(0)
+        }
+        emit("A$access")
+        if (code == null) return Fingerprint(digest.digest())
+
+        // First pass: instruction boundaries, so branch targets become indices.
+        val indexAt = IntArray(code.end - code.start + 1) { -1 }
+        var pc = code.start
+        var count = 0
+        while (pc < code.end) {
+            indexAt[pc - code.start] = count++
+            pc += code.instructionLength(pc)
+        }
+        indexAt[code.end - code.start] = count
+        fun target(absolute: Int): Int {
+            val relative = absolute - code.start
+            if (relative < 0 || relative >= indexAt.size || indexAt[relative] < 0) {
+                throw ClassFormatException("branch into the middle of an instruction")
+            }
+            return indexAt[relative]
+        }
+        fun symbol(index: Int): String = pool.symbol(index, bootstraps)
+
+        pc = code.start
+        while (pc < code.end) {
+            val opcode = code.u1(pc)
+            emit(
+                when (opcode) {
+                    in 0x1A..0x2D -> "${0x15 + (opcode - 0x1A) / 4} ${(opcode - 0x1A) % 4}" // xload_n
+                    in 0x3B..0x4E -> "${0x36 + (opcode - 0x3B) / 4} ${(opcode - 0x3B) % 4}" // xstore_n
+                    0x10 -> "$opcode ${code.s1(pc + 1)}" // bipush
+                    0x11 -> "$opcode ${code.s2(pc + 1)}" // sipush
+                    OP_LDC -> "LDC ${symbol(code.u1(pc + 1))}"
+                    OP_LDC_W, 0x14 -> "LDC ${symbol(code.u2(pc + 1))}"
+                    in 0x15..0x19, in 0x36..0x3A, 0xA9 -> "$opcode ${code.u1(pc + 1)}" // locals, ret
+                    OP_IINC -> "IINC ${code.u1(pc + 1)} ${code.s1(pc + 2)}"
+                    in 0x99..0xA6, 0xC6, 0xC7 -> "$opcode ${target(pc + code.s2(pc + 1))}"
+                    0xA7 -> "GOTO ${target(pc + code.s2(pc + 1))}"
+                    0xC8 -> "GOTO ${target(pc + code.s4(pc + 1))}"
+                    0xA8 -> "JSR ${target(pc + code.s2(pc + 1))}"
+                    0xC9 -> "JSR ${target(pc + code.s4(pc + 1))}"
+                    OP_TABLESWITCH -> {
+                        val operands = code.switchOperands(pc)
+                        val low = code.s4(operands + 4)
+                        val high = code.s4(operands + 8)
+                        buildString {
+                            append("TS ").append(target(pc + code.s4(operands)))
+                            append(' ').append(low).append(' ').append(high)
+                            for (i in 0..(high - low)) append(' ').append(target(pc + code.s4(operands + 12 + 4 * i)))
+                        }
+                    }
+                    OP_LOOKUPSWITCH -> {
+                        val operands = code.switchOperands(pc)
+                        val pairs = code.s4(operands + 4)
+                        buildString {
+                            append("LS ").append(target(pc + code.s4(operands)))
+                            for (i in 0 until pairs) {
+                                append(' ').append(code.s4(operands + 8 + 8 * i))
+                                append(':').append(target(pc + code.s4(operands + 12 + 8 * i)))
+                            }
+                        }
+                    }
+                    in 0xB2..0xB9 -> "$opcode ${symbol(code.u2(pc + 1))}" // fields, invokes
+                    OP_INVOKEDYNAMIC -> "INDY ${symbol(code.u2(pc + 1))}"
+                    OP_NEW, 0xBD, 0xC0, 0xC1 -> "$opcode ${symbol(code.u2(pc + 1))}"
+                    0xBC -> "$opcode ${code.u1(pc + 1)}" // newarray
+                    0xC5 -> "$opcode ${symbol(code.u2(pc + 1))} ${code.u1(pc + 3)}" // multianewarray
+                    OP_WIDE -> code.u1(pc + 1).let { inner ->
+                        if (inner == OP_IINC) "IINC ${code.u2(pc + 2)} ${code.s2(pc + 4)}" else "$inner ${code.u2(pc + 2)}"
+                    }
+                    else -> "$opcode"
+                },
+            )
+            pc += code.instructionLength(pc)
+        }
+
+        val bytes = code.bytes
+        fun u2At(at: Int): Int {
+            if (at < 0 || at + 2 > bytes.size) throw ClassFormatException("truncated exception table")
+            return ((bytes[at].toInt() and 0xFF) shl 8) or (bytes[at + 1].toInt() and 0xFF)
+        }
+        var at = exceptionTable
+        val entries = u2At(at)
+        at += 2
+        repeat(entries) {
+            val start = target(code.start + u2At(at))
+            val end = target(code.start + u2At(at + 2))
+            val handler = target(code.start + u2At(at + 4))
+            val type = u2At(at + 6).let { if (it == 0) "*" else pool.className(it) }
+            emit("X $start $end $handler $type")
+            at += 8
+        }
+        return Fingerprint(digest.digest())
+    }
+
     private class Bootstrap(val methodRef: Int, val arguments: IntArray)
 
     /** Most methods call little and create nothing; share the empty list instead of allocating one each. */
@@ -241,78 +422,97 @@ object ClassBodyReader {
     private fun scanCode(cursor: Cursor, pool: Pool, builder: BodyBuilder) {
         cursor.u2() // max_stack
         cursor.u2() // max_locals
-        val codeLength = cursor.u4()
-        val codeStart = cursor.position
-        val code = cursor.bytes
-        val codeEnd = codeStart + codeLength
-        if (codeLength < 0 || codeEnd > code.size) throw ClassFormatException("code overruns the class file")
+        val length = cursor.u4()
+        val code = Code(cursor.bytes, cursor.position, length)
 
-        fun u1(at: Int): Int {
-            if (at >= codeEnd) throw ClassFormatException("instruction overruns its code")
-            return code[at].toInt() and 0xFF
-        }
-        fun u2(at: Int): Int = (u1(at) shl 8) or u1(at + 1)
-        fun s4(at: Int): Int = (u2(at) shl 16) or u2(at + 2)
-
-        var pc = codeStart
-        while (pc < codeEnd) {
-            val opcode = u1(pc)
-            val length = when (opcode) {
-                OP_TABLESWITCH -> {
-                    // Operands are 4-byte aligned relative to the start of the code array.
-                    val operands = pc + 1 + padding(pc - codeStart)
-                    val low = s4(operands + 4)
-                    val high = s4(operands + 8)
-                    val count = high.toLong() - low + 1
-                    if (count < 0 || count > codeLength) throw ClassFormatException("bad tableswitch range")
-                    (operands - pc) + 12 + (4 * count).toInt()
-                }
-                OP_LOOKUPSWITCH -> {
-                    val operands = pc + 1 + padding(pc - codeStart)
-                    val pairs = s4(operands + 4)
-                    if (pairs < 0 || pairs > codeLength) throw ClassFormatException("bad lookupswitch size")
-                    (operands - pc) + 8 + 8 * pairs
-                }
-                OP_WIDE -> if (u1(pc + 1) == OP_IINC) 6 else 4
-                else -> OPCODE_LENGTH[opcode].takeIf { it > 0 }
-                    ?: throw ClassFormatException("undefined opcode $opcode")
-            }
-            if (pc + length > codeEnd) throw ClassFormatException("instruction overruns its code")
-
+        var pc = code.start
+        while (pc < code.end) {
+            val opcode = code.u1(pc)
+            val size = code.instructionLength(pc)
             when (opcode) {
-                OP_INVOKEVIRTUAL, OP_INVOKEINTERFACE -> pool.memberRef(u2(pc + 1)).let {
+                OP_INVOKEVIRTUAL, OP_INVOKEINTERFACE -> pool.memberRef(code.u2(pc + 1)).let {
                     builder.calls += pool.call(it.owner, it.key, Dispatch.VIRTUAL)
                 }
-                OP_INVOKESPECIAL -> pool.memberRef(u2(pc + 1)).let {
+                OP_INVOKESPECIAL -> pool.memberRef(code.u2(pc + 1)).let {
                     builder.calls += pool.call(it.owner, it.key, Dispatch.SPECIAL)
                 }
-                OP_INVOKESTATIC -> pool.memberRef(u2(pc + 1)).let {
+                OP_INVOKESTATIC -> pool.memberRef(code.u2(pc + 1)).let {
                     builder.calls += pool.call(it.owner, it.key, Dispatch.STATIC)
                     builder.initializes += it.owner
                 }
-                OP_GETSTATIC, OP_PUTSTATIC -> builder.initializes += pool.memberRef(u2(pc + 1)).owner
-                OP_NEW -> pool.className(u2(pc + 1)).let {
+                OP_GETSTATIC, OP_PUTSTATIC -> builder.initializes += pool.memberRef(code.u2(pc + 1)).owner
+                OP_NEW -> pool.className(code.u2(pc + 1)).let {
                     builder.instantiates += it
                     builder.initializes += it
                 }
                 OP_INVOKEDYNAMIC -> {
-                    val index = u2(pc + 1)
+                    val index = code.u2(pc + 1)
                     if (pool.tag(index) != TAG_INVOKE_DYNAMIC) throw ClassFormatException("invokedynamic without its constant")
                     builder.bootstrapIndices += pool.a(index)
                 }
                 OP_LDC, OP_LDC_W -> {
-                    val index = if (opcode == OP_LDC) u1(pc + 1) else u2(pc + 1)
+                    val index = if (opcode == OP_LDC) code.u1(pc + 1) else code.u2(pc + 1)
                     when (pool.tag(index)) {
                         TAG_METHOD_HANDLE -> recordHandle(index, pool, builder)
                         TAG_DYNAMIC -> builder.bootstrapIndices += pool.a(index)
                     }
                 }
             }
-            pc += length
+            pc += size
         }
     }
 
-    private fun padding(offsetInCode: Int): Int = (4 - ((offsetInCode + 1) % 4)) % 4
+    /**
+     * One method's code array. Every read is bounds-checked against the code
+     * itself, not just the file, so a mis-sized instruction is a format error
+     * rather than a silent read of the next attribute's bytes.
+     */
+    private class Code(val bytes: ByteArray, val start: Int, length: Int) {
+        val end: Int = start + length
+
+        init {
+            if (length < 0 || end > bytes.size) throw ClassFormatException("code overruns the class file")
+        }
+
+        fun u1(at: Int): Int {
+            if (at < start || at >= end) throw ClassFormatException("instruction overruns its code")
+            return bytes[at].toInt() and 0xFF
+        }
+
+        fun s1(at: Int): Int = u1(at).toByte().toInt()
+        fun u2(at: Int): Int = (u1(at) shl 8) or u1(at + 1)
+        fun s2(at: Int): Int = u2(at).toShort().toInt()
+        fun s4(at: Int): Int = (u2(at) shl 16) or u2(at + 2)
+
+        /** Switch operands are 4-byte aligned relative to the start of the code array. */
+        fun switchOperands(pc: Int): Int = pc + 1 + (4 - ((pc - start + 1) % 4)) % 4
+
+        /** The full length of the instruction at [pc], including switch padding and wide forms. */
+        fun instructionLength(pc: Int): Int {
+            val opcode = u1(pc)
+            val length = when (opcode) {
+                OP_TABLESWITCH -> {
+                    val operands = switchOperands(pc)
+                    val low = s4(operands + 4)
+                    val high = s4(operands + 8)
+                    val count = high.toLong() - low + 1
+                    if (count < 0 || count > end - start) throw ClassFormatException("bad tableswitch range")
+                    (operands - pc) + 12 + (4 * count).toInt()
+                }
+                OP_LOOKUPSWITCH -> {
+                    val operands = switchOperands(pc)
+                    val pairs = s4(operands + 4)
+                    if (pairs < 0 || pairs > end - start) throw ClassFormatException("bad lookupswitch size")
+                    (operands - pc) + 8 + 8 * pairs
+                }
+                OP_WIDE -> if (u1(pc + 1) == OP_IINC) 6 else 4
+                else -> OPCODE_LENGTH[opcode].takeIf { it > 0 }
+                    ?: throw ClassFormatException("undefined opcode $opcode")
+            }
+            if (pc + length > end) throw ClassFormatException("instruction overruns its code")
+            return length
+        }
+    }
 
     private fun readHeaderAfterPool(cursor: Cursor, pool: Pool): ClassHeader {
         val access = cursor.u2()
@@ -377,6 +577,32 @@ object ClassBodyReader {
             return utf8(first[index])
         }
 
+        fun symbol(index: Int, bootstraps: List<Bootstrap>, depth: Int = 0): String {
+            if (depth > 16) throw ClassFormatException("bootstrap arguments nest too deep")
+            return when (tag(index)) {
+                TAG_INTEGER -> "I:${a(index)}"
+                TAG_FLOAT -> "F:${a(index)}"
+                TAG_LONG -> "J:${a(index)}:${b(index)}"
+                TAG_DOUBLE -> "D:${a(index)}:${b(index)}"
+                TAG_CLASS -> "C:" + className(index)
+                TAG_STRING -> "S:" + utf8(a(index))
+                TAG_METHOD_TYPE -> "T:" + utf8(a(index))
+                TAG_FIELDREF, TAG_METHODREF, TAG_INTERFACE_METHODREF ->
+                    memberRef(index).let { "M${tag(index)}:${it.owner}.${it.key.name}${it.key.descriptor}" }
+                TAG_METHOD_HANDLE -> "H${a(index)}:" + symbol(b(index), bootstraps, depth + 1)
+                TAG_DYNAMIC, TAG_INVOKE_DYNAMIC -> {
+                    val bootstrap = bootstraps.getOrNull(a(index))
+                        ?: throw ClassFormatException("bootstrap method ${a(index)} missing")
+                    val nat = b(index)
+                    if (tag(nat) != TAG_NAME_AND_TYPE) throw ClassFormatException("constant $nat is not a name-and-type")
+                    "Y${tag(index)}:${utf8(a(nat))}${utf8(b(nat))}@" +
+                        symbol(bootstrap.methodRef, bootstraps, depth + 1) +
+                        bootstrap.arguments.joinToString(",", "(", ")") { symbol(it, bootstraps, depth + 1) }
+                }
+                else -> throw ClassFormatException("constant $index cannot be an operand")
+            }
+        }
+
         fun memberRef(index: Int): Member {
             when (tag(index)) {
                 TAG_FIELDREF, TAG_METHODREF, TAG_INTERFACE_METHODREF -> Unit
@@ -415,11 +641,13 @@ object ClassBodyReader {
                     first[i] = cursor.u1()
                     second[i] = cursor.u2()
                 }
-                TAG_STRING, TAG_METHOD_TYPE, TAG_MODULE, TAG_PACKAGE -> cursor.skip(2)
-                TAG_INTEGER, TAG_FLOAT -> cursor.skip(4)
+                TAG_STRING, TAG_METHOD_TYPE -> first[i] = cursor.u2()
+                TAG_MODULE, TAG_PACKAGE -> cursor.skip(2)
+                TAG_INTEGER, TAG_FLOAT -> first[i] = cursor.s4()
                 // Long and Double take two constant pool slots.
                 TAG_LONG, TAG_DOUBLE -> {
-                    cursor.skip(8)
+                    first[i] = cursor.s4()
+                    second[i] = cursor.s4()
                     i++
                 }
                 else -> throw ClassFormatException("unknown constant pool tag $tag")
@@ -442,6 +670,8 @@ object ClassBodyReader {
             require(2)
             return ((bytes[position++].toInt() and 0xFF) shl 8) or (bytes[position++].toInt() and 0xFF)
         }
+
+        fun s4(): Int = (u2() shl 16) or u2()
 
         /** Attribute and code lengths: u4 on disk, but nothing in a real class file approaches 2 GB. */
         fun u4(): Int {
