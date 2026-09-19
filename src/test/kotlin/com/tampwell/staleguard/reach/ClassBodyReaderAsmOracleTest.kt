@@ -182,14 +182,14 @@ class ClassBodyReaderAsmOracleTest {
                         // ASM folds pseudo-flags such as ACC_DEPRECATED (0x20000) into the
                         // access word; the JVM's own flags are the low 16 bits.
                         val wantAccess = want.access and 0xFFFF
-                        if (got.access != wantAccess || got.calls != want.calls ||
-                            got.initializes != want.initializes || got.instantiates != want.instantiates
+                        if (got.access != wantAccess || got.calls.toSet() != want.calls ||
+                            got.initializes.toSet() != want.initializes || got.instantiates.toSet() != want.instantiates
                         ) {
                             mismatches += "${entry.name} ${key.name}${key.descriptor}: " +
                                 "access ${got.access} vs $wantAccess, " +
-                                "calls ${got.calls - want.calls} vs ${want.calls - got.calls}, " +
-                                "init ${got.initializes - want.initializes} vs ${want.initializes - got.initializes}, " +
-                                "new ${got.instantiates - want.instantiates} vs ${want.instantiates - got.instantiates}"
+                                "calls ${got.calls.toSet() - want.calls} vs ${want.calls - got.calls.toSet()}, " +
+                                "init ${got.initializes.toSet() - want.initializes} vs ${want.initializes - got.initializes.toSet()}, " +
+                                "new ${got.instantiates.toSet() - want.instantiates} vs ${want.instantiates - got.instantiates.toSet()}"
                         }
                     }
                 }

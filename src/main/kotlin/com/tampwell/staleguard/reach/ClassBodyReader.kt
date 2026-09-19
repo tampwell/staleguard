@@ -19,14 +19,18 @@ enum class Dispatch {
 /** One call a method body can make, exactly as the bytecode names it. */
 data class CallSite(val owner: String, val key: MemberKey, val dispatch: Dispatch)
 
-/** What one method body can do to the rest of the program. */
+/**
+ * What one method body can do to the rest of the program. Each list is
+ * distinct and in first-occurrence order; lists rather than sets because a
+ * whole classpath of these is held at once.
+ */
 class MethodBody(
     val access: Int,
-    val calls: Set<CallSite>,
+    val calls: List<CallSite>,
     /** Classes whose static initializer this body can trigger: new, static field access, static calls. */
-    val initializes: Set<String>,
+    val initializes: List<String>,
     /** Classes this body creates instances of: new and constructor references. */
-    val instantiates: Set<String>,
+    val instantiates: List<String>,
 ) {
     val isStatic: Boolean get() = access and ACC_STATIC != 0
     val isPrivate: Boolean get() = access and ACC_PRIVATE != 0
@@ -55,7 +59,17 @@ class ClassHeader(
     }
 }
 
-class ClassBodies(val header: ClassHeader, val methods: Map<MemberKey, MethodBody>)
+class ClassBodies(
+    val header: ClassHeader,
+    val methods: Map<MemberKey, MethodBody>,
+    /**
+     * A local or anonymous class: the JVM requires an EnclosingMethod
+     * attribute on exactly these (JVMS 4.7.7). Compiler-generated lambda and
+     * coroutine classes are among them, and only their enclosing code ever
+     * creates them; frameworks create named classes by name, never these.
+     */
+    val isLocalOrAnonymous: Boolean = false,
+)
 
 /**
  * Reads the outgoing edges of every method in a class file: the calls each
@@ -76,6 +90,22 @@ object ClassBodyReader {
     private const val MAGIC = 0xCAFEBABEL
     private const val ACC_SYNTHETIC = 0x1000
 
+    /**
+     * Object canonicalization across many class files. A whole classpath
+     * repeats the same call targets thousands of times; sharing one instance
+     * each is most of the difference between a walk that fits comfortably in
+     * an IDE's heap and one that does not.
+     */
+    class Canonical {
+        private val strings = HashMap<String, String>()
+        private val keys = HashMap<MemberKey, MemberKey>()
+        private val calls = HashMap<CallSite, CallSite>()
+
+        fun string(value: String): String = strings.getOrPut(value) { value }
+        fun key(value: MemberKey): MemberKey = keys.getOrPut(value) { value }
+        fun call(value: CallSite): CallSite = calls.getOrPut(value) { value }
+    }
+
     /** Header only: the constant pool is still read, the member tables are not. */
     fun readHeader(data: ByteArray, intern: (String) -> String = { it }): ClassHeader {
         val cursor = Cursor(data)
@@ -83,9 +113,14 @@ object ClassBodyReader {
         return readHeaderAfterPool(cursor, pool)
     }
 
-    fun read(data: ByteArray, intern: (String) -> String = { it }): ClassBodies {
+    /**
+     * [scanBodies] false reads the method table only: the declarations and
+     * their access, with empty edge sets. Enough to resolve against a JDK
+     * class, whose bodies reachability never walks.
+     */
+    fun read(data: ByteArray, canonical: Canonical? = null, scanBodies: Boolean = true): ClassBodies {
         val cursor = Cursor(data)
-        val pool = readPool(cursor, intern)
+        val pool = readPool(cursor, canonical?.let { it::string } ?: { it }, canonical)
         val header = readHeaderAfterPool(cursor, pool)
 
         skipMembers(cursor) // fields
@@ -102,26 +137,30 @@ object ClassBodyReader {
                 val length = cursor.u4()
                 val end = cursor.position + length
                 when (attributeName) {
-                    "Code" -> scanCode(cursor, pool, builder)
+                    "Code" -> if (scanBodies) scanCode(cursor, pool, builder)
                     // Before class file version 49 synthetic-ness was an
                     // attribute, not a flag; the JVM treats them the same.
                     "Synthetic" -> access = access or ACC_SYNTHETIC
                 }
                 cursor.seek(end)
             }
-            pending[MemberKey(name, descriptor)] = Pending(access, builder)
+            pending[pool.key(name, descriptor)] = Pending(access, builder)
         }
 
         var bootstraps: List<Bootstrap> = emptyList()
+        var localOrAnonymous = false
         repeat(cursor.u2()) {
             val attributeName = pool.utf8(cursor.u2())
             val length = cursor.u4()
             val end = cursor.position + length
-            if (attributeName == "BootstrapMethods") {
-                bootstraps = List(cursor.u2()) {
-                    val methodRef = cursor.u2()
-                    Bootstrap(methodRef, IntArray(cursor.u2()) { cursor.u2() })
+            when (attributeName) {
+                "BootstrapMethods" -> if (scanBodies) {
+                    bootstraps = List(cursor.u2()) {
+                        val methodRef = cursor.u2()
+                        Bootstrap(methodRef, IntArray(cursor.u2()) { cursor.u2() })
+                    }
                 }
+                "EnclosingMethod" -> localOrAnonymous = true
             }
             cursor.seek(end)
         }
@@ -132,12 +171,20 @@ object ClassBodyReader {
             for (index in builder.bootstrapIndices) {
                 expandBootstrap(index, bootstraps, pool, builder, HashSet())
             }
-            methods[key] = MethodBody(entry.access, builder.calls, builder.initializes, builder.instantiates)
+            methods[key] = MethodBody(
+                entry.access,
+                builder.calls.compact(),
+                builder.initializes.compact(),
+                builder.instantiates.compact(),
+            )
         }
-        return ClassBodies(header, methods)
+        return ClassBodies(header, methods, localOrAnonymous)
     }
 
     private class Bootstrap(val methodRef: Int, val arguments: IntArray)
+
+    /** Most methods call little and create nothing; share the empty list instead of allocating one each. */
+    private fun <T> Set<T>.compact(): List<T> = if (isEmpty()) emptyList() else ArrayList(this)
 
     private class BodyBuilder {
         val calls = LinkedHashSet<CallSite>()
@@ -176,14 +223,14 @@ object ClassBodyReader {
             REF_GET_STATIC, REF_PUT_STATIC -> builder.initializes += member.owner
             REF_GET_FIELD, REF_PUT_FIELD -> Unit
             REF_INVOKE_VIRTUAL, REF_INVOKE_INTERFACE ->
-                builder.calls += CallSite(member.owner, member.key, Dispatch.VIRTUAL)
+                builder.calls += pool.call(member.owner, member.key, Dispatch.VIRTUAL)
             REF_INVOKE_STATIC -> {
-                builder.calls += CallSite(member.owner, member.key, Dispatch.STATIC)
+                builder.calls += pool.call(member.owner, member.key, Dispatch.STATIC)
                 builder.initializes += member.owner
             }
-            REF_INVOKE_SPECIAL -> builder.calls += CallSite(member.owner, member.key, Dispatch.SPECIAL)
+            REF_INVOKE_SPECIAL -> builder.calls += pool.call(member.owner, member.key, Dispatch.SPECIAL)
             REF_NEW_INVOKE_SPECIAL -> {
-                builder.calls += CallSite(member.owner, member.key, Dispatch.SPECIAL)
+                builder.calls += pool.call(member.owner, member.key, Dispatch.SPECIAL)
                 builder.instantiates += member.owner
                 builder.initializes += member.owner
             }
@@ -234,13 +281,13 @@ object ClassBodyReader {
 
             when (opcode) {
                 OP_INVOKEVIRTUAL, OP_INVOKEINTERFACE -> pool.memberRef(u2(pc + 1)).let {
-                    builder.calls += CallSite(it.owner, it.key, Dispatch.VIRTUAL)
+                    builder.calls += pool.call(it.owner, it.key, Dispatch.VIRTUAL)
                 }
                 OP_INVOKESPECIAL -> pool.memberRef(u2(pc + 1)).let {
-                    builder.calls += CallSite(it.owner, it.key, Dispatch.SPECIAL)
+                    builder.calls += pool.call(it.owner, it.key, Dispatch.SPECIAL)
                 }
                 OP_INVOKESTATIC -> pool.memberRef(u2(pc + 1)).let {
-                    builder.calls += CallSite(it.owner, it.key, Dispatch.STATIC)
+                    builder.calls += pool.call(it.owner, it.key, Dispatch.STATIC)
                     builder.initializes += it.owner
                 }
                 OP_GETSTATIC, OP_PUTSTATIC -> builder.initializes += pool.memberRef(u2(pc + 1)).owner
@@ -293,7 +340,14 @@ object ClassBodyReader {
         private val strings: Array<String?>,
         private val first: IntArray,
         private val second: IntArray,
+        private val canonical: Canonical?,
     ) {
+        fun key(name: String, descriptor: String): MemberKey =
+            MemberKey(name, descriptor).let { canonical?.key(it) ?: it }
+
+        fun call(owner: String, key: MemberKey, dispatch: Dispatch): CallSite =
+            CallSite(owner, key, dispatch).let { canonical?.call(it) ?: it }
+
         private fun check(index: Int) {
             if (index <= 0 || index >= tags.size) throw ClassFormatException("constant index $index out of range")
         }
@@ -330,11 +384,11 @@ object ClassBodyReader {
             }
             val nat = second[index]
             if (tag(nat) != TAG_NAME_AND_TYPE) throw ClassFormatException("constant $nat is not a name-and-type")
-            return Member(className(first[index]), MemberKey(utf8(first[nat]), utf8(second[nat])))
+            return Member(className(first[index]), key(utf8(first[nat]), utf8(second[nat])))
         }
     }
 
-    private fun readPool(cursor: Cursor, intern: (String) -> String): Pool {
+    private fun readPool(cursor: Cursor, intern: (String) -> String, canonical: Canonical? = null): Pool {
         // Read as two halves: the magic exceeds Int.MAX_VALUE, which u4() rejects as a length.
         val magic = (cursor.u2().toLong() shl 16) or cursor.u2().toLong()
         if (magic != MAGIC) throw ClassFormatException("not a class file")
@@ -372,7 +426,7 @@ object ClassBodyReader {
             }
             i++
         }
-        return Pool(tags, strings, first, second)
+        return Pool(tags, strings, first, second, canonical)
     }
 
     private class Cursor(val bytes: ByteArray) {
