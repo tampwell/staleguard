@@ -79,6 +79,10 @@ class StaleguardStatsPanel(private val project: Project) :
             com.tampwell.staleguard.impact.LinkageVerdictListener.TOPIC,
             com.tampwell.staleguard.impact.LinkageVerdictListener { SwingUtilities.invokeLater { rebuild() } },
         )
+        connection.subscribe(
+            com.tampwell.staleguard.reach.ReachabilityListener.TOPIC,
+            com.tampwell.staleguard.reach.ReachabilityListener { SwingUtilities.invokeLater { rebuild() } },
+        )
 
         rebuild()
     }
@@ -94,6 +98,9 @@ class StaleguardStatsPanel(private val project: Project) :
         val lockDrifts: List<LockDriftRow> = emptyList(),
         val lockedVulns: List<LockedVulnRow> = emptyList(),
         val relockRows: List<RelockRow> = emptyList(),
+        /** The last reachability check: a header and its rows, most urgent first; null before any check. */
+        val reachHeader: String? = null,
+        val reachRows: List<String> = emptyList(),
     )
 
     private class RelockRow(val label: String, val file: VirtualFile?)
@@ -269,9 +276,31 @@ class StaleguardStatsPanel(private val project: Project) :
                 )
             }
         }.take(RELOCK_ROW_CAP)
+
+        // The last reachability check, most urgent first, dated in its header:
+        // it covers transitives too, so it stands as that check's whole truth
+        // until the next one. The editor line is the version-exact surface.
+        val reachState = com.tampwell.staleguard.reach.ReachabilityState.getInstance(project)
+        val vulnerability = com.tampwell.staleguard.services.VulnerabilityService.getInstance()
+        val shownVerdicts = reachState.verdicts.entries
+            .sortedWith(compareBy({ com.tampwell.staleguard.reach.ReachMessages.rank(it.value) }, { it.key.artifactId }))
+        val reachRows = shownVerdicts.map { (key, verdict) ->
+            val advisory = vulnerability.peek(Coordinates(key.groupId, key.artifactId), key.version)
+                ?.advisories?.firstOrNull { it.id == key.advisoryId }?.displayId ?: key.advisoryId
+            com.tampwell.staleguard.reach.ReachMessages.row("${key.artifactId} ${key.version}", advisory, verdict)
+        }
+        val reachHeader = if (shownVerdicts.isEmpty()) {
+            null
+        } else {
+            com.tampwell.staleguard.reach.ReachMessages.header(
+                com.tampwell.staleguard.util.RelativeTime.ago(now - reachState.asOfMillis),
+                shownVerdicts.map { it.value },
+            )
+        }
         return Snapshot(
             rows, plan, stats, StatsCalculator.summary(stats),
             transitiveVulns, lockDrifts, lockedVulns, relockRows,
+            reachHeader, reachRows,
         )
     }
 
@@ -321,6 +350,12 @@ class StaleguardStatsPanel(private val project: Project) :
                     },
                 ),
             )
+        }
+
+        snapshot.reachHeader?.let { header ->
+            val reachNode = DefaultMutableTreeNode(header)
+            for (row in snapshot.reachRows) reachNode.add(DefaultMutableTreeNode(row))
+            root.add(reachNode)
         }
 
         if (snapshot.transitiveVulns.isNotEmpty()) {
@@ -497,7 +532,10 @@ class StaleguardStatsPanel(private val project: Project) :
         val toolbar = ActionManager.getInstance()
             .createActionToolbar(
                 "StaleguardStats",
-                DefaultActionGroup(RefreshAllAction(), ExportAction(), SbomExportAction(), CheckClasspathAction(), ReportIssueAction()),
+                DefaultActionGroup(
+                    RefreshAllAction(), ExportAction(), SbomExportAction(), CheckClasspathAction(),
+                    com.tampwell.staleguard.reach.CheckReachabilityAction(), ReportIssueAction(),
+                ),
                 true,
             )
         toolbar.targetComponent = this

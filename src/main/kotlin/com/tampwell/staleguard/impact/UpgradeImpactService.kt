@@ -8,8 +8,6 @@ import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.tampwell.staleguard.repository.Coordinates
-import com.tampwell.staleguard.repository.RepositoryCredentials
-import com.tampwell.staleguard.services.VersionLookupService
 import com.tampwell.staleguard.settings.StaleguardSettings
 import java.nio.file.Files
 import java.nio.file.Path
@@ -111,19 +109,8 @@ class UpgradeImpactService(private val project: Project) {
         destination: Path,
         indicator: ProgressIndicator,
     ): Path? {
-        val fetcher = HttpArtifactJarFetcher(pluginVersion()) { url ->
-            RepositoryCredentials.getInstance().forUrl(url)?.let { credentials ->
-                val user = credentials.userName ?: return@let null
-                val password = credentials.password?.toCharArray() ?: return@let null
-                RepositoryCredentials.basicAuthValue(user, password)
-            }
-        }
-        for (pomUrl in VersionLookupService.getInstance().pomUrls(coordinates, version)) {
-            indicator.checkCanceled()
-            fetcher.fetch(pomUrl, destination) { indicator.isCanceled }?.let { return it }
-        }
-        log.info("Staleguard: no binary found for $coordinates:$version in any configured repository")
-        return null
+        indicator.checkCanceled()
+        return ArtifactJars.fetch(coordinates, version, destination) { indicator.isCanceled }
     }
 
     companion object {
@@ -132,7 +119,5 @@ class UpgradeImpactService(private val project: Project) {
         /** Also read by the settings page for stats and clearing — one owner for the path. */
         fun cacheDirectory(): Path =
             Path.of(PathManager.getSystemPath(), "staleguard", "impact-cache")
-
-        private fun pluginVersion(): String = com.tampwell.staleguard.StaleguardVersion.current()
     }
 }

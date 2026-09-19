@@ -94,7 +94,7 @@ class DependencyFreshnessInspection : LocalInspectionTool() {
                     ).toTypedArray<com.intellij.codeInspection.LocalQuickFix>()
                     problems += manager.createProblemDescriptor(
                         anchor,
-                        VulnerabilityProblems.message(advisories),
+                        VulnerabilityProblems.message(project, coordinates, declared.resolvedVersion, advisories),
                         isOnTheFly,
                         fixes,
                         ProblemHighlightType.GENERIC_ERROR_OR_WARNING,

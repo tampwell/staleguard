@@ -72,6 +72,7 @@ class LinkageVerdictState(private val project: Project) : PersistentStateCompone
         current = verdictOf(report, System.currentTimeMillis())
         problems = problemsOf(report, identify, fixFor, provenanceFor)
         project.messageBus.syncPublisher(LinkageVerdictListener.TOPIC).verdictChanged()
+        com.tampwell.staleguard.services.FreshnessRefreshService.getInstance(project).repaintBuildFiles()
     }
 
     // Serialization beans: mutable, no-arg, string-keyed — the shape the

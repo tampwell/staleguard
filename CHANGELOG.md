@@ -4,6 +4,16 @@
 
 ## [Unreleased]
 
+## [2.8.0] - 2026-09-19
+
+### Added
+- Vulnerability reachability, entirely on your machine. Check Vulnerability Reachability answers the question every CVE warning raises: does your code actually reach the vulnerable part? Staleguard compares the vulnerable release with its fix method by method to learn what the fix changed, then walks every method your compiled code can reach across the whole classpath, through library interfaces, lambdas, static initializers, JDK callbacks, ServiceLoader providers and Spring auto-configuration. Each advisory is marked reached (with the call path, and whether only your tests reach it), not reached, or undetermined with the reason, in the editor and the tool window. No code leaves your machine and no account is needed. Validated on Log4Shell: logging a string in an app on log4j-core 2.14.1 is found reaching the JNDI lookup, while code using only a string utility from the same library is not. A negative answer is a static statement (reflection is outside it), so it demotes an advisory and never hides one.
+
+### Fixed
+- Open build files now repaint as soon as a classpath linkage check or a reachability check finishes, instead of waiting for unrelated highlighting.
+- Lockfile warnings now repaint when vulnerability data arrives.
+- Gradle modules that compile more than one language (for example Java and Kotlin) now have all of their compiled classes included in the linkage doctor's own-code audit, not only the first language's output directory.
+
 ## [2.7.0] - 2026-09-12
 
 ### Added

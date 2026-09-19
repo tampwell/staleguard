@@ -178,7 +178,7 @@ class TomlCatalogFreshnessInspection : LocalInspectionTool() {
             val worst = com.tampwell.staleguard.inspection.VulnerabilityProblems.worst(advisories)
             problems += manager.createProblemDescriptor(
                 checkable.anchor,
-                com.tampwell.staleguard.inspection.VulnerabilityProblems.message(advisories),
+                com.tampwell.staleguard.inspection.VulnerabilityProblems.message(manager.project, coordinates, checkable.version, advisories),
                 isOnTheFly,
                 listOfNotNull(
                     worst.fixedVersion?.takeIf { checkable.fixable }

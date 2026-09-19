@@ -73,7 +73,7 @@ class GradleDependencyFreshnessInspection : LocalInspectionTool() {
                 val worst = com.tampwell.staleguard.inspection.VulnerabilityProblems.worst(advisories)
                 problems += manager.createProblemDescriptor(
                     declared.anchor,
-                    com.tampwell.staleguard.inspection.VulnerabilityProblems.message(advisories),
+                    com.tampwell.staleguard.inspection.VulnerabilityProblems.message(project, coordinates, declared.version, advisories),
                     isOnTheFly,
                     listOfNotNull(
                         worst.fixedVersion?.let { declared.bumpFix(it) },

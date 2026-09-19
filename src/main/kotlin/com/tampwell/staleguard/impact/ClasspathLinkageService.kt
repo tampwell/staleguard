@@ -213,14 +213,6 @@ class ClasspathLinkageService(private val project: Project) {
         }
         val lookup = com.tampwell.staleguard.services.VersionLookupService.getInstance()
         val policy = com.tampwell.staleguard.policy.ProjectPolicyService.getInstance(project)
-        val fetcher = HttpArtifactJarFetcher(com.tampwell.staleguard.StaleguardVersion.current()) { url ->
-            com.tampwell.staleguard.repository.RepositoryCredentials.getInstance().forUrl(url)?.let { credentials ->
-                val user = credentials.userName ?: return@let null
-                val password = credentials.password?.toCharArray() ?: return@let null
-                com.tampwell.staleguard.repository.RepositoryCredentials.basicAuthValue(user, password)
-            }
-        }
-
         val sources = FixSuggestions.Sources(
             identify = { jarName -> pathByJarName[jarName]?.let(JarCoordinates::identify) },
             packageOwner = { pkg -> jarByPackage[pkg] },
@@ -233,9 +225,8 @@ class ClasspathLinkageService(private val project: Project) {
                 indicator.text2 = "$coords $version"
                 val workspace = java.nio.file.Files.createTempDirectory("staleguard-fix")
                 try {
-                    lookup.pomUrls(coords, version).firstNotNullOfOrNull { pomUrl ->
-                        fetcher.fetch(pomUrl, workspace.resolve("candidate.jar")) { indicator.isCanceled }
-                    }?.let { JarScanner.scan(it) }
+                    ArtifactJars.fetch(coords, version, workspace.resolve("candidate.jar")) { indicator.isCanceled }
+                        ?.let { JarScanner.scan(it) }
                 } finally {
                     runCatching {
                         java.nio.file.Files.walk(workspace)

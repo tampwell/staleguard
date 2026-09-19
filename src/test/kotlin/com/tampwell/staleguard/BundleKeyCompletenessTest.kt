@@ -20,7 +20,7 @@ class BundleKeyCompletenessTest {
     private val xmlKey = Regex("""(?:key|groupKey)="([^"]+)"""")
     private val anyStringLiteral = Regex(""""([^"$\n]+)"""")
 
-    private val dynamicPrefixes = listOf("severity.")
+    private val dynamicPrefixes = listOf("severity.", "reach.reason.")
 
     private fun bundleKeys(): Set<String> {
         val properties = Properties()

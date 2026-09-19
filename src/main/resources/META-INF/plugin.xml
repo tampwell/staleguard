@@ -97,6 +97,12 @@
                 description="Generate a runnable script that wires in a dependency at its current version, in your language of choice">
             <add-to-group group-id="ToolsMenu" anchor="last"/>
         </action>
+        <action id="com.tampwell.staleguard.CheckReachability"
+                class="com.tampwell.staleguard.reach.CheckReachabilityAction"
+                text="Staleguard: Check Vulnerability Reachability"
+                description="Find out whether your code can reach what each vulnerability's fix changed">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+        </action>
         <action id="com.tampwell.staleguard.ApplyAllPatch"
                 class="com.tampwell.staleguard.actions.ApplyAllPatchAction"
                 text="Staleguard: Apply All Patch Updates"

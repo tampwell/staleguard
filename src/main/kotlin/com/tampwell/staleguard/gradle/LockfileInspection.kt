@@ -65,7 +65,7 @@ class LockfileInspection : LocalInspectionTool() {
                 problems += manager.createProblemDescriptor(
                     file,
                     lineRange,
-                    VulnerabilityProblems.message(advisories) +
+                    VulnerabilityProblems.message(manager.project, Coordinates(locked.group, locked.name), locked.version, advisories) +
                         StaleguardBundle.message("inspection.lockfile.vuln.note"),
                     ProblemHighlightType.GENERIC_ERROR_OR_WARNING,
                     isOnTheFly,

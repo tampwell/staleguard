@@ -202,9 +202,16 @@ class FreshnessRefreshService(private val project: Project, private val scope: C
     }
 
     /**
+     * Repaints open build files after a verdict they display has changed: a
+     * linkage audit or a reachability check. Without it the editor keeps the
+     * old warnings until something unrelated happens to trigger highlighting.
+     */
+    fun repaintBuildFiles() = scheduleRestart()
+
+    /**
      * One restart per burst: many dependencies resolving together repaint
-     * once. Restarts only the open pom.xml editors (the per-file restart is
-     * the supported API; the whole-project restart() is deprecated) — which
+     * once. Restarts only the open build-file editors (the per-file restart
+     * is the supported API; the whole-project restart() is deprecated), which
      * is also strictly less work for the daemon.
      */
     private fun scheduleRestart() {
@@ -219,7 +226,8 @@ class FreshnessRefreshService(private val project: Project, private val scope: C
                 FileEditorManager.getInstance(project).openFiles
                     .filter {
                         it.name == "pom.xml" || it.name.endsWith(".gradle") ||
-                            it.name.endsWith(".gradle.kts") || it.name.endsWith(".versions.toml")
+                            it.name.endsWith(".gradle.kts") || it.name.endsWith(".versions.toml") ||
+                            it.name.endsWith(".lockfile")
                     }
                     .mapNotNull(psiManager::findFile)
                     // restart(PsiFile) is the current API on the public 253 line;
