@@ -3,6 +3,8 @@ package com.tampwell.staleguard.reach
 import com.intellij.openapi.application.PathManager
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
+import com.intellij.openapi.diagnostic.logger
+import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.progress.ProgressIndicator
 import com.intellij.openapi.project.Project
 import com.tampwell.staleguard.StaleguardBundle
@@ -32,6 +34,8 @@ import java.nio.file.Path
  */
 @Service(Service.Level.PROJECT)
 class ReachabilityService(private val project: Project) {
+
+    private val log = logger<ReachabilityService>()
 
     data class Summary(
         val vulnerable: Int,
@@ -119,17 +123,28 @@ class ReachabilityService(private val project: Project) {
             val scope = group.first()
             // Test-only if every scope sharing this classpath is a test scope.
             val tests = group.all { it.tests }
-            val result = ClasspathClassSource.open(scope.outputDirs + scope.jars).use { source ->
-                Reachability.analyze(
-                    source,
-                    entryClasses(scope.outputDirs),
-                    checkCanceled = { indicator.checkCanceled() },
-                )
+            val result = try {
+                ClasspathClassSource.open(scope.outputDirs + scope.jars).use { source ->
+                    Reachability.analyze(
+                        source,
+                        entryClasses(scope.outputDirs),
+                        checkCanceled = { indicator.checkCanceled() },
+                    )
+                }
+            } catch (cancelled: ProcessCanceledException) {
+                throw cancelled
+            } catch (failure: Exception) {
+                // One unreadable classpath must not cost every other verdict,
+                // and an unfinished walk may only ever say "undetermined".
+                log.warn("Staleguard: reachability walk failed for ${scope.name}", failure)
+                null
             }
             // Observe and drop: many modules must not mean many live walks.
             for ((pair, touched) in touchedBy) {
                 if (pair.first.jars.none { it in scope.jars }) continue
-                observations.getOrPut(pair) { ArrayList() } += ReachVerdicts.observe(touched, result, tests)
+                observations.getOrPut(pair) { ArrayList() } += result
+                    ?.let { ReachVerdicts.observe(touched, it, tests) }
+                    ?: ReachVerdicts.Observation(tests, complete = false, reached = emptySet(), shortest = null)
             }
         }
 
@@ -258,7 +273,7 @@ class ReachabilityService(private val project: Project) {
     ): FixDiff.Result? {
         cache.read(coordinates, from, to)?.let { return it }
         if (StaleguardSettings.getInstance().state.offlineMode) return null
-        val workspace = Files.createTempDirectory("staleguard-reach")
+        val workspace = runCatching { Files.createTempDirectory("staleguard-reach") }.getOrNull() ?: return null
         try {
             val fromJar = localFrom
                 ?: ArtifactJars.fetch(coordinates, from, workspace.resolve("from.jar")) { indicator.isCanceled }
