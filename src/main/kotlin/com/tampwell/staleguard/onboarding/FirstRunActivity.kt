@@ -17,9 +17,10 @@ import kotlinx.coroutines.withContext
 
 /**
  * One-time onboarding toast on the first project opened after install.
- * The #1 cause of "plugin doesn't work" reviews is users never opening a
- * build file — so the single actionable button does exactly that.
- * One notification, dismissible, never repeats. No tour, no nagging.
+ * Staleguard's strongest checks run on request, so a new user who is never
+ * shown the checkup never sees what it does: the first button runs it, the
+ * second opens a build file for the in-editor warnings. One notification,
+ * dismissible, never repeats. No tour, no nagging.
  */
 class FirstRunActivity : ProjectActivity {
 
@@ -40,6 +41,11 @@ class FirstRunActivity : ProjectActivity {
                 StaleguardBundle.message("onboarding.message"),
                 NotificationType.INFORMATION,
             )
+        notification.addAction(
+            NotificationAction.createSimpleExpiring(StaleguardBundle.message("checkup.action")) {
+                com.tampwell.staleguard.checkup.RunCheckupAction.run(project)
+            },
+        )
         notification.addAction(
             NotificationAction.createSimpleExpiring(StaleguardBundle.message("onboarding.open")) {
                 openFirstBuildFile(project)

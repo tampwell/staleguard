@@ -51,5 +51,6 @@ class ApplyAllPatchAction : AnAction() {
         val content = StaleguardBundle.message("patchall.applied", applied) +
             (UpgradeApplier.relockAdvice(patches)?.let { "\n$it" } ?: "")
         UpgradeApplier.notify(project, content, NotificationType.INFORMATION)
+        if (applied > 0) com.tampwell.staleguard.onboarding.FeedbackPrompt.valueDelivered(project)
     }
 }

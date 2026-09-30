@@ -533,6 +533,7 @@ class StaleguardStatsPanel(private val project: Project) :
             .createActionToolbar(
                 "StaleguardStats",
                 DefaultActionGroup(
+                    com.tampwell.staleguard.checkup.RunCheckupAction(),
                     RefreshAllAction(), ExportAction(), SbomExportAction(), CheckClasspathAction(),
                     com.tampwell.staleguard.reach.CheckReachabilityAction(), ReportIssueAction(),
                 ),

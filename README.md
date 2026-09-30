@@ -79,6 +79,10 @@ Vulnerability Reachability, the fixed release of each vulnerable artifact is dow
 from your configured repositories to learn what the fix changed, and that comparison is cached
 permanently, so later checks are offline. Nothing downloads unless you run the check.
 
+If Staleguard itself fails, the IDE's standard error dialog offers to send the report to the
+plugin's JetBrains Marketplace page, where only the developer can see it. Nothing is sent
+unless you choose to send it (or have turned on the IDE's automatic error reporting).
+
 ## Requirements
 
 IntelliJ IDEA or Android Studio on platform 2024.3 or newer.

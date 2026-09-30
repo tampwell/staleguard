@@ -55,6 +55,7 @@ class LinkageDialog(
                         .hasProjects(),
                 )
                 val applied = LinkageFixApplier.apply(project, steps)
+                if (applied.lines.isNotEmpty()) com.tampwell.staleguard.onboarding.FeedbackPrompt.valueDelivered(project)
                 if (applied.snippets.isNotEmpty()) {
                     java.awt.Toolkit.getDefaultToolkit().systemClipboard.setContents(
                         java.awt.datatransfer.StringSelection(applied.snippets.joinToString("\n\n")),

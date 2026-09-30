@@ -57,5 +57,6 @@ class BatchUpdateAction : AnAction() {
         val content = StaleguardBundle.message("batch.applied", applied) +
             (UpgradeApplier.relockAdvice(selected)?.let { "\n$it" } ?: "")
         UpgradeApplier.notify(project, content, NotificationType.INFORMATION)
+        if (applied > 0) com.tampwell.staleguard.onboarding.FeedbackPrompt.valueDelivered(project)
     }
 }
