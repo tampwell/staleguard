@@ -4,9 +4,7 @@ import com.intellij.openapi.application.ReadAction
 import com.intellij.openapi.components.Service
 import com.intellij.openapi.components.service
 import com.intellij.openapi.progress.ProgressIndicator
-import com.intellij.openapi.progress.ProgressManager
-import com.intellij.openapi.util.Computable
-import com.intellij.openapi.progress.runBlockingCancellable
+import com.intellij.openapi.progress.ProcessCanceledException
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
 import com.tampwell.staleguard.StaleguardBundle
@@ -31,6 +29,8 @@ import com.tampwell.staleguard.services.VulnerabilityService
 import com.tampwell.staleguard.settings.StaleguardSettings
 import com.tampwell.staleguard.toolwindow.BuildFileRows
 import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.sync.Semaphore
@@ -46,7 +46,7 @@ import kotlinx.coroutines.sync.withPermit
  * paths every other feature uses, and nothing runs in the background.
  */
 @Service(Service.Level.PROJECT)
-class CheckupService(private val project: Project) {
+class CheckupService(private val project: Project, private val scope: CoroutineScope) {
 
     /** Where advisories come from: the warm OSV cache. A seam only for tests, which must not need osv.dev. */
     internal var advisories: (Coordinates, String) -> List<OsvAdvisory>? = { coordinates, version ->
@@ -63,15 +63,6 @@ class CheckupService(private val project: Project) {
     )
 
     fun run(indicator: ProgressIndicator): Outcome {
-        // The lookups block cancellably, which needs an indicator bound to
-        // this thread; a background task binds one, any other caller gets it here.
-        if (ProgressManager.getInstance().progressIndicator == null) {
-            return ProgressManager.getInstance().runProcess(Computable { runBound(indicator) }, indicator)
-        }
-        return runBound(indicator)
-    }
-
-    private fun runBound(indicator: ProgressIndicator): Outcome {
         indicator.isIndeterminate = false
 
         indicator.text = StaleguardBundle.message("checkup.progress.collect")
@@ -125,7 +116,11 @@ class CheckupService(private val project: Project) {
 
         val lookup = VersionLookupService.getInstance()
         val vulnerabilities = VulnerabilityService.getInstance()
-        runBlockingCancellable {
+        // The lookups are suspend functions. They run on this service's own
+        // scope while this thread waits and polls the indicator, because the
+        // platform's blocking bridge (runBlockingCancellable) is still
+        // experimental on the 243 and 251 lines this plugin supports.
+        val work = scope.async(Dispatchers.IO) {
             val permits = Semaphore(LOOKUP_CONCURRENCY)
             var done = 0
             coordinates.map { coords ->
@@ -141,6 +136,15 @@ class CheckupService(private val project: Project) {
             for (chunk in (versioned + transitive).distinct().chunked(VULN_BATCH)) {
                 runCatching { vulnerabilities.lookupBatch(chunk) }
             }
+        }
+        try {
+            while (!work.isCompleted) {
+                indicator.checkCanceled()
+                Thread.sleep(POLL_MS)
+            }
+        } catch (cancelled: ProcessCanceledException) {
+            work.cancel()
+            throw cancelled
         }
     }
 
@@ -273,6 +277,7 @@ class CheckupService(private val project: Project) {
     companion object {
         private const val LOOKUP_CONCURRENCY = 8
         private const val VULN_BATCH = 200
+        private const val POLL_MS = 50L
 
         fun getInstance(project: Project): CheckupService = project.service()
     }
